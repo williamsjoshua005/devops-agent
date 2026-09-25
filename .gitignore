@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.npmrc
+.audit/
+reports/
+knowledge_base/
+*.log

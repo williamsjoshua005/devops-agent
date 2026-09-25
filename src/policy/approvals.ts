@@ -1,0 +1,64 @@
+import * as readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+import { PolicyEvaluation } from '../types.js';
+import { colorizeDiff } from './diff.js';
+
+export interface ApprovalHandler {
+  requestApproval(evaluation: PolicyEvaluation, toolName: string, args: Record<string, any>): Promise<boolean>;
+}
+
+/**
+ * Interactive CLI Approval Handler with Visual Diff Previews & Production Warnings
+ */
+export class CliApprovalHandler implements ApprovalHandler {
+  async requestApproval(
+    evaluation: PolicyEvaluation,
+    toolName: string,
+    args: Record<string, any>
+  ): Promise<boolean> {
+    console.log('\n\x1b[33m─────────────────────────────────────────────────────────────\x1b[0m');
+
+    if (evaluation.isProductionWarning) {
+      console.log('\x1b[41m\x1b[37m\x1b[1m ⚠️  PRODUCTION ENVIRONMENT ALERT — HIGH-RISK MUTATION  \x1b[0m');
+    } else {
+      console.log('\x1b[1m\x1b[33m⚠️  [HUMAN-IN-THE-LOOP APPROVAL REQUIRED]\x1b[0m');
+    }
+
+    console.log(`\x1b[1mAction:\x1b[0m  ${evaluation.actionSummary}`);
+    console.log(`\x1b[1mReason:\x1b[0m  ${evaluation.reason}`);
+
+    if (toolName === 'shell_exec') {
+      console.log(`\x1b[1mCommand:\x1b[0m \x1b[36m${args.command}\x1b[0m`);
+    } else if (toolName === 'file_write') {
+      console.log(`\x1b[1mTarget:\x1b[0m  \x1b[36m${args.path}\x1b[0m`);
+      if (evaluation.diff) {
+        console.log('\n\x1b[1m\x1b[35mVisual Diff Preview:\x1b[0m');
+        console.log(colorizeDiff(evaluation.diff));
+      }
+    } else if (toolName === 'gitops_create_pr') {
+      console.log(`\x1b[1mBranch:\x1b[0m   \x1b[36m${args.branchName}\x1b[0m`);
+      console.log(`\x1b[1mTitle:\x1b[0m    ${args.title}`);
+      console.log(`\x1b[1mFiles:\x1b[0m    ${(args.files || []).join(', ')}`);
+    }
+
+    console.log('\x1b[33m─────────────────────────────────────────────────────────────\x1b[0m');
+
+    const rl = readline.createInterface({ input, output });
+    try {
+      const promptText = evaluation.isProductionWarning
+        ? '\x1b[1m\x1b[31mConfirm execution on PRODUCTION? [y/N]: \x1b[0m'
+        : '\x1b[1mApprove execution? [y/N]: \x1b[0m';
+
+      const answer = await rl.question(promptText);
+      const approved = answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes';
+      if (approved) {
+        console.log('\x1b[32m✔ Approved by operator. Executing...\x1b[0m\n');
+      } else {
+        console.log('\x1b[31m✖ Rejected by operator. Aborting action.\x1b[0m\n');
+      }
+      return approved;
+    } finally {
+      rl.close();
+    }
+  }
+}

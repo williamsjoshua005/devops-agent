@@ -1,0 +1,349 @@
+import { ToolDefinition } from '../types.js';
+import { ShellTool } from './shell.js';
+import { K8sTool } from './k8s.js';
+import { AzureTool } from './azure.js';
+import { FileTool } from './files.js';
+import { GitOpsTool } from './gitops.js';
+import { MetricsTool } from './metrics.js';
+import { PostmortemTool } from './postmortem.js';
+
+export const TOOL_DEFINITIONS: ToolDefinition[] = [
+  {
+    name: 'shell_exec',
+    description:
+      'Execute a bash/zsh command in the terminal. Use for running CLI tools (kubectl, helm, az, docker, git) or running custom scripts and diagnostics.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: {
+          type: 'string',
+          description: 'The shell command line string to execute.',
+        },
+      },
+      required: ['command'],
+    },
+  },
+  {
+    name: 'k8s_get_resources',
+    description:
+      'Query Kubernetes resources (pods, deployments, services, ingress, events, nodes). Omit namespace to query all namespaces.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resource: {
+          type: 'string',
+          description: 'Kubernetes resource type, e.g. "pods", "deployments", "services", "ingress", "events", "nodes".',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace. If omitted, queries across all namespaces (-A).',
+        },
+        labelSelector: {
+          type: 'string',
+          description: 'Optional Kubernetes label selector (e.g. "app=payment").',
+        },
+      },
+      required: ['resource'],
+    },
+  },
+  {
+    name: 'k8s_describe_resource',
+    description:
+      'Describe a Kubernetes resource to inspect detailed conditions, events, lifecycle state, and configuration.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resource: {
+          type: 'string',
+          description: 'Resource type (e.g. "pod", "deployment", "service").',
+        },
+        name: {
+          type: 'string',
+          description: 'Resource name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace where the resource lives.',
+        },
+      },
+      required: ['resource', 'name'],
+    },
+  },
+  {
+    name: 'k8s_get_logs',
+    description:
+      'Fetch recent logs for a Kubernetes pod. Supports retrieving previous crashed instance logs with previous=true.',
+    parameters: {
+      type: 'object',
+      properties: {
+        podName: {
+          type: 'string',
+          description: 'Name of the pod.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace of the pod.',
+        },
+        container: {
+          type: 'string',
+          description: 'Optional container name if the pod has multiple containers.',
+        },
+        tailLines: {
+          type: 'number',
+          description: 'Number of recent lines to retrieve (default: 100).',
+        },
+        previous: {
+          type: 'boolean',
+          description: 'Set to true to retrieve logs from previous crashed/terminated container instance (-p). Crucial for CrashLoopBackOff triage.',
+        },
+      },
+      required: ['podName'],
+    },
+  },
+  {
+    name: 'k8s_rollout_restart',
+    description:
+      'Trigger a rolling restart of a Kubernetes deployment, daemonset, or statefulset. (Requires user confirmation).',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the deployment/workload.',
+        },
+        kind: {
+          type: 'string',
+          description: 'Workload kind: "deployment", "daemonset", or "statefulset" (default: "deployment").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (default: "default").',
+        },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'metrics_query',
+    description: 'Query resource metrics from Kubernetes metrics-server (CPU/RAM usage for pods or nodes) or Prometheus.',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          enum: ['pods', 'nodes', 'prometheus'],
+          description: 'Target to query: "pods", "nodes", or "prometheus".',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace filter when querying pods.',
+        },
+        promQuery: {
+          type: 'string',
+          description: 'PromQL query expression when target is "prometheus".',
+        },
+      },
+      required: ['target'],
+    },
+  },
+  {
+    name: 'gitops_create_pr',
+    description: 'Create a Git branch, commit changes, and open a Pull Request following GitOps best practices. (Requires user confirmation).',
+    parameters: {
+      type: 'object',
+      properties: {
+        branchName: {
+          type: 'string',
+          description: 'Branch name (e.g. "fix/increase-payment-memory-limit").',
+        },
+        title: {
+          type: 'string',
+          description: 'Pull Request title.',
+        },
+        body: {
+          type: 'string',
+          description: 'Pull Request markdown description explaining the Root Cause Analysis (RCA) and changes.',
+        },
+        files: {
+          type: 'array' as any,
+          items: { type: 'string' },
+          description: 'List of modified file paths to stage and commit.',
+        },
+      },
+      required: ['branchName', 'title', 'body'],
+    },
+  },
+  {
+    name: 'generate_postmortem_report',
+    description: 'Generate an incident postmortem markdown report and index it into the local incident knowledge base.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Incident title.',
+        },
+        severity: {
+          type: 'string',
+          enum: ['P1', 'P2', 'P3', 'P4'],
+          description: 'Incident severity level.',
+        },
+        service: {
+          type: 'string',
+          description: 'Name of the affected service or infrastructure component.',
+        },
+        impact: {
+          type: 'string',
+          description: 'User and business impact of the outage/incident.',
+        },
+        symptom: {
+          type: 'string',
+          description: 'Observed technical symptoms.',
+        },
+        rootCause: {
+          type: 'string',
+          description: 'Detailed Root Cause Analysis (RCA).',
+        },
+        remediation: {
+          type: 'string',
+          description: 'Remediation and steps taken to restore service.',
+        },
+        actionItems: {
+          type: 'array' as any,
+          items: { type: 'string' },
+          description: 'Preventative action items to prevent recurrence.',
+        },
+      },
+      required: ['title', 'severity', 'service', 'impact', 'symptom', 'rootCause', 'remediation'],
+    },
+  },
+  {
+    name: 'knowledge_base_search',
+    description: 'Search past incident postmortems in the knowledge base for previous solutions and root causes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Keywords to search for (e.g. "CrashLoopBackOff payment-service", "OOMKilled", "502 Bad Gateway").',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'az_resource_list',
+    description: 'List Azure cloud resources in a subscription or specific resource group.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resourceGroup: {
+          type: 'string',
+          description: 'Optional resource group name.',
+        },
+        resourceType: {
+          type: 'string',
+          description: 'Optional Azure resource type filter (e.g. "Microsoft.ContainerService/managedClusters").',
+        },
+      },
+    },
+  },
+  {
+    name: 'az_aks_status',
+    description: 'Inspect status, node pools, and health of an Azure Kubernetes Service (AKS) managed cluster.',
+    parameters: {
+      type: 'object',
+      properties: {
+        clusterName: {
+          type: 'string',
+          description: 'AKS cluster name.',
+        },
+        resourceGroup: {
+          type: 'string',
+          description: 'Resource group containing the AKS cluster.',
+        },
+      },
+      required: ['clusterName', 'resourceGroup'],
+    },
+  },
+  {
+    name: 'file_read',
+    description: 'Read the contents of a local file (e.g. YAML manifest, Helm values, Dockerfile).',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative or absolute file path to read.',
+        },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'file_write',
+    description: 'Create or overwrite a local file with new content. (Requires user confirmation).',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'File path to write.',
+        },
+        content: {
+          type: 'string',
+          description: 'Text content to write into the file.',
+        },
+      },
+      required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'file_list',
+    description: 'List files and directories in a local folder.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dirPath: {
+          type: 'string',
+          description: 'Directory path (defaults to current directory ".").',
+        },
+      },
+    },
+  },
+];
+
+export async function executeTool(name: string, args: Record<string, any>): Promise<string> {
+  switch (name) {
+    case 'shell_exec':
+      return await ShellTool.run(args.command);
+    case 'k8s_get_resources':
+      return await K8sTool.getResources(args.resource, args.namespace, args.labelSelector);
+    case 'k8s_describe_resource':
+      return await K8sTool.describeResource(args.resource, args.name, args.namespace);
+    case 'k8s_get_logs':
+      return await K8sTool.getLogs(args.podName, args.namespace, args.container, args.tailLines, args.previous);
+    case 'k8s_rollout_restart':
+      return await K8sTool.rolloutRestart(args.name, args.kind, args.namespace);
+    case 'metrics_query':
+      return await MetricsTool.query(args.target, args.namespace, args.promQuery);
+    case 'gitops_create_pr':
+      return await GitOpsTool.createPR(args as any);
+    case 'generate_postmortem_report':
+      return await PostmortemTool.generate(args as any);
+    case 'knowledge_base_search':
+      return await PostmortemTool.searchKnowledgeBase(args.query);
+    case 'az_resource_list':
+      return await AzureTool.listResources(args.resourceGroup, args.resourceType);
+    case 'az_aks_status':
+      return await AzureTool.getAksStatus(args.clusterName, args.resourceGroup);
+    case 'file_read':
+      return await FileTool.read(args.path);
+    case 'file_write':
+      return await FileTool.write(args.path, args.content);
+    case 'file_list':
+      return await FileTool.list(args.dirPath);
+    default:
+      throw new Error(`Tool "${name}" is not implemented.`);
+  }
+}
