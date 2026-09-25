@@ -2,19 +2,26 @@ import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { PolicyEvaluation } from '../types.js';
 import { colorizeDiff } from './diff.js';
+import { SreReview } from '../harness/reviewer.js';
 
 export interface ApprovalHandler {
-  requestApproval(evaluation: PolicyEvaluation, toolName: string, args: Record<string, any>): Promise<boolean>;
+  requestApproval(
+    evaluation: PolicyEvaluation,
+    toolName: string,
+    args: Record<string, any>,
+    sreReview?: SreReview
+  ): Promise<boolean>;
 }
 
 /**
- * Interactive CLI Approval Handler with Visual Diff Previews & Production Warnings
+ * Interactive CLI Approval Handler with Visual Diff Previews, Production Warnings, & Multi-Agent SRE Review
  */
 export class CliApprovalHandler implements ApprovalHandler {
   async requestApproval(
     evaluation: PolicyEvaluation,
     toolName: string,
-    args: Record<string, any>
+    args: Record<string, any>,
+    sreReview?: SreReview
   ): Promise<boolean> {
     console.log('\n\x1b[33m─────────────────────────────────────────────────────────────\x1b[0m');
 
@@ -27,16 +34,32 @@ export class CliApprovalHandler implements ApprovalHandler {
     console.log(`\x1b[1mAction:\x1b[0m  ${evaluation.actionSummary}`);
     console.log(`\x1b[1mReason:\x1b[0m  ${evaluation.reason}`);
 
+    // Show Senior SRE Peer Review verdict
+    if (sreReview) {
+      console.log('\n\x1b[1m\x1b[34m[Senior SRE Peer Review Assessment]:\x1b[0m');
+      const badge =
+        sreReview.verdict === 'APPROVED'
+          ? '\x1b[32m✔ APPROVED\x1b[0m'
+          : sreReview.verdict === 'CAUTION'
+          ? '\x1b[33m⚠️ CAUTION ADVISED\x1b[0m'
+          : '\x1b[31m⛔ REJECTED BY ARCHITECT\x1b[0m';
+      console.log(`  Verdict:      ${badge} (Blast Radius: ${sreReview.blastRadius})`);
+      console.log(`  Critique:     ${sreReview.critique}`);
+      if (sreReview.suggestedSafeguards.length > 0) {
+        console.log(`  Safeguards:   ${sreReview.suggestedSafeguards.join('; ')}`);
+      }
+    }
+
     if (toolName === 'shell_exec') {
-      console.log(`\x1b[1mCommand:\x1b[0m \x1b[36m${args.command}\x1b[0m`);
+      console.log(`\n\x1b[1mCommand:\x1b[0m \x1b[36m${args.command}\x1b[0m`);
     } else if (toolName === 'file_write') {
-      console.log(`\x1b[1mTarget:\x1b[0m  \x1b[36m${args.path}\x1b[0m`);
+      console.log(`\n\x1b[1mTarget:\x1b[0m  \x1b[36m${args.path}\x1b[0m`);
       if (evaluation.diff) {
         console.log('\n\x1b[1m\x1b[35mVisual Diff Preview:\x1b[0m');
         console.log(colorizeDiff(evaluation.diff));
       }
     } else if (toolName === 'gitops_create_pr') {
-      console.log(`\x1b[1mBranch:\x1b[0m   \x1b[36m${args.branchName}\x1b[0m`);
+      console.log(`\n\x1b[1mBranch:\x1b[0m   \x1b[36m${args.branchName}\x1b[0m`);
       console.log(`\x1b[1mTitle:\x1b[0m    ${args.title}`);
       console.log(`\x1b[1mFiles:\x1b[0m    ${(args.files || []).join(', ')}`);
     }

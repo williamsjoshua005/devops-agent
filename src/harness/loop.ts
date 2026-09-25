@@ -6,6 +6,7 @@ import { ApprovalHandler, CliApprovalHandler } from '../policy/approvals.js';
 import { AuditLogger } from '../policy/audit.js';
 import { LLMClient } from './llm.js';
 import { getRunbookPrompt } from '../runbooks/index.js';
+import { SeniorSreReviewer, SreReview } from './reviewer.js';
 
 export interface AgentRunOptions {
   task: string;
@@ -23,12 +24,14 @@ export class DevOpsAgentHarness {
   private messages: Message[] = [];
   private defaultApprovalHandler: ApprovalHandler;
   private auditLogger: AuditLogger;
+  private sreReviewer: SeniorSreReviewer;
 
   constructor(llm: LLMClient, context: AgentContext, auditLogger?: AuditLogger) {
     this.llm = llm;
     this.context = context;
     this.defaultApprovalHandler = new CliApprovalHandler();
     this.auditLogger = auditLogger || new AuditLogger(context.cwd);
+    this.sreReviewer = new SeniorSreReviewer(llm);
     this.initSystemPrompt();
   }
 
@@ -38,6 +41,10 @@ export class DevOpsAgentHarness {
 
   getContext(): AgentContext {
     return this.context;
+  }
+
+  getSreReviewer(): SeniorSreReviewer {
+    return this.sreReviewer;
   }
 
   private initSystemPrompt() {
@@ -57,17 +64,18 @@ ${this.context.kubeContext ? `- Current Kubernetes Context: ${this.context.kubeC
 ${envWarning}
 
 ### Behavioral Guidelines (Junior DevOps Discipline):
-1. **Evidence First (Never Guess):** Always run diagnostic queries (\`k8s_get_resources\`, \`k8s_describe_resource\`, \`k8s_get_logs\`, \`metrics_query\`, \`az_*\`, \`file_read\`) to gather facts before jumping to conclusions or actions.
+1. **Evidence First (Never Guess):** Always run diagnostic queries (\`k8s_get_resources\`, \`k8s_describe_resource\`, \`k8s_get_logs\`, \`metrics_query\`, \`cert_expiry_check\`, \`finops_idle_resources_audit\`, \`az_*\`, \`file_read\`) to gather facts before jumping to conclusions or actions.
 2. **Consult Incident History:** When encountering recurrent issues, use \`knowledge_base_search\` to check if past incidents had similar root causes and proven remediations.
-3. **Prefer GitOps over Direct Apply:** For configuration and manifest changes, use \`gitops_create_pr\` to branch and open a reviewable Pull Request instead of mutating clusters directly.
-4. **Systematic Incident Reports & Postmortems:**
+3. **Security Audits:** Run \`security_scan\` on Kubernetes manifests and Dockerfiles before applying them to ensure no privileged containers, root users, or missing resource limits.
+4. **Prefer GitOps over Direct Apply:** For configuration and manifest changes, use \`gitops_create_pr\` to branch and open a reviewable Pull Request instead of mutating clusters directly.
+5. **Systematic Incident Reports & Postmortems:**
    - Summarize findings in standard RCA format: Symptom -> Root Cause -> Remediation -> Verification.
    - For major outages or completed fixes, call \`generate_postmortem_report\` to produce a formal postmortem and store it in organizational memory.
-5. **Safety & Mutations:**
+6. **Safety & Mutations:**
    - Diagnostic and read-only commands run autonomously.
-   - Any mutating operations (restarts, applying manifests, scaling, deletes) will trigger a human-in-the-loop approval gate. Explain why you need the action before calling it.
+   - Any mutating operations (restarts, applying manifests, scaling, deletes) will trigger a Senior SRE architectural critique and a human-in-the-loop approval gate.
+   - Workload restarts are automatically monitored by the Rollout Watcher; if new pods crash, an automated rollback is triggered.
    - Destructive actions (like deleting entire namespaces or cluster-wide destruction) are blocked.
-6. **Dry-Runs & Validation:** When modifying manifests or Helm values, inspect existing files first, explain diffs clearly, and test syntax.
 
 ### Standard Operating Runbooks:
 ${runbooks}
@@ -131,7 +139,10 @@ ${runbooks}
           console.log(`\n\x1b[31m⛔ ${toolOutput}\x1b[0m\n`);
           approved = false;
         } else if (policy.requiresApproval) {
-          approved = await approvalHandler.requestApproval(policy, tc.name, tc.arguments);
+          // Pre-flight Senior SRE Architectural Review
+          const sreReview = await this.sreReviewer.review(policy, tc.name, tc.arguments, this.context);
+
+          approved = await approvalHandler.requestApproval(policy, tc.name, tc.arguments, sreReview);
           if (!approved) {
             toolOutput = `[ACTION CANCELLED BY USER]: Operator declined approval for "${policy.actionSummary}". Please revise your plan or ask the operator for alternate instructions.`;
           } else {

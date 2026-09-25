@@ -78,7 +78,11 @@ export class Guardrails {
       toolName === 'az_aks_status' ||
       toolName === 'metrics_query' ||
       toolName === 'knowledge_base_search' ||
-      toolName === 'generate_postmortem_report'
+      toolName === 'generate_postmortem_report' ||
+      toolName === 'security_scan' ||
+      toolName === 'cert_expiry_check' ||
+      toolName === 'finops_idle_resources_audit' ||
+      toolName === 'k8s_watch_rollout'
     ) {
       return {
         tier: 'READ',

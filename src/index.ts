@@ -6,12 +6,16 @@ import { execSync } from 'node:child_process';
 import { LLMClient } from './harness/llm.js';
 import { DevOpsAgentHarness } from './harness/loop.js';
 import { AgentContext, EnvironmentLevel, LLMConfig } from './types.js';
-import { TOOL_DEFINITIONS } from './tools/index.js';
+import { TOOL_DEFINITIONS, executeTool } from './tools/index.js';
 import { RUNBOOKS } from './runbooks/index.js';
 import { AuditLogger } from './policy/audit.js';
 import { AlertWebhookServer } from './server/webhook.js';
 import { TeamsCardBuilder } from './adapters/teams.js';
 import { PostmortemTool } from './tools/postmortem.js';
+import { DevOpsMcpServer } from './mcp/server.js';
+import { SecurityLinterTool } from './tools/security.js';
+import { CertExpiryTool } from './tools/certificates.js';
+import { FinOpsTool } from './tools/finops.js';
 
 dotenv.config();
 
@@ -20,6 +24,16 @@ for (const key of ['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY']) {
   if (process.env[key] && !process.env[key]!.startsWith('http://') && !process.env[key]!.startsWith('https://')) {
     process.env[key] = `http://${process.env[key]}`;
   }
+}
+
+// Check if --mcp flag is passed to start as an MCP Server over stdio
+if (process.argv.includes('--mcp')) {
+  DevOpsMcpServer.startStdio();
+} else {
+  main().catch((err) => {
+    console.error('Fatal error:', err);
+    process.exit(1);
+  });
 }
 
 function detectTools(): string[] {
@@ -94,8 +108,8 @@ async function main() {
 
   console.log('\x1b[36m');
   console.log('╔════════════════════════════════════════════════════════════════╗');
-  console.log('║             JUNIOR DEVOPS AGENT ENGINE (v2.0)                  ║');
-  console.log('║    Autonomous • Guardrailed • GitOps • Observability • Teams   ║');
+  console.log('║             JUNIOR DEVOPS AGENT ENGINE (v3.0)                  ║');
+  console.log('║   Autonomous • Dual-Agent SRE • Rollback Watcher • MCP Hub     ║');
   console.log('╚════════════════════════════════════════════════════════════════╝');
   console.log('\x1b[0m');
   console.log(`\x1b[1mEnvironment:\x1b[0m         ${envBadge}`);
@@ -103,7 +117,7 @@ async function main() {
   console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
   console.log(`\x1b[1mAudit Logging:\x1b[0m       .audit/audit.jsonl (Active)`);
-  console.log('\x1b[90mCommands: /runbooks, /tools, /audit, /kb, /server, /teams, /exit\x1b[0m\n');
+  console.log('\x1b[90mCommands: /runbooks, /tools, /audit, /kb, /security, /certs, /finops, /mcp, /teams, /exit\x1b[0m\n');
 
   // Check if --server flag passed
   const args = process.argv.slice(2);
@@ -179,6 +193,49 @@ async function main() {
       continue;
     }
 
+    if (trimmed.startsWith('/security')) {
+      const targetPath = trimmed.replace('/security', '').trim() || 'Dockerfile';
+      console.log(`\n\x1b[34mRunning security audit on ${targetPath}...\x1b[0m`);
+      const report = await SecurityLinterTool.scan(targetPath);
+      console.log(`\n${report}\n`);
+      continue;
+    }
+
+    if (trimmed === '/certs') {
+      console.log('\n\x1b[34mScanning TLS certificates for expiration...\x1b[0m');
+      const report = await CertExpiryTool.check({});
+      console.log(`\n${report}\n`);
+      continue;
+    }
+
+    if (trimmed === '/finops') {
+      console.log('\n\x1b[34mScanning for idle storage and orphaned cloud resources...\x1b[0m');
+      const report = await FinOpsTool.audit();
+      console.log(`\n${report}\n`);
+      continue;
+    }
+
+    if (trimmed === '/mcp') {
+      console.log('\n\x1b[1mModel Context Protocol (MCP) Configuration:\x1b[0m');
+      console.log('To expose this DevOps agent to Claude Desktop, Cursor, or Antigravity, add to your MCP config:');
+      console.log(
+        JSON.stringify(
+          {
+            mcpServers: {
+              juniorDevops: {
+                command: 'node',
+                args: ['/Users/joshua.williams/Documents/research/junior-devops-agent/dist/index.js', '--mcp'],
+              },
+            },
+          },
+          null,
+          2
+        )
+      );
+      console.log('');
+      continue;
+    }
+
     if (trimmed === '/server') {
       if (!webhookServer) {
         const port = Number(process.env.WEBHOOK_PORT) || 3456;
@@ -202,7 +259,14 @@ async function main() {
         },
         'k8s_rollout_restart',
         { name: 'payment-service', namespace: 'default' },
-        'sample-req-123'
+        'sample-req-123',
+        {
+          approved: true,
+          verdict: 'CAUTION',
+          blastRadius: 'MEDIUM',
+          critique: 'Rolling restart in production. Ensure PodDisruptionBudget is respected.',
+          suggestedSafeguards: ['Monitor 5xx error rate on ingress during rollout'],
+        }
       );
       console.log('\n\x1b[1mSample Microsoft Teams Adaptive Card Payload:\x1b[0m');
       console.log(JSON.stringify(sampleCard, null, 2));
@@ -238,8 +302,3 @@ async function runTask(harness: DevOpsAgentHarness, task: string) {
     console.error(`\x1b[31mError during execution: ${err.message}\x1b[0m\n`);
   }
 }
-
-main().catch((err) => {
-  console.error('Fatal error:', err);
-  process.exit(1);
-});

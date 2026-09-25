@@ -1,5 +1,6 @@
 import { PolicyEvaluation } from '../types.js';
 import { ApprovalHandler } from '../policy/approvals.js';
+import { SreReview } from '../harness/reviewer.js';
 
 export interface TeamsAdaptiveCard {
   type: string;
@@ -10,15 +11,30 @@ export interface TeamsAdaptiveCard {
 
 export class TeamsCardBuilder {
   /**
-   * Builds an Adaptive Card for operator approval in Microsoft Teams
+   * Builds an Adaptive Card for operator approval in Microsoft Teams with SRE peer review facts
    */
   static buildApprovalCard(
     evaluation: PolicyEvaluation,
     toolName: string,
     args: Record<string, any>,
-    requestId: string
+    requestId: string,
+    sreReview?: SreReview
   ): TeamsAdaptiveCard {
     const isProd = evaluation.isProductionWarning ?? false;
+
+    const facts = [
+      { title: 'Action:', value: evaluation.actionSummary },
+      { title: 'Tool:', value: toolName },
+      { title: 'Reason:', value: evaluation.reason },
+      { title: 'Environment:', value: isProd ? '🔴 PRODUCTION' : '🟢 Non-Production' },
+    ];
+
+    if (sreReview) {
+      facts.push({
+        title: 'SRE Peer Review:',
+        value: `${sreReview.verdict} (Blast Radius: ${sreReview.blastRadius}) - ${sreReview.critique}`,
+      });
+    }
 
     const card: TeamsAdaptiveCard = {
       type: 'AdaptiveCard',
@@ -38,12 +54,7 @@ export class TeamsCardBuilder {
         },
         {
           type: 'FactSet',
-          facts: [
-            { title: 'Action:', value: evaluation.actionSummary },
-            { title: 'Tool:', value: toolName },
-            { title: 'Reason:', value: evaluation.reason },
-            { title: 'Environment:', value: isProd ? '🔴 PRODUCTION' : '🟢 Non-Production' },
-          ],
+          facts,
         },
       ],
       actions: [
@@ -147,19 +158,20 @@ export class TeamsApprovalHandler implements ApprovalHandler {
   async requestApproval(
     evaluation: PolicyEvaluation,
     toolName: string,
-    args: Record<string, any>
+    args: Record<string, any>,
+    sreReview?: SreReview
   ): Promise<boolean> {
     const card = TeamsCardBuilder.buildApprovalCard(
       evaluation,
       toolName,
       args,
-      `req_${Date.now()}`
+      `req_${Date.now()}`,
+      sreReview
     );
 
     console.log('\n\x1b[36m[Teams Adapter] Formatted Adaptive Card for Microsoft Teams:\x1b[0m');
     console.log(JSON.stringify(card, null, 2));
 
-    // If webhookUrl is configured, post the adaptive card to the Teams incoming webhook
     if (this.webhookUrl) {
       try {
         await fetch(this.webhookUrl, {
@@ -181,7 +193,6 @@ export class TeamsApprovalHandler implements ApprovalHandler {
       }
     }
 
-    // Default in mixed mode: fallback to terminal prompt if waiting in CLI
     return true;
   }
 }

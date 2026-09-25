@@ -6,6 +6,10 @@ import { FileTool } from './files.js';
 import { GitOpsTool } from './gitops.js';
 import { MetricsTool } from './metrics.js';
 import { PostmortemTool } from './postmortem.js';
+import { SecurityLinterTool } from './security.js';
+import { CertExpiryTool } from './certificates.js';
+import { FinOpsTool } from './finops.js';
+import { RolloutWatcher } from '../policy/watcher.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -103,7 +107,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'k8s_rollout_restart',
     description:
-      'Trigger a rolling restart of a Kubernetes deployment, daemonset, or statefulset. (Requires user confirmation).',
+      'Trigger a rolling restart of a Kubernetes deployment, daemonset, or statefulset. Automatically monitors rollout and auto-rolls back if pods crash. (Requires user confirmation).',
     parameters: {
       type: 'object',
       properties: {
@@ -121,6 +125,84 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         },
       },
       required: ['name'],
+    },
+  },
+  {
+    name: 'k8s_watch_rollout',
+    description:
+      'Monitor a Kubernetes rollout until completion. If rollout times out or pods enter CrashLoopBackOff, automatically triggers an automated rollback.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Workload name.',
+        },
+        kind: {
+          type: 'string',
+          description: 'Workload kind (default "deployment").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (default "default").',
+        },
+        timeoutSeconds: {
+          type: 'number',
+          description: 'Monitoring timeout window in seconds (default 30).',
+        },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'security_scan',
+    description:
+      'Audit a Kubernetes YAML manifest or Dockerfile for security vulnerabilities (privileged containers, running as root, missing resource limits, host mounts, hardcoded tokens).',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetPath: {
+          type: 'string',
+          description: 'Relative or absolute file path to the YAML manifest or Dockerfile to audit.',
+        },
+      },
+      required: ['targetPath'],
+    },
+  },
+  {
+    name: 'cert_expiry_check',
+    description:
+      'Inspect TLS certificates in Kubernetes secrets or against a live hostname to detect impending certificate expiration.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace to scan for TLS secrets (omit for all namespaces).',
+        },
+        hostname: {
+          type: 'string',
+          description: 'Live HTTPS hostname to inspect (e.g. "api.mycompany.com").',
+        },
+        port: {
+          type: 'number',
+          description: 'Target port for live HTTPS check (default 443).',
+        },
+      },
+    },
+  },
+  {
+    name: 'finops_idle_resources_audit',
+    description:
+      'Audit Kubernetes cluster and cloud for wasted resources: unattached PersistentVolumeClaims (PVCs), idle LoadBalancers without endpoints, and orphaned cloud disks.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Namespace to audit (omit for all namespaces).',
+        },
+      },
     },
   },
   {
@@ -165,7 +247,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Pull Request markdown description explaining the Root Cause Analysis (RCA) and changes.',
         },
         files: {
-          type: 'array' as any,
+          type: 'array',
           items: { type: 'string' },
           description: 'List of modified file paths to stage and commit.',
         },
@@ -209,7 +291,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Remediation and steps taken to restore service.',
         },
         actionItems: {
-          type: 'array' as any,
+          type: 'array',
           items: { type: 'string' },
           description: 'Preventative action items to prevent recurrence.',
         },
@@ -323,8 +405,22 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return await K8sTool.describeResource(args.resource, args.name, args.namespace);
     case 'k8s_get_logs':
       return await K8sTool.getLogs(args.podName, args.namespace, args.container, args.tailLines, args.previous);
-    case 'k8s_rollout_restart':
-      return await K8sTool.rolloutRestart(args.name, args.kind, args.namespace);
+    case 'k8s_rollout_restart': {
+      const restartOutput = await K8sTool.rolloutRestart(args.name, args.kind, args.namespace);
+      // Automatically watch rollout for safety verification
+      const watchResult = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, 25);
+      return `${restartOutput}\n\n[Post-Mutation Verification]: ${watchResult.message}`;
+    }
+    case 'k8s_watch_rollout': {
+      const res = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, args.timeoutSeconds);
+      return `Rollout Watcher Result:\nSuccess: ${res.succeeded}\nMessage: ${res.message}\nAuto-RolledBack: ${res.rolledBack}`;
+    }
+    case 'security_scan':
+      return await SecurityLinterTool.scan(args.targetPath);
+    case 'cert_expiry_check':
+      return await CertExpiryTool.check(args as any);
+    case 'finops_idle_resources_audit':
+      return await FinOpsTool.audit(args.namespace);
     case 'metrics_query':
       return await MetricsTool.query(args.target, args.namespace, args.promQuery);
     case 'gitops_create_pr':

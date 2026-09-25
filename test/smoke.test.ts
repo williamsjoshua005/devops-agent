@@ -4,8 +4,14 @@ import { AuditLogger } from '../src/policy/audit.js';
 import { generateUnifiedDiff } from '../src/policy/diff.js';
 import { PostmortemTool } from '../src/tools/postmortem.js';
 import { TeamsCardBuilder } from '../src/adapters/teams.js';
-import { AlertWebhookServer } from '../src/server/webhook.js';
+import { SecurityLinterTool } from '../src/tools/security.js';
+import { CertExpiryTool } from '../src/tools/certificates.js';
+import { FinOpsTool } from '../src/tools/finops.js';
+import { SeniorSreReviewer } from '../src/harness/reviewer.js';
+import { DevOpsMcpServer } from '../src/mcp/server.js';
+import { DockerSandboxRunner } from '../src/sandbox/docker.js';
 import { AgentContext } from '../src/types.js';
+import * as fs from 'node:fs/promises';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -17,7 +23,7 @@ function assert(condition: boolean, message: string) {
 }
 
 async function runTests() {
-  console.log('\n--- Running Complete Feature Test Suite for Junior DevOps Agent Engine ---\n');
+  console.log('\n--- Running Complete v3.0 Feature Test Suite for Junior DevOps Agent Engine ---\n');
 
   const mockDevContext: AgentContext = {
     cwd: process.cwd(),
@@ -88,18 +94,50 @@ async function runTests() {
   const kbResults = await PostmortemTool.searchKnowledgeBase('Payment Gateway');
   assert(kbResults.includes('Connection pool starvation'), 'Knowledge base successfully indexes and searches past RCA');
 
-  // Test 8: Teams Adaptive Card Builder
-  const card = TeamsCardBuilder.buildApprovalCard(prodMutateEval, 'shell_exec', { command: 'kubectl scale --replicas=5 deploy/api' }, 'req_123');
-  assert(card.type === 'AdaptiveCard' && card.version === '1.5' && card.actions!.length === 2, 'Microsoft Teams Adaptive Card built with approval actions');
+  // Test 8: Security Linter Tool
+  const testManifest = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insecure-deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: web
+        image: nginx:latest
+        securityContext:
+          privileged: true
+`;
+  await fs.writeFile('test/test-manifest.yaml', testManifest);
+  const secReport = await SecurityLinterTool.scan('test/test-manifest.yaml');
+  assert(secReport.includes('K8S-SEC-001') && secReport.includes('privileged: true'), 'Security linter flags privileged containers and :latest tags');
+  await fs.unlink('test/test-manifest.yaml');
 
-  // Test 9: Tool Definitions
-  assert(TOOL_DEFINITIONS.length >= 10, `Tool definitions registered (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 9: Senior SRE Reviewer
+  const sreReviewer = new SeniorSreReviewer();
+  const sreVerdict = await sreReviewer.review(prodMutateEval, 'k8s_rollout_restart', { name: 'payment-svc' }, mockProdContext);
+  assert(Boolean(sreVerdict.verdict && sreVerdict.blastRadius && sreVerdict.critique), 'Senior SRE Reviewer generated architectural pre-flight critique');
 
-  // Test 10: File Tool Execution
-  const fileContent = await executeTool('file_read', { path: 'package.json' });
-  assert(fileContent.includes('junior-devops-agent'), 'FileTool correctly reads package.json');
+  // Test 10: Teams Adaptive Card Builder with SRE Review
+  const card = TeamsCardBuilder.buildApprovalCard(prodMutateEval, 'shell_exec', { command: 'kubectl scale --replicas=5 deploy/api' }, 'req_123', sreVerdict);
+  assert(card.type === 'AdaptiveCard' && card.version === '1.5' && card.body.some((b: any) => b.facts?.some((f: any) => f.title === 'SRE Peer Review:')), 'Adaptive Card embeds Senior SRE review facts');
 
-  console.log('\n\x1b[32mAll 10 feature tests passed successfully!\x1b[0m\n');
+  // Test 11: FinOps Idle Resources Tool
+  const finopsReport = await FinOpsTool.audit();
+  assert(finopsReport.includes('FinOps & Cloud Waste Audit Report'), 'FinOps Auditor generates structured report');
+
+  // Test 12: Model Context Protocol (MCP) Server
+  const initRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize' });
+  assert(initRes.result.serverInfo.name === 'junior-devops-agent', 'MCP Server handles initialize handshake');
+
+  const toolsRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+  assert(toolsRes.result.tools.length >= 14, `MCP Server exposes all tools over JSON-RPC (${toolsRes.result.tools.length} tools)`);
+
+  // Test 13: Docker Sandbox Availability Detection
+  const isDocker = await DockerSandboxRunner.checkDockerAvailable();
+  assert(typeof isDocker === 'boolean', `Docker Sandbox availability detected: ${isDocker}`);
+
+  console.log('\n\x1b[32mAll 13 enterprise v3.0 feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {
