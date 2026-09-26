@@ -16,6 +16,8 @@ import { DevOpsMcpServer } from './mcp/server.js';
 import { SecurityLinterTool } from './tools/security.js';
 import { CertExpiryTool } from './tools/certificates.js';
 import { FinOpsTool } from './tools/finops.js';
+import { AwsTool } from './tools/aws.js';
+import { GcpTool } from './tools/gcp.js';
 
 dotenv.config();
 
@@ -37,7 +39,7 @@ if (process.argv.includes('--mcp')) {
 }
 
 function detectTools(): string[] {
-  const tools = ['git', 'kubectl', 'helm', 'docker', 'az', 'terraform', 'gh'];
+  const tools = ['git', 'kubectl', 'helm', 'docker', 'az', 'aws', 'gcloud', 'terraform', 'gh'];
   const available: string[] = [];
   for (const tool of tools) {
     try {
@@ -117,7 +119,7 @@ async function main() {
   console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
   console.log(`\x1b[1mAudit Logging:\x1b[0m       .audit/audit.jsonl (Active)`);
-  console.log('\x1b[90mCommands: /runbooks, /tools, /audit, /kb, /security, /certs, /finops, /mcp, /teams, /exit\x1b[0m\n');
+  console.log('\x1b[90mCommands: /runbooks, /tools, /audit, /kb, /security, /certs, /finops, /aws, /gcp, /mcp, /teams, /exit\x1b[0m\n');
 
   // Check if --server flag passed
   const args = process.argv.slice(2);
@@ -212,6 +214,26 @@ async function main() {
       console.log('\n\x1b[34mScanning for idle storage and orphaned cloud resources...\x1b[0m');
       const report = await FinOpsTool.audit();
       console.log(`\n${report}\n`);
+      continue;
+    }
+
+    if (trimmed === '/aws' || trimmed.startsWith('/aws ')) {
+      const parts = trimmed.split(/\s+/);
+      const svc = parts[1] || 'ec2';
+      const region = parts[2];
+      console.log(`\n\x1b[34mQuerying AWS resources (service: ${svc})...\x1b[0m`);
+      const output = await AwsTool.listResources(svc, region);
+      console.log(`\n${output}\n`);
+      continue;
+    }
+
+    if (trimmed === '/gcp' || trimmed.startsWith('/gcp ')) {
+      const parts = trimmed.split(/\s+/);
+      const type = parts[1] || 'instances';
+      const project = parts[2];
+      console.log(`\n\x1b[34mQuerying GCP resources (type: ${type})...\x1b[0m`);
+      const output = await GcpTool.listResources(type, project);
+      console.log(`\n${output}\n`);
       continue;
     }
 

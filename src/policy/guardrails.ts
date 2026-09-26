@@ -12,6 +12,14 @@ const DANGEROUS_PATTERNS = [
   /terraform\s+destroy\b/i,
   /az\s+group\s+delete\b/i,
   /az\s+aks\s+delete\b/i,
+  /aws\s+ec2\s+terminate-instances\b/i,
+  /aws\s+s3\s+rb\s+--force\b/i,
+  /aws\s+eks\s+delete-cluster\b/i,
+  /aws\s+rds\s+delete-db-instance\b/i,
+  /gcloud\s+container\s+clusters\s+delete\b/i,
+  /gcloud\s+compute\s+instances\s+delete\b/i,
+  /gcloud\s+projects\s+delete\b/i,
+  /gcloud\s+sql\s+instances\s+delete\b/i,
   /mkfs\b/i,
   /dd\s+if=/i,
   /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, // fork bomb
@@ -25,6 +33,8 @@ const MUTATING_PATTERNS = [
   /helm\s+(install|upgrade|rollback|uninstall)\b/i,
   /docker\s+(run|stop|restart|rm|rmi|kill|build|compose\s+(up|down|restart))\b/i,
   /az\s+[a-z0-9-]+\s+(create|update|delete|restart|start|stop)\b/i,
+  /aws\s+[a-z0-9-]+\s+(create|delete|terminate|modify|reboot|update|stop)\b/i,
+  /gcloud\s+[a-z0-9-]+\s+(create|delete|update|restart|start|stop)\b/i,
   /git\s+(commit|push|merge|rebase|reset|checkout\s+-b)\b/i,
   /sed\s+-i\b/i,
   /echo\s+.*>\s+[^>]/, // file redirection overwrite
@@ -76,6 +86,10 @@ export class Guardrails {
       toolName === 'k8s_describe_resource' ||
       toolName === 'az_resource_list' ||
       toolName === 'az_aks_status' ||
+      toolName === 'aws_resource_list' ||
+      toolName === 'aws_eks_status' ||
+      toolName === 'gcp_resource_list' ||
+      toolName === 'gcp_gke_status' ||
       toolName === 'metrics_query' ||
       toolName === 'knowledge_base_search' ||
       toolName === 'generate_postmortem_report' ||

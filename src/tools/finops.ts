@@ -1,4 +1,6 @@
 import { ShellTool } from './shell.js';
+import { AwsTool } from './aws.js';
+import { GcpTool } from './gcp.js';
 
 export interface FinOpsFinding {
   resource: string;
@@ -94,6 +96,32 @@ export class FinOpsTool {
             recommendation: `Orphaned disks incur monthly Azure storage fees. Archive or delete if decommissioned.`,
           });
         }
+      }
+    } catch {}
+
+    // 4. Audit Orphan AWS EBS Volumes
+    try {
+      const ebsVolumes = await AwsTool.auditUnattachedEbsVolumes();
+      for (const vol of ebsVolumes) {
+        findings.push({
+          resource: `AWS EBS: ${vol.VolumeId} (${vol.Size} GB, ${vol.VolumeType})`,
+          category: 'Orphan Cloud Disk',
+          detail: `EBS volume in AZ "${vol.AvailabilityZone}" is unattached (status: available).`,
+          recommendation: `Unattached EBS volumes accrue continuous AWS storage fees ($0.08–$0.125/GB/mo). Snapshot and delete if obsolete.`,
+        });
+      }
+    } catch {}
+
+    // 5. Audit Orphan GCP Persistent Disks
+    try {
+      const gcpDisks = await GcpTool.auditOrphanDisks();
+      for (const disk of gcpDisks) {
+        findings.push({
+          resource: `GCP Disk: ${disk.name} (${disk.sizeGb} GB)`,
+          category: 'Orphan Cloud Disk',
+          detail: `Persistent disk in zone "${disk.zone}" has no attached GCE instances.`,
+          recommendation: `Unattached persistent disks incur ongoing Google Cloud storage charges. Create snapshot and delete.`,
+        });
       }
     } catch {}
 

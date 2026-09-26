@@ -13,6 +13,8 @@ import { SecurityLinterTool } from '../tools/security.js';
 import { TopologyTool } from '../tools/topology.js';
 import { PostmortemTool } from '../tools/postmortem.js';
 import { K8sTool } from '../tools/k8s.js';
+import { AwsTool } from '../tools/aws.js';
+import { GcpTool } from '../tools/gcp.js';
 
 export interface AgentRunOptions {
   task: string;
@@ -144,6 +146,18 @@ ${runbooks}
         '### Recent Audit Trail\n' +
         records.map((r) => `[${r.timestamp}] ${r.tier} | ${r.toolName} | ${r.approved ? 'APPROVED' : 'REJECTED'}`).join('\n')
       );
+    }
+    if (trimmed === '/aws' || trimmed.startsWith('/aws ')) {
+      const parts = trimmed.split(/\s+/);
+      const svc = parts[1] || 'ec2';
+      const out = await AwsTool.listResources(svc, parts[2]);
+      return await recordDirect('aws_resource_list', out);
+    }
+    if (trimmed === '/gcp' || trimmed.startsWith('/gcp ')) {
+      const parts = trimmed.split(/\s+/);
+      const type = parts[1] || 'instances';
+      const out = await GcpTool.listResources(type, parts[2]);
+      return await recordDirect('gcp_resource_list', out);
     }
     if (trimmed.startsWith('/kb ')) {
       const q = trimmed.slice(4).trim();

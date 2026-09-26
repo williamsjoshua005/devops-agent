@@ -16,6 +16,8 @@ import { SemanticKbTool } from '../src/tools/semantic_kb.js';
 import { SlackBlockKitBuilder } from '../src/adapters/slack.js';
 import { DiscordEmbedBuilder } from '../src/adapters/discord.js';
 import { getDashboardHtml } from '../src/server/dashboardHtml.js';
+import { AwsTool } from '../src/tools/aws.js';
+import { GcpTool } from '../src/tools/gcp.js';
 import { AgentContext } from '../src/types.js';
 import * as fs from 'node:fs/promises';
 
@@ -169,7 +171,32 @@ spec:
   const dashboardHtml = getDashboardHtml(mockDevContext);
   assert(dashboardHtml.includes('Mission Control v4.0') && dashboardHtml.includes('auditTableBody'), 'Web Control Dashboard HTML generated cleanly');
 
-  console.log('\n\x1b[32mAll 18 enterprise v4.0 feature tests passed successfully!\x1b[0m\n');
+  // Test 19: AWS Cloud & EKS Safety Policy
+  const awsReadEval = Guardrails.evaluate('aws_resource_list', { service: 'ec2' }, mockDevContext);
+  assert(awsReadEval.tier === 'READ' && !awsReadEval.requiresApproval, 'aws_resource_list passes autonomously as READ');
+
+  const awsDangerousEval = Guardrails.evaluate('shell_exec', { command: 'aws ec2 terminate-instances --instance-ids i-1234567890abcdef0' }, mockDevContext);
+  assert(awsDangerousEval.tier === 'DANGEROUS' && awsDangerousEval.isBlocked, 'aws ec2 terminate-instances is strictly BLOCKED by Tier 3 policy');
+
+  // Test 20: GCP Cloud & GKE Safety Policy
+  const gcpReadEval = Guardrails.evaluate('gcp_resource_list', { resourceType: 'instances' }, mockDevContext);
+  assert(gcpReadEval.tier === 'READ' && !gcpReadEval.requiresApproval, 'gcp_resource_list passes autonomously as READ');
+
+  const gcpDangerousEval = Guardrails.evaluate('shell_exec', { command: 'gcloud container clusters delete prod-cluster --quiet' }, mockDevContext);
+  assert(gcpDangerousEval.tier === 'DANGEROUS' && gcpDangerousEval.isBlocked, 'gcloud container clusters delete is strictly BLOCKED by Tier 3 policy');
+
+  // Test 21: Multi-Cloud Tool Registration & Schema Exposure
+  const awsDef = TOOL_DEFINITIONS.find((t) => t.name === 'aws_resource_list');
+  const gcpDef = TOOL_DEFINITIONS.find((t) => t.name === 'gcp_resource_list');
+  assert(Boolean(awsDef && gcpDef), 'AWS and GCP tools are registered in TOOL_DEFINITIONS with valid schemas');
+
+  const awsToolRes = await executeTool('aws_resource_list', { service: 'ec2' });
+  assert(typeof awsToolRes === 'string', 'aws_resource_list executes and returns structured response');
+
+  const gcpToolRes = await executeTool('gcp_resource_list', { resourceType: 'instances' });
+  assert(typeof gcpToolRes === 'string', 'gcp_resource_list executes and returns structured response');
+
+  console.log('\n\x1b[32mAll 21 enterprise multi-cloud feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

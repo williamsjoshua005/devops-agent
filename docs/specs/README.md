@@ -27,6 +27,10 @@ Welcome to the comprehensive technical specification catalog for the **Junior De
   *Resource queries (`-A`), describe, pod previous crash logs (`logs -p`), and workload restarts.*
 - **[Spec 08: Azure Cloud & AKS Operations](file:///Users/joshua.williams/Documents/research/devops-agent/docs/specs/08-azure-cloud-and-aks-operations.md)**
   *Azure Resource Manager queries, AKS provisioning state, power state, and node pool health.*
+- **[Spec 23: AWS Cloud & Amazon EKS Operations](file:///Users/joshua.williams/Documents/research/devops-agent/docs/specs/23-aws-cloud-and-eks-operations.md)**
+  *AWS resource queries (EC2, S3, RDS, VPC, Lambda), EKS cluster health, and unattached EBS volume waste audit.*
+- **[Spec 24: GCP Cloud & Google Kubernetes Engine (GKE) Operations](file:///Users/joshua.williams/Documents/research/devops-agent/docs/specs/24-gcp-cloud-and-gke-operations.md)**
+  *GCP resource queries (GCE, Cloud Storage, Cloud SQL, VPC), GKE cluster health, and unattached persistent disk audit.*
 - **[Spec 09: GitOps Pull Request Automation](file:///Users/joshua.williams/Documents/research/devops-agent/docs/specs/09-gitops-pull-request-automation.md)**
   *Automated branch creation, manifest commit synthesis, and Pull Request opening to prevent cluster drift.*
 - **[Spec 10: Incident Postmortems & Knowledge Base Memory](file:///Users/joshua.williams/Documents/research/devops-agent/docs/specs/10-incident-postmortems-and-knowledge-base.md)**
@@ -90,6 +94,8 @@ graph TD
     subgraph Platform_Tools ["Platform Tool Suite"]
         K8s["Kubernetes Operations"]
         Azure["Azure & AKS Operations"]
+        AWS["AWS & EKS Operations"]
+        GCP["GCP & GKE Operations"]
         Certs["TLS Sentinel"]
         FinOps["FinOps Waste Hunter"]
         Sec["Security Linter"]

@@ -2,6 +2,8 @@ import { ToolDefinition, AgentContext } from '../types.js';
 import { ShellTool } from './shell.js';
 import { K8sTool } from './k8s.js';
 import { AzureTool } from './azure.js';
+import { AwsTool } from './aws.js';
+import { GcpTool } from './gcp.js';
 import { FileTool } from './files.js';
 import { GitOpsTool } from './gitops.js';
 import { MetricsTool } from './metrics.js';
@@ -460,6 +462,80 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'aws_resource_list',
+    description: 'List resources in an AWS account across services (ec2, s3, rds, vpc, lambda).',
+    parameters: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          description: 'AWS service to inspect (e.g. "ec2", "s3", "rds", "vpc", "lambda"). Defaults to "ec2".',
+        },
+        region: {
+          type: 'string',
+          description: 'Optional AWS region (e.g. "us-east-1", "eu-west-1").',
+        },
+      },
+    },
+  },
+  {
+    name: 'aws_eks_status',
+    description: 'Inspect status, node groups, and health of an Amazon Elastic Kubernetes Service (EKS) cluster.',
+    parameters: {
+      type: 'object',
+      properties: {
+        clusterName: {
+          type: 'string',
+          description: 'Amazon EKS cluster name.',
+        },
+        region: {
+          type: 'string',
+          description: 'Optional AWS region.',
+        },
+      },
+      required: ['clusterName'],
+    },
+  },
+  {
+    name: 'gcp_resource_list',
+    description: 'List resources in a Google Cloud Platform (GCP) project (compute instances, storage buckets, sql, networks).',
+    parameters: {
+      type: 'object',
+      properties: {
+        resourceType: {
+          type: 'string',
+          description: 'GCP resource type (e.g. "instances", "storage", "sql", "networks"). Defaults to "instances".',
+        },
+        project: {
+          type: 'string',
+          description: 'Optional GCP project ID.',
+        },
+      },
+    },
+  },
+  {
+    name: 'gcp_gke_status',
+    description: 'Inspect status, node pools, and health of a Google Kubernetes Engine (GKE) cluster.',
+    parameters: {
+      type: 'object',
+      properties: {
+        clusterName: {
+          type: 'string',
+          description: 'GKE cluster name.',
+        },
+        location: {
+          type: 'string',
+          description: 'GCP zone or region (e.g. "us-central1-a" or "us-central1").',
+        },
+        project: {
+          type: 'string',
+          description: 'Optional GCP project ID.',
+        },
+      },
+      required: ['clusterName'],
+    },
+  },
+  {
     name: 'file_read',
     description: 'Read the contents of a local file (e.g. YAML manifest, Helm values, Dockerfile).',
     parameters: {
@@ -553,6 +629,14 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       return await AzureTool.listResources(args.resourceGroup, args.resourceType);
     case 'az_aks_status':
       return await AzureTool.getAksStatus(args.clusterName, args.resourceGroup);
+    case 'aws_resource_list':
+      return await AwsTool.listResources(args.service, args.region);
+    case 'aws_eks_status':
+      return await AwsTool.getEksStatus(args.clusterName, args.region);
+    case 'gcp_resource_list':
+      return await GcpTool.listResources(args.resourceType, args.project);
+    case 'gcp_gke_status':
+      return await GcpTool.getGkeStatus(args.clusterName, args.location, args.project);
     case 'file_read':
       return await FileTool.read(args.path);
     case 'file_write':
