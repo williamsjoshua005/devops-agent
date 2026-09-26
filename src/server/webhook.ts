@@ -3,6 +3,10 @@ import { DevOpsAgentHarness } from '../harness/loop.js';
 import { AuditLogger } from '../policy/audit.js';
 import { PostmortemTool } from '../tools/postmortem.js';
 import { TopologyTool } from '../tools/topology.js';
+import { FinOpsTool } from '../tools/finops.js';
+import { SecurityLinterTool } from '../tools/security.js';
+import { CertExpiryTool } from '../tools/certificates.js';
+import { TOOL_DEFINITIONS } from '../tools/index.js';
 import { getDashboardHtml } from './dashboardHtml.js';
 
 export interface WebhookServerOptions {
@@ -46,11 +50,30 @@ export class AlertWebhookServer {
       // 2. Health check
       if (req.method === 'GET' && url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', engine: 'junior-devops-agent', uptime: process.uptime() }));
+        res.end(JSON.stringify({ status: 'ok', engine: 'devops-agent', uptime: process.uptime() }));
         return;
       }
 
-      // 3. Audit query endpoint
+      // 3. System Status & Tool Registry
+      if (req.method === 'GET' && url.pathname === '/api/status') {
+        const ctx = this.harness.getContext();
+        const records = await this.auditLogger.getRecent(100);
+        const blockedCount = records.filter((r) => r.isBlocked).length;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            context: ctx,
+            toolsCount: TOOL_DEFINITIONS.length,
+            tools: TOOL_DEFINITIONS.map((t) => ({ name: t.name, description: t.description })),
+            auditTotal: records.length,
+            auditBlocked: blockedCount,
+            uptime: process.uptime(),
+          })
+        );
+        return;
+      }
+
+      // 4. Audit query endpoint
       if (req.method === 'GET' && url.pathname === '/api/audit') {
         const records = await this.auditLogger.getRecent(50);
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -58,7 +81,7 @@ export class AlertWebhookServer {
         return;
       }
 
-      // 4. Knowledge base search
+      // 5. Knowledge base search
       if (req.method === 'GET' && url.pathname === '/api/kb') {
         const query = url.searchParams.get('q') || '';
         const results = await PostmortemTool.searchKnowledgeBase(query);
@@ -67,7 +90,7 @@ export class AlertWebhookServer {
         return;
       }
 
-      // 5. Cluster Topology discovery endpoint
+      // 6. Cluster Topology discovery endpoint
       if (req.method === 'GET' && url.pathname === '/api/topology') {
         const topology = await TopologyTool.discover();
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -75,7 +98,55 @@ export class AlertWebhookServer {
         return;
       }
 
-      // 6. Interactive Task Execution from Web UI
+      // 7. Direct FinOps Multi-Cloud Waste Audit
+      if (req.method === 'GET' && url.pathname === '/api/finops') {
+        try {
+          const ns = url.searchParams.get('namespace') || undefined;
+          const audit = await FinOpsTool.audit(ns);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ audit }));
+        } catch (err: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // 8. Direct Security Linter Scan
+      if (req.method === 'POST' && url.pathname === '/api/security') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', async () => {
+          try {
+            const { path } = JSON.parse(body || '{}');
+            const target = path || 'Dockerfile';
+            const report = await SecurityLinterTool.scan(target);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ report }));
+          } catch (err: any) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      // 9. Direct TLS Certificate Expiry Check
+      if (req.method === 'GET' && url.pathname === '/api/certs') {
+        try {
+          const hostname = url.searchParams.get('hostname') || undefined;
+          const namespace = url.searchParams.get('namespace') || undefined;
+          const report = await CertExpiryTool.check({ hostname, namespace });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ report }));
+        } catch (err: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // 10. Interactive Task Execution from Web UI
       if (req.method === 'POST' && url.pathname === '/api/task') {
         let body = '';
         req.on('data', (chunk) => {
@@ -169,6 +240,78 @@ Please follow standard runbooks to:
           } catch (err: any) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: `Invalid JSON payload: ${err.message}` }));
+          }
+        });
+        return;
+      }
+
+      // 12. Simulate Alert Trigger
+      if (req.method === 'POST' && url.pathname === '/api/alerts/simulate') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', async () => {
+          try {
+            const { type, resource, namespace } = JSON.parse(body || '{}');
+            const alertType = type || 'CrashLoopBackOff';
+            const targetNs = namespace || 'default';
+            const targetRes = resource || 'payment-service-67b4f59c8d-k92lx';
+
+            const payloadMap: Record<string, any> = {
+              CrashLoopBackOff: {
+                title: 'PodCrashLooping: Critical error in container execution',
+                alertName: 'PodCrashLooping',
+                namespace: targetNs,
+                pod: targetRes,
+                summary: `Container payment in pod ${targetRes} is in CrashLoopBackOff exiting with code 1. Application failed to bind to database port 5432.`,
+              },
+              OOMKilled: {
+                title: 'KubePodOOMKilled: Memory limit exceeded',
+                alertName: 'KubePodOOMKilled',
+                namespace: targetNs,
+                pod: targetRes,
+                summary: `Pod ${targetRes} exceeded memory limit of 512Mi and was OOMKilled by kernel cgroups.`,
+              },
+              HighLatency: {
+                title: 'HighHttpLatency: P99 Latency > 2500ms',
+                alertName: 'HighHttpLatency',
+                namespace: targetNs,
+                service: targetRes,
+                summary: `HTTP 504 Gateway Timeout rate spiked to 14.2% on ${targetRes} in namespace ${targetNs}.`,
+              },
+              DiskPressure: {
+                title: 'KubeletDiskPressure: Available disk below 10%',
+                alertName: 'KubeletDiskPressure',
+                namespace: targetNs,
+                pod: targetRes,
+                summary: `Node /var/log directory partition filled to 94% on worker node hosting ${targetRes}.`,
+              },
+            };
+
+            const alertPayload = payloadMap[alertType] || payloadMap.CrashLoopBackOff;
+
+            res.writeHead(202, { 'Content-Type': 'application/json' });
+            res.end(
+              JSON.stringify({
+                status: 'simulated',
+                alert: alertPayload,
+                message: `Simulated alert [${alertType}] dispatched to DevOps Agent for triage.`,
+              })
+            );
+
+            // Dispatch triage asynchronously
+            setTimeout(async () => {
+              const triagePrompt = `[PROACTIVE INCIDENT TRIAGE]: Alert "${alertPayload.alertName}" received for resource "${alertPayload.pod || alertPayload.service}" in namespace "${alertPayload.namespace}".
+Details: ${alertPayload.summary}
+Please follow standard runbooks to diagnose the issue and determine root cause.`;
+              try {
+                await this.harness.run({ task: triagePrompt });
+              } catch (err: any) {
+                console.error('Error simulating alert triage:', err.message);
+              }
+            }, 50);
+          } catch (err: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
           }
         });
         return;
