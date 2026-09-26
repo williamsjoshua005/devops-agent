@@ -13,7 +13,7 @@ export class ShellTool {
   static async run(command: string, options: ShellExecOptions = {}): Promise<string> {
     const cwd = options.cwd || process.cwd();
     const timeout = options.timeoutMs || 30000;
-    const maxOutput = options.maxOutputChars || 8000;
+    const maxOutput = options.maxOutputChars;
 
     try {
       const { stdout, stderr } = await execAsync(command, {
@@ -30,7 +30,7 @@ export class ShellTool {
         return '(Command executed successfully with no output)';
       }
 
-      if (output.length > maxOutput) {
+      if (maxOutput !== undefined && output.length > maxOutput) {
         return (
           output.slice(0, maxOutput) +
           `\n\n... [Output truncated: showing first ${maxOutput} characters of ${output.length}]`

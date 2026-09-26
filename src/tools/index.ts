@@ -509,7 +509,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
   switch (name) {
     case 'shell_exec':
-      return await ShellTool.run(args.command);
+      return await ShellTool.run(args.command, { maxOutputChars: 12000 });
     case 'k8s_get_resources':
       return await K8sTool.getResources(args.resource, args.namespace, args.labelSelector);
     case 'k8s_describe_resource':

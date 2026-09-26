@@ -7,6 +7,12 @@ import { AuditLogger } from '../policy/audit.js';
 import { LLMClient } from './llm.js';
 import { getRunbookPrompt } from '../runbooks/index.js';
 import { SeniorSreReviewer, SreReview } from './reviewer.js';
+import { CertExpiryTool } from '../tools/certificates.js';
+import { FinOpsTool } from '../tools/finops.js';
+import { SecurityLinterTool } from '../tools/security.js';
+import { TopologyTool } from '../tools/topology.js';
+import { PostmortemTool } from '../tools/postmortem.js';
+import { K8sTool } from '../tools/k8s.js';
 
 export interface AgentRunOptions {
   task: string;
@@ -84,6 +90,105 @@ ${runbooks}
     this.messages = [{ role: 'system', content: systemPrompt }];
   }
 
+  private async handleDirectOrOfflineTask(task: string, sessionId: string): Promise<string | null> {
+    const trimmed = task.trim();
+    const lower = trimmed.toLowerCase();
+
+    // 1. Direct slash commands
+    if (trimmed === '/runbooks') {
+      return getRunbookPrompt();
+    }
+    if (trimmed === '/tools') {
+      return (
+        '### Available Tools (' +
+        TOOL_DEFINITIONS.length +
+        ' tools registered):\n\n' +
+        TOOL_DEFINITIONS.map((t) => `• **${t.name}**: ${t.description}`).join('\n')
+      );
+    }
+    if (trimmed === '/certs') {
+      return await CertExpiryTool.check({});
+    }
+    if (trimmed === '/finops') {
+      return await FinOpsTool.audit();
+    }
+    if (trimmed === '/security') {
+      return await SecurityLinterTool.scan('.');
+    }
+    if (trimmed === '/topology') {
+      return await TopologyTool.discover();
+    }
+    if (trimmed === '/audit') {
+      const records = await this.auditLogger.getRecent(20);
+      if (records.length === 0) return 'No audit records found.';
+      return (
+        '### Recent Audit Trail\n' +
+        records.map((r) => `[${r.timestamp}] ${r.tier} | ${r.toolName} | ${r.approved ? 'APPROVED' : 'REJECTED'}`).join('\n')
+      );
+    }
+    if (trimmed.startsWith('/kb ')) {
+      const q = trimmed.slice(4).trim();
+      return await PostmortemTool.searchKnowledgeBase(q);
+    }
+
+    // 2. Direct intent matches (works in offline or online mode)
+    if (lower.includes('expir') && (lower.includes('tls') || lower.includes('cert'))) {
+      return await CertExpiryTool.check({});
+    }
+    if (
+      lower.includes('idle pvc') ||
+      (lower.includes('finops') && !lower.includes('how')) ||
+      lower.includes('idle load balancer') ||
+      lower.includes('orphaned cloud disk') ||
+      lower.includes('idle resources')
+    ) {
+      return await FinOpsTool.audit();
+    }
+    if (lower.includes('security posture') || lower.includes('security audit') || lower.includes('security scan')) {
+      return await SecurityLinterTool.scan('.');
+    }
+    if (lower === 'discover topology' || lower === 'topology graph' || lower === 'cluster topology') {
+      return await TopologyTool.discover();
+    }
+    if (lower === 'list pods in default namespace' || lower === 'get pods in default' || lower === 'pods in default') {
+      return await K8sTool.getResources('pods', 'default');
+    }
+
+    // 3. If LLM is not configured (or key is dummy), provide actionable guidance
+    if (!this.llm.isConfigured()) {
+      return `⚠️ **LLM Provider API Key Not Configured**
+
+The Junior DevOps Agent was dispatched for:
+> "${task}"
+
+However, no valid AI model API key was detected in \`.env\` (current key is missing or a placeholder).
+
+### To enable full autonomous reasoning and triage:
+1. Open \`.env\` in the project root:
+   \`\`\`bash
+   code /Users/joshua.williams/Documents/research/junior-devops-agent/.env
+   \`\`\`
+2. Replace \`your_gemini_api_key_here\` with your real key:
+   \`\`\`env
+   LLM_PROVIDER=gemini
+   LLM_MODEL=gemini-2.5-flash
+   GEMINI_API_KEY=AIzaSy...
+   \`\`\`
+   *(Or set \`LLM_PROVIDER=openai\`, \`LLM_PROVIDER=kimi\`, or free local \`LLM_PROVIDER=ollama\`)*
+3. Save and re-run your task!
+
+### Direct Diagnostic Commands Available Now (No API Key Required):
+• \`/certs\` — Scan cluster for expiring TLS certificates
+• \`/finops\` — Audit unattached PVCs and idle LoadBalancers
+• \`/security\` — Scan Kubernetes YAML & Dockerfiles for vulnerabilities
+• \`/topology\` — Generate service-to-service dependency graph
+• \`/runbooks\` — View built-in SRE diagnostic runbooks
+• \`/tools\` — List all 23 platform engineering tools`;
+    }
+
+    return null;
+  }
+
   async run(options: AgentRunOptions): Promise<string> {
     const maxTurns = options.maxTurns ?? 15;
     const approvalHandler = options.approvalHandler || this.defaultApprovalHandler;
@@ -91,14 +196,32 @@ ${runbooks}
 
     this.messages.push({ role: 'user', content: options.task });
 
+    // Check direct / offline handler first
+    const directResult = await this.handleDirectOrOfflineTask(options.task, sessionId);
+    if (directResult !== null) {
+      this.messages.push({ role: 'assistant', content: directResult });
+      if (options.onTextChunk) {
+        options.onTextChunk(directResult);
+      }
+      return directResult;
+    }
+
     let currentTurn = 0;
     let finalAnswer = '';
+    const executedToolSummaries: string[] = [];
 
     while (currentTurn < maxTurns) {
       currentTurn++;
 
       // 1. Query LLM
-      const response = await this.llm.chat(this.messages, TOOL_DEFINITIONS);
+      let response;
+      try {
+        response = await this.llm.chat(this.messages, TOOL_DEFINITIONS);
+      } catch (err: any) {
+        const errorMsg = `⚠️ [LLM API Error]: ${err.message}\n\nPlease check your LLM provider configuration and API key in .env.`;
+        if (options.onTextChunk) options.onTextChunk(errorMsg);
+        return errorMsg;
+      }
 
       if (response.content) {
         if (options.onTextChunk) {
@@ -155,6 +278,7 @@ ${runbooks}
         }
 
         const durationMs = Date.now() - startTime;
+        executedToolSummaries.push(`**${tc.name}**:\n${toolOutput}`);
 
         // Record in immutable audit logger
         await this.auditLogger.record({
@@ -180,6 +304,16 @@ ${runbooks}
           toolCallId: tc.id,
           content: toolOutput,
         });
+      }
+    }
+
+    if (!finalAnswer.trim()) {
+      if (executedToolSummaries.length > 0) {
+        finalAnswer =
+          `### Automated Investigation Report\nExecuted ${executedToolSummaries.length} diagnostic step(s):\n\n` +
+          executedToolSummaries.join('\n\n---\n\n');
+      } else {
+        finalAnswer = `[Task Completed]: The agent processed your request. No further output was generated.`;
       }
     }
 

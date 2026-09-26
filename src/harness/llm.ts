@@ -19,6 +19,16 @@ export class LLMClient {
     }
   }
 
+  isConfigured(): boolean {
+    if (this.config.provider === 'ollama') {
+      return true;
+    }
+    const key = this.config.apiKey;
+    if (!key || key.trim() === '') return false;
+    if (key.includes('your_') || key.includes('_here') || key.includes('placeholder')) return false;
+    return true;
+  }
+
   private async makeRequest(url: string, init: any): Promise<Response> {
     if (this.proxyAgent) {
       init.dispatcher = this.proxyAgent;

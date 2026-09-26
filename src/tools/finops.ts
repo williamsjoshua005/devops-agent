@@ -51,15 +51,24 @@ export class FinOpsTool {
     // 2. Audit Idle LoadBalancer Services (empty endpoints)
     try {
       const svcOutput = await ShellTool.run(`kubectl get svc ${nsFlag} --field-selector spec.type=LoadBalancer -o json`);
-      if (!svcOutput.startsWith('Error executing command')) {
+      if (!svcOutput.startsWith('Error executing command') && svcOutput.trim().startsWith('{')) {
         const svcJson = JSON.parse(svcOutput);
-        for (const svc of svcJson.items || []) {
-          const key = `${svc.metadata.namespace}/${svc.metadata.name}`;
-          const epOutput = await ShellTool.run(`kubectl get endpoints ${svc.metadata.name} -n ${svc.metadata.namespace} -o json`);
-          if (!epOutput.startsWith('Error executing command')) {
+        if (svcJson.items?.length > 0) {
+          const epOutput = await ShellTool.run(`kubectl get endpoints ${nsFlag} -o json`);
+          const epMap = new Map<string, boolean>();
+          if (!epOutput.startsWith('Error') && epOutput.trim().startsWith('{')) {
             const epJson = JSON.parse(epOutput);
-            const hasSubsets = epJson.subsets && epJson.subsets.length > 0;
-            if (!hasSubsets) {
+            for (const ep of epJson.items || []) {
+              const epKey = `${ep.metadata?.namespace}/${ep.metadata?.name}`;
+              const hasSubsets = ep.subsets && ep.subsets.length > 0 && ep.subsets.some((s: any) => s.addresses?.length > 0);
+              epMap.set(epKey, hasSubsets);
+            }
+          }
+
+          for (const svc of svcJson.items || []) {
+            const key = `${svc.metadata.namespace}/${svc.metadata.name}`;
+            const hasActiveEndpoints = epMap.get(key);
+            if (hasActiveEndpoints === false) {
               findings.push({
                 resource: `Service (LoadBalancer): ${key}`,
                 category: 'Idle LoadBalancer',
@@ -72,9 +81,9 @@ export class FinOpsTool {
       }
     } catch {}
 
-    // 3. Audit Orphan Azure Managed Disks
+    // 3. Audit Orphan Azure Managed Disks (timeout after 4s if not logged in)
     try {
-      const azOutput = await ShellTool.run('az disk list --query "[?managedBy==null].{name:name, resourceGroup:resourceGroup, diskSizeGb:diskSizeGb}" -o json');
+      const azOutput = await ShellTool.run('az disk list --query "[?managedBy==null].{name:name, resourceGroup:resourceGroup, diskSizeGb:diskSizeGb}" -o json', { timeoutMs: 4000 });
       if (!azOutput.startsWith('Error executing command') && azOutput.trim().startsWith('[')) {
         const orphanDisks = JSON.parse(azOutput);
         for (const disk of orphanDisks) {

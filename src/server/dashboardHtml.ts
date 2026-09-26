@@ -239,6 +239,12 @@ export function getDashboardHtml(context: any): string {
       runTask();
     }
 
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.innerText = text;
+      return div.innerHTML;
+    }
+
     async function runTask() {
       const task = document.getElementById('taskInput').value.trim();
       if (!task) return;
@@ -246,7 +252,7 @@ export function getDashboardHtml(context: any): string {
       const btn = document.getElementById('runBtn');
       btn.disabled = true;
       btn.innerText = 'Running...';
-      term.innerText = '[Agent dispatched to investigate]: ' + task + '\\n\\nThinking...';
+      term.innerText = '[Agent dispatched to investigate]: ' + task + '\n\nThinking...';
 
       try {
         const res = await fetch('/api/task', {
@@ -255,7 +261,11 @@ export function getDashboardHtml(context: any): string {
           body: JSON.stringify({ task })
         });
         const data = await res.json();
-        term.innerText = data.result || '(Task completed with no text output)';
+        if (data.error) {
+          term.innerHTML = '<span style="color: #f87171; font-weight: bold;">[Error]:</span>\n' + escapeHtml(data.error);
+        } else {
+          term.innerText = data.result || '(Task completed with no text output)';
+        }
         loadAudit();
       } catch (e) {
         term.innerText = 'Execution error: ' + e.message;
