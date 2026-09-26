@@ -10,6 +10,12 @@ import { FinOpsTool } from '../src/tools/finops.js';
 import { SeniorSreReviewer } from '../src/harness/reviewer.js';
 import { DevOpsMcpServer } from '../src/mcp/server.js';
 import { DockerSandboxRunner } from '../src/sandbox/docker.js';
+import { TopologyTool } from '../src/tools/topology.js';
+import { NetworkProberTool } from '../src/tools/network.js';
+import { SemanticKbTool } from '../src/tools/semantic_kb.js';
+import { SlackBlockKitBuilder } from '../src/adapters/slack.js';
+import { DiscordEmbedBuilder } from '../src/adapters/discord.js';
+import { getDashboardHtml } from '../src/server/dashboardHtml.js';
 import { AgentContext } from '../src/types.js';
 import * as fs from 'node:fs/promises';
 
@@ -23,7 +29,7 @@ function assert(condition: boolean, message: string) {
 }
 
 async function runTests() {
-  console.log('\n--- Running Complete v3.0 Feature Test Suite for Junior DevOps Agent Engine ---\n');
+  console.log('\n--- Running Complete v4.0 Feature Test Suite for Junior DevOps Agent Engine ---\n');
 
   const mockDevContext: AgentContext = {
     cwd: process.cwd(),
@@ -131,13 +137,39 @@ spec:
   assert(initRes.result.serverInfo.name === 'junior-devops-agent', 'MCP Server handles initialize handshake');
 
   const toolsRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert(toolsRes.result.tools.length >= 14, `MCP Server exposes all tools over JSON-RPC (${toolsRes.result.tools.length} tools)`);
+  assert(toolsRes.result.tools.length >= 18, `MCP Server exposes all tools over JSON-RPC (${toolsRes.result.tools.length} tools)`);
 
-  // Test 13: Docker Sandbox Availability Detection
-  const isDocker = await DockerSandboxRunner.checkDockerAvailable();
-  assert(typeof isDocker === 'boolean', `Docker Sandbox availability detected: ${isDocker}`);
+  // Test 13: Service Dependency Topology Graph
+  const topoReport = await TopologyTool.discover();
+  assert(topoReport.includes('graph TD') && topoReport.includes('Blast-Radius Map'), 'Topology tool generates Mermaid dependency graph');
 
-  console.log('\n\x1b[32mAll 13 enterprise v3.0 feature tests passed successfully!\x1b[0m\n');
+  // Test 14: In-Cluster Network Prober
+  const netReport = await NetworkProberTool.probe('localhost', 80);
+  assert(netReport.includes('Network Diagnostic Report') || netReport.includes('Network Diagnostics'), 'Network Prober runs TCP/DNS connectivity check');
+
+  // Test 15: Chaos Drill Safety Gate
+  const chaosProdEval = Guardrails.evaluate('chaos_drill', { action: 'pod-kill', targetWorkload: 'api' }, mockProdContext);
+  assert(chaosProdEval.tier === 'DANGEROUS' && chaosProdEval.isBlocked, 'Chaos drills in PRODUCTION are strictly BLOCKED by policy');
+
+  const chaosDevEval = Guardrails.evaluate('chaos_drill', { action: 'pod-kill', targetWorkload: 'api' }, mockDevContext);
+  assert(chaosDevEval.tier === 'MUTATE' && chaosDevEval.requiresApproval && !chaosDevEval.isBlocked, 'Chaos drill in dev is permitted with human approval');
+
+  // Test 16: Semantic Vector Incident Memory Search
+  const semanticMatch = await SemanticKbTool.search('database connection starvation');
+  assert(semanticMatch.includes('Semantic Match') && semanticMatch.includes('Payment Gateway Timeout'), 'Semantic vector search matches relevant past incident RCA');
+
+  // Test 17: Slack Block Kit & Discord Embed Adapters
+  const slackBlocks = SlackBlockKitBuilder.buildApprovalBlocks(prodMutateEval, 'canary_deploy', { serviceName: 'checkout' }, 'req_456', sreVerdict);
+  assert(slackBlocks.blocks && slackBlocks.blocks.length >= 4, 'Slack Block Kit formatted with interactive approval buttons');
+
+  const discordEmbed = DiscordEmbedBuilder.buildApprovalEmbed(prodMutateEval, 'k8s_rollout_restart', { name: 'web' }, sreVerdict);
+  assert(discordEmbed.embeds && discordEmbed.embeds[0].color === 0xff0000, 'Discord Embed formatted with red production warning');
+
+  // Test 18: Web Control Dashboard HTML
+  const dashboardHtml = getDashboardHtml(mockDevContext);
+  assert(dashboardHtml.includes('Mission Control v4.0') && dashboardHtml.includes('auditTableBody'), 'Web Control Dashboard HTML generated cleanly');
+
+  console.log('\n\x1b[32mAll 18 enterprise v4.0 feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

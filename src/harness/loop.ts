@@ -146,12 +146,12 @@ ${runbooks}
           if (!approved) {
             toolOutput = `[ACTION CANCELLED BY USER]: Operator declined approval for "${policy.actionSummary}". Please revise your plan or ask the operator for alternate instructions.`;
           } else {
-            toolOutput = await executeTool(tc.name, tc.arguments);
+            toolOutput = await executeTool(tc.name, tc.arguments, this.context);
           }
         } else {
           // Read-only autonomous execution
           approved = true;
-          toolOutput = await executeTool(tc.name, tc.arguments);
+          toolOutput = await executeTool(tc.name, tc.arguments, this.context);
         }
 
         const durationMs = Date.now() - startTime;

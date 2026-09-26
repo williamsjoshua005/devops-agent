@@ -82,7 +82,10 @@ export class Guardrails {
       toolName === 'security_scan' ||
       toolName === 'cert_expiry_check' ||
       toolName === 'finops_idle_resources_audit' ||
-      toolName === 'k8s_watch_rollout'
+      toolName === 'k8s_watch_rollout' ||
+      toolName === 'topology_graph' ||
+      toolName === 'diagnose_connectivity' ||
+      toolName === 'semantic_kb_search'
     ) {
       return {
         tier: 'READ',
@@ -105,6 +108,38 @@ export class Guardrails {
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'canary_deploy') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Canary Deployment: Deploy canary for "${args.serviceName}" with image "${args.newImage}"`,
+        reason: 'Deploying a canary workload mutates cluster state and shifts live traffic.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'chaos_drill') {
+      if (isProd) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED Chaos Drill: ${args.action} on "${args.targetWorkload}" in PRODUCTION`,
+          reason: 'Chaos engineering drills are strictly prohibited in production clusters by safety policy.',
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: true,
+        };
+      }
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Chaos Drill: Execute ${args.action} drill on "${args.targetWorkload}" in namespace "${args.namespace || 'default'}"`,
+        reason: 'Chaos drill terminates active replicas to evaluate self-healing. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: false,
       };
     }
 

@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../types.js';
+import { ToolDefinition, AgentContext } from '../types.js';
 import { ShellTool } from './shell.js';
 import { K8sTool } from './k8s.js';
 import { AzureTool } from './azure.js';
@@ -10,6 +10,11 @@ import { SecurityLinterTool } from './security.js';
 import { CertExpiryTool } from './certificates.js';
 import { FinOpsTool } from './finops.js';
 import { RolloutWatcher } from '../policy/watcher.js';
+import { TopologyTool } from './topology.js';
+import { NetworkProberTool } from './network.js';
+import { CanaryTool } from './canary.js';
+import { ChaosTool } from './chaos.js';
+import { SemanticKbTool } from './semantic_kb.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -152,6 +157,94 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         },
       },
       required: ['name'],
+    },
+  },
+  {
+    name: 'topology_graph',
+    description:
+      'Discover and graph service-to-service communication dependencies, ingress gateways, and blast-radius mapping.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace to discover (omit for all namespaces).',
+        },
+      },
+    },
+  },
+  {
+    name: 'diagnose_connectivity',
+    description:
+      'Run an ephemeral in-cluster network probe to test DNS resolution and TCP port reachability without leaking credentials.',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetHost: {
+          type: 'string',
+          description: 'Target hostname or internal service name to probe (e.g. "postgres-db.default.svc.cluster.local").',
+        },
+        targetPort: {
+          type: 'number',
+          description: 'Target TCP port (e.g. 5432, 6379, 80, 443).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace to run the ephemeral probe pod from.',
+        },
+      },
+      required: ['targetHost'],
+    },
+  },
+  {
+    name: 'canary_deploy',
+    description:
+      'Orchestrate a progressive Canary release: routes ~10% traffic to new image, verifies health, and auto-aborts on failure. (Requires user confirmation).',
+    parameters: {
+      type: 'object',
+      properties: {
+        serviceName: {
+          type: 'string',
+          description: 'Name of the deployment/service.',
+        },
+        newImage: {
+          type: 'string',
+          description: 'New container image tag to deploy as canary.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        trafficWeight: {
+          type: 'number',
+          description: 'Percentage of traffic to route to canary (default 10).',
+        },
+      },
+      required: ['serviceName', 'newImage'],
+    },
+  },
+  {
+    name: 'chaos_drill',
+    description:
+      'Run a controlled chaos engineering resilience drill (e.g. "pod-kill") to verify self-healing recovery time. (Strictly FORBIDDEN in production).',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['pod-kill'],
+          description: 'Chaos drill type ("pod-kill").',
+        },
+        targetWorkload: {
+          type: 'string',
+          description: 'Name of the deployment to drill.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+      },
+      required: ['action', 'targetWorkload'],
     },
   },
   {
@@ -314,6 +407,24 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'semantic_kb_search',
+    description: 'Search past incident postmortems using semantic term-frequency vector similarity.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Semantic query describing the issue or symptom.',
+        },
+        topK: {
+          type: 'number',
+          description: 'Number of top similar matches to return (default 3).',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'az_resource_list',
     description: 'List Azure cloud resources in a subscription or specific resource group.',
     parameters: {
@@ -395,7 +506,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
-export async function executeTool(name: string, args: Record<string, any>): Promise<string> {
+export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
   switch (name) {
     case 'shell_exec':
       return await ShellTool.run(args.command);
@@ -407,7 +518,6 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return await K8sTool.getLogs(args.podName, args.namespace, args.container, args.tailLines, args.previous);
     case 'k8s_rollout_restart': {
       const restartOutput = await K8sTool.rolloutRestart(args.name, args.kind, args.namespace);
-      // Automatically watch rollout for safety verification
       const watchResult = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, 25);
       return `${restartOutput}\n\n[Post-Mutation Verification]: ${watchResult.message}`;
     }
@@ -415,6 +525,14 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       const res = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, args.timeoutSeconds);
       return `Rollout Watcher Result:\nSuccess: ${res.succeeded}\nMessage: ${res.message}\nAuto-RolledBack: ${res.rolledBack}`;
     }
+    case 'topology_graph':
+      return await TopologyTool.discover(args.namespace);
+    case 'diagnose_connectivity':
+      return await NetworkProberTool.probe(args.targetHost, args.targetPort, args.namespace);
+    case 'canary_deploy':
+      return await CanaryTool.deploy(args as any);
+    case 'chaos_drill':
+      return await ChaosTool.drill(args.action, args.targetWorkload, args.namespace, context?.isProduction);
     case 'security_scan':
       return await SecurityLinterTool.scan(args.targetPath);
     case 'cert_expiry_check':
@@ -429,6 +547,8 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return await PostmortemTool.generate(args as any);
     case 'knowledge_base_search':
       return await PostmortemTool.searchKnowledgeBase(args.query);
+    case 'semantic_kb_search':
+      return await SemanticKbTool.search(args.query, args.topK);
     case 'az_resource_list':
       return await AzureTool.listResources(args.resourceGroup, args.resourceType);
     case 'az_aks_status':
