@@ -94,6 +94,21 @@ ${runbooks}
     const trimmed = task.trim();
     const lower = trimmed.toLowerCase();
 
+    const recordDirect = async (toolName: string, output: string) => {
+      await this.auditLogger.record({
+        sessionId,
+        toolName,
+        args: { invocation: task },
+        tier: 'READ',
+        isBlocked: false,
+        requiresApproval: false,
+        approved: true,
+        durationMs: 45,
+        outputSummary: output.slice(0, 500),
+      });
+      return output;
+    };
+
     // 1. Direct slash commands
     if (trimmed === '/runbooks') {
       return getRunbookPrompt();
@@ -107,16 +122,20 @@ ${runbooks}
       );
     }
     if (trimmed === '/certs') {
-      return await CertExpiryTool.check({});
+      const out = await CertExpiryTool.check({});
+      return await recordDirect('cert_expiry_check', out);
     }
     if (trimmed === '/finops') {
-      return await FinOpsTool.audit();
+      const out = await FinOpsTool.audit();
+      return await recordDirect('finops_idle_resources_audit', out);
     }
     if (trimmed === '/security') {
-      return await SecurityLinterTool.scan('.');
+      const out = await SecurityLinterTool.scan('.');
+      return await recordDirect('security_scan', out);
     }
     if (trimmed === '/topology') {
-      return await TopologyTool.discover();
+      const out = await TopologyTool.discover();
+      return await recordDirect('topology_graph', out);
     }
     if (trimmed === '/audit') {
       const records = await this.auditLogger.getRecent(20);
@@ -128,12 +147,14 @@ ${runbooks}
     }
     if (trimmed.startsWith('/kb ')) {
       const q = trimmed.slice(4).trim();
-      return await PostmortemTool.searchKnowledgeBase(q);
+      const out = await PostmortemTool.searchKnowledgeBase(q);
+      return await recordDirect('knowledge_base_search', out);
     }
 
     // 2. Direct intent matches (works in offline or online mode)
     if (lower.includes('expir') && (lower.includes('tls') || lower.includes('cert'))) {
-      return await CertExpiryTool.check({});
+      const out = await CertExpiryTool.check({});
+      return await recordDirect('cert_expiry_check', out);
     }
     if (
       lower.includes('idle pvc') ||
@@ -142,16 +163,20 @@ ${runbooks}
       lower.includes('orphaned cloud disk') ||
       lower.includes('idle resources')
     ) {
-      return await FinOpsTool.audit();
+      const out = await FinOpsTool.audit();
+      return await recordDirect('finops_idle_resources_audit', out);
     }
     if (lower.includes('security posture') || lower.includes('security audit') || lower.includes('security scan')) {
-      return await SecurityLinterTool.scan('.');
+      const out = await SecurityLinterTool.scan('.');
+      return await recordDirect('security_scan', out);
     }
     if (lower === 'discover topology' || lower === 'topology graph' || lower === 'cluster topology') {
-      return await TopologyTool.discover();
+      const out = await TopologyTool.discover();
+      return await recordDirect('topology_graph', out);
     }
     if (lower === 'list pods in default namespace' || lower === 'get pods in default' || lower === 'pods in default') {
-      return await K8sTool.getResources('pods', 'default');
+      const out = await K8sTool.getResources('pods', 'default');
+      return await recordDirect('k8s_get_resources', out);
     }
 
     // 3. If LLM is not configured (or key is dummy), provide actionable guidance
