@@ -70,44 +70,44 @@ Welcome to the comprehensive technical specification catalog for the **Junior De
 
 ```mermaid
 graph TD
-    subgraph Interfaces & Clients
-        Web[Mission Control Web Console /dashboard]
-        MCPClient[Claude Desktop / Cursor MCP]
-        ChatOps[Teams / Slack / Discord Adapters]
-        Alerts[Prometheus Alertmanager Webhook]
-        CLI[Interactive Terminal CLI]
+    subgraph Interfaces_Clients ["Interfaces & Clients"]
+        Web["Mission Control Web Console (/dashboard)"]
+        MCPClient["Claude Desktop / Cursor MCP"]
+        ChatOps["Teams / Slack / Discord Adapters"]
+        Alerts["Prometheus Alertmanager Webhook"]
+        CLI["Interactive Terminal CLI"]
     end
 
-    subgraph Core Engine & Safety Envelope
-        Harness[ReAct Loop & LLM Client]
-        SRE[Senior SRE Pre-Flight Reviewer]
-        Guardrails[3-Tier Safety Policy & Production Lock]
-        Diff[Visual Diff Engine]
-        Watcher[Rollout Watcher & Auto-Rollback]
-        Audit[(Immutable Audit Trail .audit/audit.jsonl)]
+    subgraph Core_Engine ["Core Engine & Safety Envelope"]
+        Harness["ReAct Loop & LLM Client"]
+        SRE["Senior SRE Pre-Flight Reviewer"]
+        Guardrails["3-Tier Safety Policy & Production Lock"]
+        Diff["Visual Diff Engine"]
+        Watcher["Rollout Watcher & Auto-Rollback"]
+        Audit[("Immutable Audit Trail (.audit/audit.jsonl)")]
     end
 
-    subgraph Platform Tool Suite
-        K8s[Kubernetes Operations]
-        Azure[Azure & AKS Operations]
-        Certs[TLS Sentinel]
-        FinOps[FinOps Waste Hunter]
-        Sec[Security Linter]
-        Topo[Topology & Blast Radius]
-        Net[Network Prober]
-        Canary[Canary Pipeline]
-        Chaos[Chaos Engine]
-        GitOps[GitOps PR Automation]
-        KB[Semantic Vector KB & Postmortems]
+    subgraph Platform_Tools ["Platform Tool Suite"]
+        K8s["Kubernetes Operations"]
+        Azure["Azure & AKS Operations"]
+        Certs["TLS Sentinel"]
+        FinOps["FinOps Waste Hunter"]
+        Sec["Security Linter"]
+        Topo["Topology & Blast Radius"]
+        Net["Network Prober"]
+        Canary["Canary Pipeline"]
+        Chaos["Chaos Engine"]
+        GitOps["GitOps PR Automation"]
+        KB["Semantic Vector KB & Postmortems"]
     end
 
-    Interfaces & Clients --> Harness
+    Interfaces_Clients --> Harness
     Harness --> SRE
     Harness --> Guardrails
     Guardrails --> Diff
     Guardrails --> Audit
-    Guardrails --> Platform Tool Suite
-    Platform Tool Suite --> Watcher
+    Guardrails --> Platform_Tools
+    Platform_Tools --> Watcher
 ```
 
 ---

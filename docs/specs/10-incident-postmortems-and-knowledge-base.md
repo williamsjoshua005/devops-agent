@@ -9,17 +9,17 @@ When incidents occur, organizations suffer from "institutional amnesia" where id
 ## 2. Architecture & Workflow
 ```mermaid
 flowchart TD
-    subgraph Incident Resolution Phase
-        Fix[Issue Resolved on Cluster] --> PostmortemTool[generate_postmortem_report]
-        PostmortemTool --> Markdown[Format Standard RCA Markdown]
-        Markdown --> SaveDisk[Persist to .postmortems/incident-<id>.md]
+    subgraph Resolution_Phase ["Incident Resolution Phase"]
+        Fix["Issue Resolved on Cluster"] --> PostmortemTool["generate_postmortem_report"]
+        PostmortemTool --> Markdown["Format Standard RCA Markdown"]
+        Markdown --> SaveDisk["Persist to .postmortems/incident-<id>.md"]
     end
 
-    subgraph Future Incident Triage Phase
-        NewAlert[New Alert: 504 Gateway Timeout] --> KBSearch[knowledge_base_search]
-        KBSearch --> QueryDisk[Scan .postmortems/ for Similar Keywords]
-        QueryDisk --> Match[Match: Database Connection Starvation]
-        Match --> ProvenFix[Apply Known Fix: Increase HikariCP Pool Size]
+    subgraph Triage_Phase ["Future Incident Triage Phase"]
+        NewAlert["New Alert: 504 Gateway Timeout"] --> KBSearch["knowledge_base_search"]
+        KBSearch --> QueryDisk["Scan .postmortems/ for Similar Keywords"]
+        QueryDisk --> Match["Match: Database Connection Starvation"]
+        Match --> ProvenFix["Apply Known Fix: Increase HikariCP Pool Size"]
     end
 ```
 

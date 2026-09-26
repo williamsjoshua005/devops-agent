@@ -21,18 +21,18 @@ Located in [`src/server/webhook.ts`](file:///Users/joshua.williams/Documents/res
 
 ```mermaid
 flowchart TD
-    subgraph Webhook Ingestion
-        Alertmanager[Prometheus Alertmanager] -->|POST /api/alerts/webhook| IngestAlert[Ingest Alert Payload]
-        IngestAlert --> AutoTriage[Spawn Background Proactive Triage Task]
-        AutoTriage --> AgentHarness[DevOpsAgentHarness.run]
+    subgraph Webhook_Ingestion ["Webhook Ingestion"]
+        Alertmanager["Prometheus Alertmanager"] -->|POST /api/alerts/webhook| IngestAlert["Ingest Alert Payload"]
+        IngestAlert --> AutoTriage["Spawn Background Proactive Triage Task"]
+        AutoTriage --> AgentHarness["DevOpsAgentHarness.run"]
     end
 
-    subgraph Mission Control Web Dashboard
-        Operator[Operator Browser] -->|GET /dashboard| DashboardUI[Mission Control Web UI]
+    subgraph Mission_Dashboard ["Mission Control Web Dashboard"]
+        Operator["Operator Browser"] -->|GET /dashboard| DashboardUI["Mission Control Web UI"]
         DashboardUI -->|POST /api/task| AgentHarness
-        DashboardUI -->|GET /api/audit| AuditTable[Live Audit Log Table]
-        DashboardUI -->|GET /api/topology| TopoGraph[Mermaid Topology Diagram]
-        DashboardUI -->|GET /api/kb| KBSearch[Incident Search Results]
+        DashboardUI -->|GET /api/audit| AuditTable["Live Audit Log Table"]
+        DashboardUI -->|GET /api/topology| TopoGraph["Mermaid Topology Diagram"]
+        DashboardUI -->|GET /api/kb| KBSearch["Incident Search Results"]
     end
 ```
 
