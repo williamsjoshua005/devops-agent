@@ -4,7 +4,7 @@
 The **Model Context Protocol (MCP)** is an open JSON-RPC standard that enables AI models and IDEs (such as Claude Desktop, Cursor, and Antigravity) to discover and invoke tools in external environments securely. The **MCP Server & Client Hub** allows the Junior DevOps Agent to function both as an **MCP Server** (exposing all 23 DevOps tools over stdio) and an **MCP Client** (consuming third-party tools from external sidecars).
 
 ## 2. JSON-RPC Protocol Architecture
-Located in [`src/mcp/server.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/mcp/server.ts) and [`src/mcp/client.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/mcp/client.ts):
+Located in [`src/mcp/server.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/mcp/server.ts) and [`src/mcp/client.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/mcp/client.ts):
 
 ```mermaid
 sequenceDiagram
@@ -39,7 +39,7 @@ To expose this DevOps agent directly to Claude Desktop or Cursor, add the follow
     "junior-devops-agent": {
       "command": "node",
       "args": [
-        "/Users/joshua.williams/Documents/research/junior-devops-agent/dist/index.js",
+        "/Users/joshua.williams/Documents/research/devops-agent/dist/index.js",
         "--mcp"
       ]
     }
@@ -48,5 +48,5 @@ To expose this DevOps agent directly to Claude Desktop or Cursor, add the follow
 ```
 
 ## 5. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 12: Validates JSON-RPC `initialize` handshake and verifies that `tools/list` exposes all platform engineering tools over stdio.

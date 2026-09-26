@@ -25,7 +25,7 @@ sequenceDiagram
 ```
 
 ## 3. Data Interface & Implementation
-Located in [`src/policy/watcher.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/policy/watcher.ts):
+Located in [`src/policy/watcher.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/policy/watcher.ts):
 ```typescript
 export interface WatchResult {
   succeeded: boolean;

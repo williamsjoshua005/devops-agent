@@ -4,7 +4,7 @@
 Modern engineering teams conduct collaborative incident response and release sign-offs in team communication channels. The **Enterprise ChatOps Notification Adapters** subsystem formats SRE pre-flight reviews, safety guardrail warnings, and approval requests into rich, interactive payloads for **Microsoft Teams**, **Slack**, and **Discord**.
 
 ## 2. Multi-Platform Support
-Located in [`src/adapters/`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/adapters/):
+Located in [`src/adapters/`](file:///Users/joshua.williams/Documents/research/devops-agent/src/adapters/):
 
 | Platform | Adapter Class | Payload Technology | Key Interactive Features |
 | :--- | :--- | :--- | :--- |
@@ -25,7 +25,7 @@ flowchart TD
 ```
 
 ## 3. Data Interface & Schema
-Located across [`src/adapters/teams.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/adapters/teams.ts), [`src/adapters/slack.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/adapters/slack.ts), and [`src/adapters/discord.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/adapters/discord.ts):
+Located across [`src/adapters/teams.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/adapters/teams.ts), [`src/adapters/slack.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/adapters/slack.ts), and [`src/adapters/discord.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/adapters/discord.ts):
 ```typescript
 // Teams Adaptive Card Generator
 export class TeamsCardBuilder {
@@ -62,6 +62,6 @@ export class DiscordEmbedBuilder {
 ```
 
 ## 4. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 11: Validates Microsoft Teams Adaptive Card schema generation.
 - Test 17: Validates Slack Block Kit button layout and Discord embed color styling.

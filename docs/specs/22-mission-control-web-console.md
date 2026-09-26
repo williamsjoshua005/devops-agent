@@ -7,7 +7,7 @@ The **Mission Control Web Console & Alert Webhook Server** serves as the graphic
 3. Live visualization of audit logs, cluster topology, and historical RCA incident postmortems.
 
 ## 2. Server Architecture & Endpoints
-Located in [`src/server/webhook.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/server/webhook.ts) and [`src/server/dashboardHtml.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/server/dashboardHtml.ts):
+Located in [`src/server/webhook.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/server/webhook.ts) and [`src/server/dashboardHtml.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/server/dashboardHtml.ts):
 
 | HTTP Method | Route | Purpose | Output Format |
 | :--- | :--- | :--- | :--- |
@@ -47,5 +47,5 @@ flowchart TD
 - **Topology & KB Panels:** On-demand dependency graphing and postmortem searching.
 
 ## 4. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 18: Validates Web Dashboard HTML generation, CSS dark-mode styling, and audit table layout.

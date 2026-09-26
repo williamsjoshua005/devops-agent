@@ -4,7 +4,7 @@
 Keyword-based search fails when an operator searches for a symptom using different phrasing than what is recorded in past incident documentation (e.g. searching "database starvation" when the document discusses "HikariCP pool exhaustion"). The **Semantic Vector Incident Memory** subsystem indexes historical postmortems into semantic vector representations, calculating cosine similarity to retrieve relevant past incident remediations conceptually.
 
 ## 2. Mathematical Vector Architecture
-Located in [`src/tools/semantic_kb.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/semantic_kb.ts):
+Located in [`src/tools/semantic_kb.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/semantic_kb.ts):
 
 1. **Corpus Ingestion:** Scans `.postmortems/*.md` and default SRE runbooks into normalized text corpora.
 2. **TF-IDF & Token Vectorization:** Builds vocabulary index and computes term-frequency inverse-document-frequency vectors:
@@ -43,5 +43,5 @@ export class SemanticKbTool {
 - **RCA Acceleration:** Empowers junior engineers to discover how senior staff previously resolved tricky issues.
 
 ## 5. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 16: Confirms that querying "database connection starvation" successfully retrieves the "Payment Gateway Timeout" postmortem with high similarity confidence.

@@ -24,7 +24,7 @@ flowchart TD
 ```
 
 ## 3. Data Interface & Schema
-Located in [`src/tools/certificates.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/certificates.ts):
+Located in [`src/tools/certificates.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/certificates.ts):
 ```typescript
 export interface CertStatus {
   name: string;             // Secret namespace/name or hostname

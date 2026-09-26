@@ -191,7 +191,7 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
 ### To enable full autonomous reasoning and triage:
 1. Open \`.env\` in the project root:
    \`\`\`bash
-   code /Users/joshua.williams/Documents/research/junior-devops-agent/.env
+   code /Users/joshua.williams/Documents/research/devops-agent/.env
    \`\`\`
 2. Replace \`your_gemini_api_key_here\` with your real key:
    \`\`\`env

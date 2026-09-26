@@ -29,7 +29,7 @@ sequenceDiagram
 ```
 
 ## 3. Data Interface & Implementation
-Located in [`src/policy/diff.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/policy/diff.ts):
+Located in [`src/policy/diff.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/policy/diff.ts):
 ```typescript
 export interface DiffSummary {
   filePath: string;
@@ -50,5 +50,5 @@ export class VisualDiffEngine {
 3. **ChatOps Notifications:** Embedded into Microsoft Teams Adaptive Cards, Slack Block Kit messages, and Discord embeds.
 
 ## 5. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 5: Verifies that changing `replicas: 2` to `replicas: 5` produces a colorized diff with `+ replicas: 5` in green and `- replicas: 2` in red, with correct linesAdded/linesRemoved stats.

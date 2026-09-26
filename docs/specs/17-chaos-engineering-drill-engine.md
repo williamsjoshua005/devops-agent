@@ -4,7 +4,7 @@
 Resilient architectures must survive node terminations, sudden pod crashes, and network latency spikes without impacting end-user availability. The **Chaos Engineering Drill Engine** provides controlled, deliberate failure injection in non-production environments to test Kubernetes self-healing and alert pipeline triggering.
 
 ## 2. Supported Chaos Experiments
-Located in [`src/tools/chaos.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/chaos.ts):
+Located in [`src/tools/chaos.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/chaos.ts):
 
 | Experiment Action | Mechanism | Validated Behavior |
 | :--- | :--- | :--- |
@@ -30,5 +30,5 @@ flowchart TD
 - **Operator Verification:** In staging and development environments, drills require Tier 2 `MUTATE` human sign-off with blast-radius visibility.
 
 ## 4. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 15: Validates that chaos drills in `production` are strictly `BLOCKED` with a Tier 3 verdict, while drills in `development` require standard human approval.

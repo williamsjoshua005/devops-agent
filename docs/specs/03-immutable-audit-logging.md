@@ -18,7 +18,7 @@ flowchart LR
 ```
 
 ## 3. Data Interface & Schema
-Located in [`src/types.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/types.ts) and [`src/policy/audit.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/policy/audit.ts):
+Located in [`src/types.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/types.ts) and [`src/policy/audit.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/policy/audit.ts):
 ```typescript
 export interface AuditRecord {
   id: string;              // UUIDv4 unique identifier
@@ -46,6 +46,6 @@ export interface AuditRecord {
 - `.audit/` is automatically ignored in Git to prevent accidental leakage of cluster runtime state.
 
 ## 6. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 6: Verifies audit entry creation with valid UUID, ISO timestamp, and tool execution metadata.
 - Test 7: Verifies `getRecent()` properly reads and parses the JSONL log file.

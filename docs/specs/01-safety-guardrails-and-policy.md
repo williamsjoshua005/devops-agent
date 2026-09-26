@@ -38,7 +38,7 @@ The subsystem continuously detects the active environment via context inspection
   - Read-only diagnostics remain autonomous.
 
 ## 4. Key Data Interfaces & Types
-Located in [`src/types.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/types.ts):
+Located in [`src/types.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/types.ts):
 ```typescript
 export type ActionTier = 'READ' | 'MUTATE' | 'DANGEROUS';
 
@@ -53,15 +53,15 @@ export interface PolicyEvaluation {
 ```
 
 ## 5. Implementation Details
-- **Policy Evaluator:** [`src/policy/guardrails.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/policy/guardrails.ts) - `Guardrails.evaluate(toolName, args, context)`.
-- **Approval Handlers:** [`src/policy/approvals.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/policy/approvals.ts) - `CliApprovalHandler` provides color-coded CLI prompts displaying action summary, arguments, visual diff, and Senior SRE critique.
+- **Policy Evaluator:** [`src/policy/guardrails.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/policy/guardrails.ts) - `Guardrails.evaluate(toolName, args, context)`.
+- **Approval Handlers:** [`src/policy/approvals.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/policy/approvals.ts) - `CliApprovalHandler` provides color-coded CLI prompts displaying action summary, arguments, visual diff, and Senior SRE critique.
 
 ## 6. Edge Cases & Resilience
 - **Regex Evasion Defense:** Commands like `kubectl delete ns` or `kubectl delete namespace default` are normalized before regex matching to prevent aliases or multi-argument tricks from bypassing Tier 3 blocks.
 - **Operator Timeout:** Approvals in headless mode or webhook mode default to safe rejection if no response is received within timeout limits.
 
 ## 7. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 1: `kubectl get pods` passes autonomously as `READ`.
 - Test 2: `kubectl rollout restart` requires operator approval as `MUTATE`.
 - Test 3: Production mutation triggers `isProductionWarning`.

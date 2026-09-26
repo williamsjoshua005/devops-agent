@@ -4,7 +4,7 @@
 Inter-service network communication failures, DNS lookup timeouts via CoreDNS, and firewall/NetworkPolicy misconfigurations are notoriously difficult to debug. The **In-Cluster Network Connectivity Prober** conducts synthetic network diagnostics, verifying DNS name resolution, TCP socket reachability, and HTTP response latencies between services.
 
 ## 2. Diagnostic Steps & Flow
-Located in [`src/tools/network.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/network.ts):
+Located in [`src/tools/network.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/network.ts):
 
 1. **DNS Resolution Check:** Attempts to resolve the target hostname (e.g. `redis.default.svc.cluster.local`) to an IP address, validating CoreDNS functionality.
 2. **TCP Three-Way Handshake:** Initiates a low-level TCP socket connection with millisecond latency instrumentation.
@@ -58,5 +58,5 @@ export class NetworkProberTool {
 - **Calico / Cilium NetworkPolicies:** Pinpoints when pod-to-pod network traffic is rejected by security policies.
 
 ## 5. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 14: Validates TCP and DNS resolution test execution with formatted latency metrics.

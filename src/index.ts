@@ -222,9 +222,9 @@ async function main() {
         JSON.stringify(
           {
             mcpServers: {
-              juniorDevops: {
+              devopsAgent: {
                 command: 'node',
-                args: ['/Users/joshua.williams/Documents/research/junior-devops-agent/dist/index.js', '--mcp'],
+                args: ['/Users/joshua.williams/Documents/research/devops-agent/dist/index.js', '--mcp'],
               },
             },
           },

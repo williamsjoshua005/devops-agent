@@ -4,7 +4,7 @@
 Deploying insecure manifests into production clusters introduces container escape vectors, node starvation risks, and non-deterministic image deployments. The **Security & Manifest Static Linter** inspects Kubernetes YAML manifests and Dockerfiles before they are applied, auditing for platform security violations and container hardening standards.
 
 ## 2. Security Violations Audited
-Located in [`src/tools/security.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/security.ts):
+Located in [`src/tools/security.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/security.ts):
 
 | Security Check | Severity | Rationale | Remediation Recommendation |
 | :--- | :--- | :--- | :--- |
@@ -50,5 +50,5 @@ export class SecurityLinterTool {
 - **Admission Gate:** Can be combined with the Senior SRE Reviewer to block deployment approval if any `CRITICAL` security findings are detected.
 
 ## 5. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 10: Validates that manifests with `privileged: true` or `:latest` tags are correctly flagged with actionable remediations.

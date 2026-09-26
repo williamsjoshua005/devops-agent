@@ -26,7 +26,7 @@ sequenceDiagram
 ```
 
 ## 3. Data Interface & Schema
-Located in [`src/tools/gitops.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/gitops.ts):
+Located in [`src/tools/gitops.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/gitops.ts):
 ```typescript
 export interface CreatePROptions {
   branchName: string;

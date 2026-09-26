@@ -4,7 +4,7 @@
 Modern enterprise DevOps workflows frequently operate on managed cloud Kubernetes services like Azure Kubernetes Service (AKS). The **Azure Cloud & AKS Operations** subsystem provides native cloud provider diagnostics, querying Azure Resource Manager (ARM) via the Azure CLI (`az`) to inspect cluster provisioning states, node pool capacity, and resource groups.
 
 ## 2. Implemented Tools
-Located in [`src/tools/azure.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/azure.ts):
+Located in [`src/tools/azure.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/azure.ts):
 
 | Tool Name | Action Tier | Description | Key Parameters |
 | :--- | :--- | :--- | :--- |

@@ -4,7 +4,7 @@
 Deploying new container images directly to 100% of traffic can cause widespread user-facing outages if unhandled runtime regressions exist. The **Automated Canary Release Pipeline** executes progressive traffic-shifted deployments (e.g. 10% -> 25% -> 50% -> 100%), continuously monitoring error rates and health metrics at each phase, and automatically rolling back traffic if anomalies occur.
 
 ## 2. Progressive Stepping Workflow
-Located in [`src/tools/canary.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/canary.ts):
+Located in [`src/tools/canary.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/canary.ts):
 
 ```mermaid
 stateDiagram-v2

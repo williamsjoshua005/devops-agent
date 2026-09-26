@@ -4,7 +4,7 @@
 The **ReAct Agent Loop & LLM Harness** serves as the central brain of the platform. It orchestrates iterative **Reasoning (Thought) -> Tool Execution (Action) -> Environment Feedback (Observation)** loops to resolve complex platform engineering tasks. It abstracts multi-provider LLM communication behind a unified interface with corporate proxy support and built-in offline diagnostic fallbacks.
 
 ## 2. Multi-Provider Architecture
-The harness supports 5 distinct LLM backends via [`src/harness/llm.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/harness/llm.ts):
+The harness supports 5 distinct LLM backends via [`src/harness/llm.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/harness/llm.ts):
 
 | Provider | Model Examples | Tool Calling Protocol | Protocol Description |
 | :--- | :--- | :--- | :--- |
@@ -42,7 +42,7 @@ To prevent failures when an API key is missing, expired, or invalid:
 4. If an LLM run executes tools but produces no final text block, the harness synthesizes a complete diagnostic report from the executed tool outputs.
 
 ## 5. Key Interfaces
-Located in [`src/harness/loop.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/harness/loop.ts):
+Located in [`src/harness/loop.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/harness/loop.ts):
 ```typescript
 export interface AgentRunOptions {
   task: string;

@@ -4,7 +4,7 @@
 Cloud waste accounts for 30–35% of enterprise cloud spend according to industry benchmarks. Unattached persistent volume claims (PVCs), decommissioned load balancers, and orphaned cloud disks accumulate quietly over months. The **FinOps Waste & Idle Cloud Resource Hunter** autonomously audits cluster storage, networking, and cloud provider resources to identify orphaned assets and recommend cost-saving remediation.
 
 ## 2. Waste Detection Vectors
-Located in [`src/tools/finops.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/finops.ts):
+Located in [`src/tools/finops.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/finops.ts):
 
 | Waste Category | Detection Logic | Financial Impact | Recommended Action |
 | :--- | :--- | :--- | :--- |

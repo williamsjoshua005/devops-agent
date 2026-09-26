@@ -4,7 +4,7 @@
 Executing untrusted scripts or running complex shell commands directly on a platform engineer's host machine creates risks of environment contamination, dependency conflicts, or accidental filesystem destruction. The **Ephemeral Docker Sandbox Runner** isolates command execution within short-lived, disposable Docker containers with enforced memory, CPU, and filesystem constraints.
 
 ## 2. Sandbox Architecture
-Located in [`src/sandbox/docker.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/sandbox/docker.ts):
+Located in [`src/sandbox/docker.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/sandbox/docker.ts):
 
 ```mermaid
 flowchart TD

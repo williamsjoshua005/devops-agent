@@ -4,7 +4,7 @@
 The **Kubernetes Cluster Operations** subsystem provides high-level, structured tools enabling the agent to inspect, diagnose, and manage workloads in any standard Kubernetes or managed AKS/EKS/GKE cluster. It abstracts `kubectl` commands into structured tool schemas with strict parameter validation and safety integration.
 
 ## 2. Implemented Tools & Capabilities
-Located in [`src/tools/k8s.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/tools/k8s.ts):
+Located in [`src/tools/k8s.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/tools/k8s.ts):
 
 | Tool Name | Action Tier | Description | Key Parameters |
 | :--- | :--- | :--- | :--- |
@@ -34,6 +34,6 @@ When pods crash in `CrashLoopBackOff`, querying active logs often returns nothin
 - Namespace deletion and cluster-wide resource purges are blocked at the guardrails layer.
 
 ## 5. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 1: `k8s_get_resources` passes policy check autonomously.
 - Test 2: `k8s_rollout_restart` triggers approval request and SRE pre-flight review.

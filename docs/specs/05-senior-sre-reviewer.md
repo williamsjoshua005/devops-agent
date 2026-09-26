@@ -25,7 +25,7 @@ sequenceDiagram
 ```
 
 ## 3. Data Interface & Schema
-Located in [`src/harness/reviewer.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/src/harness/reviewer.ts):
+Located in [`src/harness/reviewer.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/src/harness/reviewer.ts):
 ```typescript
 export interface SreReview {
   verdict: 'PROCEED' | 'CAUTION' | 'REJECT';
@@ -53,5 +53,5 @@ export class SeniorSreReviewer {
 4. **Resilient Fallback:** When running offline or if LLM calls timeout, an algorithmic rule engine synthesizes a high-fidelity pre-flight critique based on resource types and environment tier.
 
 ## 5. Verification & Tests
-Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/junior-devops-agent/test/smoke.test.ts):
+Verified in [`test/smoke.test.ts`](file:///Users/joshua.williams/Documents/research/devops-agent/test/smoke.test.ts):
 - Test 11: Validates that `SeniorSreReviewer.review()` generates risk assessments, critiques, and alternatives for workload mutations.
