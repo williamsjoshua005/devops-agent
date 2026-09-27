@@ -336,12 +336,20 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
           options.onToolEnd(tc.name, toolOutput);
         }
 
-        // Feed tool result back into history
+        // Feed tool result back into history, truncating very large outputs to avoid
+        // overflowing the model's context window as the conversation grows.
+        const maxToolOutputChars = 8000;
+        const trimmedOutput =
+          toolOutput.length > maxToolOutputChars
+            ? toolOutput.slice(0, maxToolOutputChars) +
+              `\n\n[Output truncated: ${toolOutput.length - maxToolOutputChars} additional characters omitted]`
+            : toolOutput;
+
         this.messages.push({
           role: 'tool',
           name: tc.name,
           toolCallId: tc.id,
-          content: toolOutput,
+          content: trimmedOutput,
         });
       }
     }

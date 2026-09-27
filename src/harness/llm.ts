@@ -1,6 +1,77 @@
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import { LLMConfig, Message, ToolCall, ToolDefinition } from '../types.js';
 
+const ROUGH_CHARS_PER_TOKEN = 4;
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / ROUGH_CHARS_PER_TOKEN);
+}
+
+function messageText(m: Message): string {
+  let text = m.content || '';
+  if (m.toolCalls) {
+    for (const tc of m.toolCalls) {
+      text += ` ${tc.name} ${JSON.stringify(tc.arguments)}`;
+    }
+  }
+  return text;
+}
+
+/**
+ * Keep the conversation within the model's context budget by:
+ * - Preserving the system prompt, the last user message, and every turn after it.
+ * - Dropping oldest intermediate turns first when over budget.
+ * - Capping any individual message text at maxMessageTokens.
+ */
+export function fitMessagesToBudget(
+  messages: Message[],
+  maxTotalTokens: number,
+  maxMessageTokens = 12000
+): Message[] {
+  if (messages.length === 0) return messages;
+
+  // First cap individual message sizes (except system prompt, which is small and critical).
+  const capped = messages.map((m) => {
+    if (m.role === 'system') return m;
+    const text = messageText(m);
+    if (estimateTokens(text) <= maxMessageTokens) return m;
+    const maxChars = maxMessageTokens * ROUGH_CHARS_PER_TOKEN;
+    const truncatedContent =
+      (m.content || '').slice(0, maxChars) +
+      `\n\n[Message truncated: original ${estimateTokens(text)} tokens]`;
+    return { ...m, content: truncatedContent };
+  });
+
+  // Find critical anchors: first system prompt and last user message.
+  const systemIndex = capped.findIndex((m) => m.role === 'system');
+  const lastUserIndex = capped.map((m) => m.role).lastIndexOf('user');
+
+  // Everything from the last user message onward must be kept (current turn).
+  const tailStart = lastUserIndex >= 0 ? lastUserIndex : capped.length;
+  const tail = capped.slice(tailStart);
+
+  let totalTokens = tail.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0);
+  if (systemIndex >= 0) {
+    totalTokens += estimateTokens(messageText(capped[systemIndex]));
+  }
+
+  // Walk backwards from just before the tail, adding older turns while we fit.
+  const middle: Message[] = [];
+  for (let i = tailStart - 1; i >= 0; i--) {
+    if (i === systemIndex) continue; // system prompt added separately at the front
+    const tokens = estimateTokens(messageText(capped[i]));
+    if (totalTokens + tokens > maxTotalTokens) break;
+    totalTokens += tokens;
+    middle.unshift(capped[i]);
+  }
+
+  const result: Message[] = [];
+  if (systemIndex >= 0) result.push(capped[systemIndex]);
+  result.push(...middle);
+  result.push(...tail);
+  return result;
+}
+
 export interface LLMResponse {
   content?: string;
   toolCalls?: ToolCall[];
@@ -49,6 +120,10 @@ export class LLMClient {
   }
 
   private async chatOpenAI(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {
+    // Keep the prompt within the model's context window. kimi-k2.7 has a 262,144-token
+    // limit; we budget ~220k for prompt + tool definitions to leave headroom for the reply.
+    const budgetedMessages = fitMessagesToBudget(messages, 220000);
+
     let baseUrl = this.config.baseUrl;
     if (!baseUrl) {
       if (this.config.provider === 'kimi') {
@@ -60,7 +135,7 @@ export class LLMClient {
       }
     }
 
-    const formattedMessages = messages.map((m) => {
+    const formattedMessages = budgetedMessages.map((m) => {
       if (m.role === 'tool') {
         return {
           role: 'tool',
@@ -154,6 +229,9 @@ export class LLMClient {
   }
 
   private async chatGemini(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {
+    // Gemini 1.5 Flash/Pro context windows are large (1M+), but cap conservatively.
+    const budgetedMessages = fitMessagesToBudget(messages, 500000);
+
     const apiKey = this.config.apiKey || process.env.GEMINI_API_KEY;
     const model = this.config.model || 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -161,7 +239,7 @@ export class LLMClient {
     let systemInstruction: string | undefined;
     const contents: any[] = [];
 
-    for (const m of messages) {
+    for (const m of budgetedMessages) {
       if (m.role === 'system') {
         systemInstruction = m.content;
       } else if (m.role === 'user') {
@@ -256,6 +334,9 @@ export class LLMClient {
   }
 
   private async chatAnthropic(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {
+    // Claude 3.5/3.7 Sonnet context window is 200k tokens; budget ~160k for prompt.
+    const budgetedMessages = fitMessagesToBudget(messages, 160000);
+
     const apiKey = this.config.apiKey || process.env.ANTHROPIC_API_KEY;
     const model = this.config.model || 'claude-3-7-sonnet-20250219';
     const url = 'https://api.anthropic.com/v1/messages';
@@ -263,7 +344,7 @@ export class LLMClient {
     let systemPrompt = '';
     const formattedMessages: any[] = [];
 
-    for (const m of messages) {
+    for (const m of budgetedMessages) {
       if (m.role === 'system') {
         systemPrompt = m.content || '';
       } else if (m.role === 'tool') {
