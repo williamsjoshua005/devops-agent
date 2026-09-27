@@ -18,6 +18,6 @@
   },
   "dependencies": {
     "dotenv": "^18.0.4",
-    "undici": "^8.11.2"
+    "undici": "^5.28.4"
   }
 }
