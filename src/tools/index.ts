@@ -162,6 +162,30 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'k8s_list_contexts',
+    description:
+      'List all configured Kubernetes cluster contexts from kubeconfig, indicating the currently active context.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'k8s_switch_context',
+    description:
+      'Switch the active Kubernetes cluster context. Dynamically updates environment safety guardrails.',
+    parameters: {
+      type: 'object',
+      properties: {
+        contextName: {
+          type: 'string',
+          description: 'Name of the Kubernetes context to switch to (e.g., "prod", "staging", "aks-uat").',
+        },
+      },
+      required: ['contextName'],
+    },
+  },
+  {
     name: 'topology_graph',
     description:
       'Discover and graph service-to-service communication dependencies, ingress gateways, and blast-radius mapping.',
@@ -600,6 +624,28 @@ export async function executeTool(name: string, args: Record<string, any>, conte
     case 'k8s_watch_rollout': {
       const res = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, args.timeoutSeconds);
       return `Rollout Watcher Result:\nSuccess: ${res.succeeded}\nMessage: ${res.message}\nAuto-RolledBack: ${res.rolledBack}`;
+    }
+    case 'k8s_list_contexts': {
+      const res = await K8sTool.listContexts();
+      return `Current Kubernetes Context: ${res.current}\nAvailable Contexts:\n${res.contexts.map((c) => (c === res.current ? `* ${c} (active)` : `  ${c}`)).join('\n')}`;
+    }
+    case 'k8s_switch_context': {
+      const out = await K8sTool.switchContext(args.contextName);
+      if (context) {
+        context.kubeContext = args.contextName;
+        const raw = `${process.env.ENVIRONMENT || ''} ${args.contextName}`.toLowerCase();
+        if (raw.includes('prod') || raw.includes('production') || raw.includes('live') || raw.includes('dr')) {
+          context.environment = 'production';
+          context.isProduction = true;
+        } else if (raw.includes('stage') || raw.includes('staging') || raw.includes('uat')) {
+          context.environment = 'staging';
+          context.isProduction = false;
+        } else {
+          context.environment = 'development';
+          context.isProduction = false;
+        }
+      }
+      return `${out}\n[Environment Updated]: ${context?.environment?.toUpperCase()} (isProduction: ${context?.isProduction})`;
     }
     case 'topology_graph':
       return await TopologyTool.discover(args.namespace);

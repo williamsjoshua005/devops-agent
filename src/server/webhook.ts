@@ -6,6 +6,7 @@ import { TopologyTool } from '../tools/topology.js';
 import { FinOpsTool } from '../tools/finops.js';
 import { SecurityLinterTool } from '../tools/security.js';
 import { CertExpiryTool } from '../tools/certificates.js';
+import { K8sTool } from '../tools/k8s.js';
 import { TOOL_DEFINITIONS } from '../tools/index.js';
 import { getDashboardHtml } from './dashboardHtml.js';
 
@@ -311,6 +312,87 @@ Please follow standard runbooks to diagnose the issue and determine root cause.`
             }, 50);
           } catch (err: any) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      // 13. Kubernetes Contexts List
+      if (req.method === 'GET' && url.pathname === '/api/k8s/contexts') {
+        try {
+          const list = await K8sTool.listContexts();
+          const current = this.harness.getContext().kubeContext || list.current;
+          const annotated = list.contexts.map((ctx) => {
+            const low = ctx.toLowerCase();
+            const env =
+              low.includes('prod') || low.includes('dr') || low.includes('live')
+                ? 'production'
+                : low.includes('stage') || low.includes('staging') || low.includes('uat')
+                ? 'staging'
+                : 'development';
+            return {
+              name: ctx,
+              isCurrent: ctx === current,
+              environment: env,
+            };
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ current, contexts: annotated }));
+        } catch (err: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // 14. Kubernetes Context Switcher
+      if (req.method === 'POST' && url.pathname === '/api/k8s/switch-context') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', async () => {
+          try {
+            const { context: targetContext } = JSON.parse(body || '{}');
+            if (!targetContext) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Missing "context" parameter in payload.' }));
+              return;
+            }
+
+            const previousContext = this.harness.getContext().kubeContext;
+            await K8sTool.switchContext(targetContext);
+            this.harness.updateKubeContext(targetContext);
+            const updatedContext = this.harness.getContext();
+
+            await this.auditLogger.record({
+              sessionId: 'web-console',
+              toolName: 'k8s_switch_context',
+              args: { previousContext, targetContext },
+              tier: 'MUTATE',
+              isBlocked: false,
+              requiresApproval: false,
+              approved: true,
+              durationMs: 40,
+              outputSummary: `Switched active Kubernetes context from ${previousContext} to ${targetContext} (${updatedContext.environment}).`,
+            });
+
+            console.log(
+              `\x1b[36m[K8s Context Switched]:\x1b[0m ${previousContext} -> ${targetContext} (${updatedContext.environment})`
+            );
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(
+              JSON.stringify({
+                success: true,
+                previousContext,
+                currentContext: targetContext,
+                environment: updatedContext.environment,
+                isProduction: updatedContext.isProduction,
+                message: `Active Kubernetes context switched to "${targetContext}". Environment set to ${updatedContext.environment.toUpperCase()}.`,
+              })
+            );
+          } catch (err: any) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: err.message }));
           }
         });

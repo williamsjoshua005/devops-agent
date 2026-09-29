@@ -51,6 +51,22 @@ export class DevOpsAgentHarness {
     return this.context;
   }
 
+  updateKubeContext(newContext: string) {
+    this.context.kubeContext = newContext;
+    const raw = `${process.env.ENVIRONMENT || ''} ${newContext}`.toLowerCase();
+    if (raw.includes('prod') || raw.includes('production') || raw.includes('live') || raw.includes('dr')) {
+      this.context.environment = 'production';
+      this.context.isProduction = true;
+    } else if (raw.includes('stage') || raw.includes('staging') || raw.includes('uat')) {
+      this.context.environment = 'staging';
+      this.context.isProduction = false;
+    } else {
+      this.context.environment = 'development';
+      this.context.isProduction = false;
+    }
+    this.initSystemPrompt();
+  }
+
   getSreReviewer(): SeniorSreReviewer {
     return this.sreReviewer;
   }

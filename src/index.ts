@@ -18,6 +18,7 @@ import { CertExpiryTool } from './tools/certificates.js';
 import { FinOpsTool } from './tools/finops.js';
 import { AwsTool } from './tools/aws.js';
 import { GcpTool } from './tools/gcp.js';
+import { K8sTool } from './tools/k8s.js';
 
 dotenv.config();
 
@@ -119,7 +120,7 @@ async function main() {
   console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
   console.log(`\x1b[1mAudit Logging:\x1b[0m       .audit/audit.jsonl (Active)`);
-  console.log('\x1b[90mCommands: /runbooks, /tools, /audit, /kb, /security, /certs, /finops, /aws, /gcp, /mcp, /teams, /exit\x1b[0m\n');
+  console.log('\x1b[90mCommands: /runbooks, /tools, /clusters, /context <name>, /audit, /kb, /security, /certs, /finops, /aws, /gcp, /mcp, /teams, /exit\x1b[0m\n');
 
   // Check if --server flag passed
   const args = process.argv.slice(2);
@@ -154,6 +155,45 @@ async function main() {
       if (webhookServer) await webhookServer.stop();
       rl.close();
       process.exit(0);
+    }
+
+    if (trimmed === '/clusters' || trimmed === '/contexts') {
+      const res = await K8sTool.listContexts();
+      console.log(`\n\x1b[1mConfigured Kubernetes Contexts:\x1b[0m (Active: \x1b[32m${res.current}\x1b[0m)`);
+      for (const ctx of res.contexts) {
+        const isCur = ctx === res.current;
+        const low = ctx.toLowerCase();
+        const envBadge =
+          low.includes('prod') || low.includes('dr') || low.includes('live')
+            ? '\x1b[31m[PROD]\x1b[0m'
+            : low.includes('stage') || low.includes('staging') || low.includes('uat')
+            ? '\x1b[33m[STAGING]\x1b[0m'
+            : '\x1b[32m[DEV]\x1b[0m';
+        console.log(`  ${isCur ? '\x1b[32m▶\x1b[0m' : ' '} \x1b[1m${ctx}\x1b[0m ${envBadge}`);
+      }
+      console.log(`\n\x1b[90mTip: Use /context <name> to switch cluster context.\x1b[0m\n`);
+      continue;
+    }
+
+    if (trimmed.startsWith('/context') || trimmed.startsWith('/cluster')) {
+      const targetCtx = trimmed.replace(/^\/(context|cluster)/, '').trim();
+      if (!targetCtx) {
+        console.log('\x1b[33mUsage: /context <context-name>\x1b[0m\n');
+        continue;
+      }
+      try {
+        console.log(`\nSwitching context to: \x1b[36m${targetCtx}\x1b[0m...`);
+        await K8sTool.switchContext(targetCtx);
+        harness.updateKubeContext(targetCtx);
+        const updated = harness.getContext();
+        const badge = updated.isProduction
+          ? '\x1b[41m\x1b[37m\x1b[1m 🔴 PRODUCTION ENVIRONMENT (STRICT GUARDRAILS) \x1b[0m'
+          : `\x1b[42m\x1b[30m\x1b[1m 🟢 ${updated.environment.toUpperCase()} \x1b[0m`;
+        console.log(`✔ Switched to \x1b[1m${targetCtx}\x1b[0m. Environment: ${badge}\n`);
+      } catch (err: any) {
+        console.error(`\x1b[31mError switching context:\x1b[0m ${err.message}\n`);
+      }
+      continue;
     }
 
     if (trimmed === '/tools') {

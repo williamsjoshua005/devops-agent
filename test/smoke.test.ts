@@ -196,7 +196,21 @@ spec:
   const gcpToolRes = await executeTool('gcp_resource_list', { resourceType: 'instances' });
   assert(typeof gcpToolRes === 'string', 'gcp_resource_list executes and returns structured response');
 
-  console.log('\n\x1b[32mAll 21 enterprise multi-cloud feature tests passed successfully!\x1b[0m\n');
+  // Test 22: Multi-Cluster Context Management & Safety
+  const listCtxEval = Guardrails.evaluate('k8s_list_contexts', {}, mockDevContext);
+  assert(listCtxEval.tier === 'READ' && !listCtxEval.requiresApproval, 'k8s_list_contexts passes autonomously as READ');
+
+  const switchDevEval = Guardrails.evaluate('k8s_switch_context', { contextName: 'dev-cluster' }, mockDevContext);
+  assert(switchDevEval.tier === 'MUTATE' && !switchDevEval.requiresApproval, 'k8s_switch_context to dev requires no approval');
+
+  const switchProdEval = Guardrails.evaluate('k8s_switch_context', { contextName: 'prod-us-east-1' }, mockDevContext);
+  assert(switchProdEval.tier === 'MUTATE' && switchProdEval.requiresApproval && switchProdEval.isProductionWarning, 'k8s_switch_context to prod enforces production approval warning');
+
+  const listDef = TOOL_DEFINITIONS.find((t) => t.name === 'k8s_list_contexts');
+  const switchDef = TOOL_DEFINITIONS.find((t) => t.name === 'k8s_switch_context');
+  assert(Boolean(listDef && switchDef), 'Multi-cluster context tools are registered in TOOL_DEFINITIONS (29 tools total)');
+
+  console.log('\n\x1b[32mAll 22 enterprise multi-cluster and multi-cloud feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

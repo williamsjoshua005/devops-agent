@@ -56,4 +56,24 @@ export class K8sTool {
     const cmd = `kubectl rollout restart ${kind}/${name} -n ${namespace}`;
     return await ShellTool.run(cmd);
   }
+
+  /**
+   * List all configured Kubernetes contexts
+   */
+  static async listContexts(): Promise<{ current: string; contexts: string[] }> {
+    const raw = await ShellTool.run('kubectl config get-contexts -o name');
+    let current = '';
+    try {
+      current = (await ShellTool.run('kubectl config current-context')).trim();
+    } catch {}
+    const contexts = raw.split('\n').map((c) => c.trim()).filter(Boolean);
+    return { current, contexts };
+  }
+
+  /**
+   * Switch the active Kubernetes context
+   */
+  static async switchContext(targetContext: string): Promise<string> {
+    return await ShellTool.run(`kubectl config use-context ${targetContext}`);
+  }
 }

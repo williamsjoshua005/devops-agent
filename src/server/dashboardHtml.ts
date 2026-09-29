@@ -80,7 +80,50 @@ export function getDashboardHtml(context: any): string {
     .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .dot-green { background: #10b981; box-shadow: 0 0 8px #10b981; }
     .dot-amber { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; animation: pulse 1.5s infinite; }
+    .dot-red { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Cluster Dropdown Styles */
+    .cluster-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 8px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      width: 300px;
+      max-height: 380px;
+      overflow-y: auto;
+      z-index: 1000;
+      text-align: left;
+    }
+    .dropdown-header {
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+      letter-spacing: 0.05em;
+    }
+    .cluster-item {
+      padding: 10px 14px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .cluster-item:hover {
+      background: #1e293b;
+    }
+    .cluster-item.current {
+      background: rgba(56, 189, 248, 0.12);
+      border-left: 3px solid #38bdf8;
+    }
 
     /* Main Container */
     .container { max-width: 1440px; margin: 0 auto; padding: 24px; width: 100%; flex: 1; }
@@ -363,11 +406,19 @@ export function getDashboardHtml(context: any): string {
       </div>
     </div>
     <div class="nav-meta">
-      <div class="ctx-pill">
+      <div class="ctx-pill" id="clusterPill" onclick="toggleClusterDropdown(event)" style="cursor: pointer; position: relative;" title="Click to switch Kubernetes cluster context">
         <span>☸️ Context:</span>
-        <code>${kubeCtx}</code>
+        <code id="activeKubeCtx">${kubeCtx}</code>
+        <span class="status-dot ${context.isProduction ? 'dot-red' : 'dot-green'}" id="clusterEnvDot"></span>
+        <span style="font-size: 10px; color: var(--text-muted); margin-left: 2px;">▼</span>
+
+        <!-- Cluster Dropdown Menu -->
+        <div id="clusterDropdownMenu" class="cluster-dropdown" style="display: none;">
+          <div class="dropdown-header">SWITCH KUBERNETES CONTEXT</div>
+          <div id="clusterListItems">Loading contexts...</div>
+        </div>
       </div>
-      <div>${envBadge}</div>
+      <div id="envBadgeContainer">${envBadge}</div>
       <div class="ctx-pill" id="agentStatusPill">
         <span class="status-dot dot-green" id="agentDot"></span>
         <span id="agentStatusText">Agent Ready</span>
@@ -428,6 +479,7 @@ export function getDashboardHtml(context: any): string {
             <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-top: 4px;">Quick Action Shortcuts:</div>
             <div class="chips-row">
               <span class="chip chip-accent" onclick="quickTask('Check why pods in the default namespace are failing')">☸️ Pod Crash Triage</span>
+              <span class="chip" onclick="quickTask('List all configured Kubernetes contexts and clusters')">☸️ List Clusters</span>
               <span class="chip" onclick="quickTask('List all pods and deployments in the default namespace')">☸️ K8s Workloads</span>
               <span class="chip chip-accent" onclick="quickTask('Run a complete multi-cloud FinOps audit for idle resources')">💰 FinOps Waste Scan</span>
               <span class="chip" onclick="quickTask('List all AWS EC2 instances and EKS status')">☁️ AWS Resources</span>
@@ -1119,9 +1171,106 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       if (e.key === 'Escape') closeToolsModal();
     });
 
+    // Cluster Context Management
+    let availableClusters = [];
+
+    async function loadClusters() {
+      try {
+        const res = await fetch('/api/k8s/contexts');
+        if (!res.ok) return;
+        const data = await res.json();
+        availableClusters = data.contexts || [];
+        renderClusterMenu(data.current, availableClusters);
+      } catch (e) {
+        console.error('Failed to load clusters:', e);
+      }
+    }
+
+    function renderClusterMenu(current, contexts) {
+      const container = document.getElementById('clusterListItems');
+      if (!container) return;
+      if (!contexts || contexts.length === 0) {
+        container.innerHTML = '<div style="padding: 12px; color: var(--text-muted); text-align: center;">No contexts found.</div>';
+        return;
+      }
+      container.innerHTML = contexts.map((c) => {
+        const isCur = c.name === current;
+        const dotClass = c.environment === 'production' ? 'dot-red' : 'dot-green';
+        const badgeClass = c.environment === 'production' ? 'badge-prod' : 'badge-dev';
+        return '<div class="cluster-item ' + (isCur ? 'current' : '') + '" onclick="switchClusterContext(\'' + c.name + '\', event)">' +
+          '<div style="display: flex; align-items: center; gap: 8px;">' +
+            '<span class="status-dot ' + dotClass + '"></span>' +
+            '<strong style="color: ' + (isCur ? '#38bdf8' : '#f8fafc') + ';">' + c.name + '</strong>' +
+          '</div>' +
+          '<span class="badge ' + badgeClass + '" style="font-size: 9px; padding: 2px 6px;">' + c.environment.toUpperCase() + '</span>' +
+        '</div>';
+      }).join('');
+    }
+
+    function toggleClusterDropdown(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('clusterDropdownMenu');
+      if (menu.style.display === 'none' || !menu.style.display) {
+        menu.style.display = 'block';
+        loadClusters();
+      } else {
+        menu.style.display = 'none';
+      }
+    }
+
+    // Close cluster menu when clicking outside
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('clusterDropdownMenu');
+      if (menu && !e.target.closest('#clusterPill')) {
+        menu.style.display = 'none';
+      }
+    });
+
+    async function switchClusterContext(targetContext, e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('clusterDropdownMenu');
+      if (menu) menu.style.display = 'none';
+
+      showToast('Switching context to ' + targetContext + '...');
+
+      try {
+        const res = await fetch('/api/k8s/switch-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ context: targetContext }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          const act = document.getElementById('activeKubeCtx');
+          if (act) act.innerText = data.currentContext;
+
+          const envBadgeContainer = document.getElementById('envBadgeContainer');
+          const isProd = data.isProduction;
+          if (envBadgeContainer) {
+            envBadgeContainer.innerHTML = isProd
+              ? '<span class="badge badge-prod">🔴 PRODUCTION (STRICT)</span>'
+              : '<span class="badge badge-dev">🟢 ' + data.environment.toUpperCase() + '</span>';
+          }
+
+          const dot = document.getElementById('clusterEnvDot');
+          if (dot) dot.className = 'status-dot ' + (isProd ? 'dot-red' : 'dot-green');
+
+          showToast(data.message);
+          loadAudit();
+          loadClusters();
+        } else {
+          showToast('Failed to switch context: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        showToast('Error switching context: ' + err.message);
+      }
+    }
+
     // Initial Data Fetch
     loadAudit();
     loadSystemStatus();
+    loadClusters();
     // Auto-refresh audit trail every 6 seconds
     setInterval(loadAudit, 6000);
   </script>

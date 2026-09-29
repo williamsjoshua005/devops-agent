@@ -99,7 +99,8 @@ export class Guardrails {
       toolName === 'k8s_watch_rollout' ||
       toolName === 'topology_graph' ||
       toolName === 'diagnose_connectivity' ||
-      toolName === 'semantic_kb_search'
+      toolName === 'semantic_kb_search' ||
+      toolName === 'k8s_list_contexts'
     ) {
       return {
         tier: 'READ',
@@ -112,6 +113,25 @@ export class Guardrails {
     }
 
     // 3. Mutating built-in tools
+    if (toolName === 'k8s_switch_context') {
+      const targetCtx = String(args.contextName || '');
+      const isTargetProd =
+        targetCtx.toLowerCase().includes('prod') ||
+        targetCtx.toLowerCase().includes('dr') ||
+        targetCtx.toLowerCase().includes('live');
+
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Switch active Kubernetes context to "${targetCtx}"`,
+        reason: isTargetProd
+          ? 'WARNING: Target cluster is PRODUCTION. Switching context requires human confirmation.'
+          : 'Switching active Kubernetes cluster context.',
+        requiresApproval: isTargetProd,
+        isBlocked: false,
+        isProductionWarning: isTargetProd,
+      };
+    }
+
     if (toolName === 'k8s_rollout_restart') {
       return {
         tier: 'MUTATE',
