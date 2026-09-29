@@ -973,7 +973,12 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     // Interactive Terminal Execution
     async function runTask() {
       const task = document.getElementById('taskInput').value.trim();
-      if (!task) return;
+      if (!task) {
+        showToast('Please enter an instruction or click a quick action shortcut!');
+        const inputEl = document.getElementById('taskInput');
+        if (inputEl) inputEl.focus();
+        return;
+      }
 
       const out = document.getElementById('terminalOutput');
       const status = document.getElementById('terminalStatus');
@@ -982,6 +987,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       const agentText = document.getElementById('agentStatusText');
 
       btn.disabled = true;
+      btn.innerHTML = '<span>Executing...</span> ⏳';
       status.innerText = 'Agent executing task...';
       dot.className = 'status-dot dot-amber';
       agentText.innerText = 'Investigating...';
@@ -1008,6 +1014,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         out.innerHTML = '<span style="color: #f87171;">Network / Server Error:</span> ' + e.message;
       } finally {
         btn.disabled = false;
+        btn.innerHTML = '<span>Execute Task</span> ⚡';
         status.innerText = 'Execution finished.';
         dot.className = 'status-dot dot-green';
         agentText.innerText = 'Agent Ready';
@@ -1193,11 +1200,18 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         container.innerHTML = '<div style="padding: 12px; color: var(--text-muted); text-align: center;">No contexts found.</div>';
         return;
       }
+      container.onclick = function(e) {
+        const item = e.target.closest('.cluster-item');
+        if (item && item.getAttribute('data-context')) {
+          switchClusterContext(item.getAttribute('data-context'), e);
+        }
+      };
+
       container.innerHTML = contexts.map((c) => {
         const isCur = c.name === current;
         const dotClass = c.environment === 'production' ? 'dot-red' : 'dot-green';
         const badgeClass = c.environment === 'production' ? 'badge-prod' : 'badge-dev';
-        return '<div class="cluster-item ' + (isCur ? 'current' : '') + '" onclick="switchClusterContext(\'' + c.name + '\', event)">' +
+        return '<div class="cluster-item ' + (isCur ? 'current' : '') + '" data-context="' + c.name + '">' +
           '<div style="display: flex; align-items: center; gap: 8px;">' +
             '<span class="status-dot ' + dotClass + '"></span>' +
             '<strong style="color: ' + (isCur ? '#38bdf8' : '#f8fafc') + ';">' + c.name + '</strong>' +
