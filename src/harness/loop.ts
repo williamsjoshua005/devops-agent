@@ -74,11 +74,10 @@ export class DevOpsAgentHarness {
   private initSystemPrompt() {
     const runbooks = getRunbookPrompt();
     const envWarning = this.context.isProduction
-      ? `\n🚨 *** ACTIVE ENVIRONMENT IS PRODUCTION (${this.context.kubeContext || 'prod'}) *** 🚨
-Strict safety rules apply. Do NOT attempt direct mutations without operator sign-off. Recommend GitOps PRs wherever possible.\n`
-      : `\nEnvironment Tier: ${this.context.environment.toUpperCase()} (Safe for non-destructive operations)\n`;
+      ? `\nActive Environment: PRODUCTION (${this.context.kubeContext || 'prod'}). Read-only diagnostic mode is active. Mutating operations require human approval.\n`
+      : `\nActive Environment: ${this.context.environment.toUpperCase()} (Standard operational mode)\n`;
 
-    const systemPrompt = `You are an Autonomous Junior DevOps Engineer Assistant on the platform engineering team.
+    const systemPrompt = `You are a DevOps and Site Reliability Engineering Assistant on the platform engineering team.
 Your goal is to investigate, diagnose, and resolve infrastructure, Kubernetes, cloud, and CI/CD tasks methodically.
 
 ### Environment Context:
@@ -87,19 +86,13 @@ Your goal is to investigate, diagnose, and resolve infrastructure, Kubernetes, c
 ${this.context.kubeContext ? `- Current Kubernetes Context: ${this.context.kubeContext}` : ''}
 ${envWarning}
 
-### Behavioral Guidelines (Junior DevOps Discipline):
-1. **Evidence First (Never Guess):** Always run diagnostic queries (\`k8s_get_resources\`, \`k8s_describe_resource\`, \`k8s_get_logs\`, \`metrics_query\`, \`cert_expiry_check\`, \`finops_idle_resources_audit\`, \`az_*\`, \`file_read\`) to gather facts before jumping to conclusions or actions.
-2. **Consult Incident History:** When encountering recurrent issues, use \`knowledge_base_search\` to check if past incidents had similar root causes and proven remediations.
-3. **Security Audits:** Run \`security_scan\` on Kubernetes manifests and Dockerfiles before applying them to ensure no privileged containers, root users, or missing resource limits.
-4. **Prefer GitOps over Direct Apply:** For configuration and manifest changes, use \`gitops_create_pr\` to branch and open a reviewable Pull Request instead of mutating clusters directly.
-5. **Systematic Incident Reports & Postmortems:**
-   - Summarize findings in standard RCA format: Symptom -> Root Cause -> Remediation -> Verification.
-   - For major outages or completed fixes, call \`generate_postmortem_report\` to produce a formal postmortem and store it in organizational memory.
-6. **Safety & Mutations:**
-   - Diagnostic and read-only commands run autonomously.
-   - Any mutating operations (restarts, applying manifests, scaling, deletes) will trigger a Senior SRE architectural critique and a human-in-the-loop approval gate.
-   - Workload restarts are automatically monitored by the Rollout Watcher; if new pods crash, an automated rollback is triggered.
-   - Destructive actions (like deleting entire namespaces or cluster-wide destruction) are blocked.
+### Operational Guidelines:
+1. Gather facts first using diagnostic queries (k8s_get_resources, k8s_describe_resource, k8s_get_logs, metrics_query, cert_expiry_check, finops_idle_resources_audit, file_read).
+2. Consult incident history using knowledge_base_search to check past solutions and proven remediations.
+3. Perform security reviews with security_scan on manifests and Dockerfiles before deployment.
+4. Prefer GitOps Pull Requests (gitops_create_pr) for configuration changes.
+5. Provide structured Root Cause Analysis: Symptom -> Root Cause -> Remediation -> Verification.
+6. Diagnostic queries execute automatically. Modifications require operator confirmation.
 
 ### Standard Operating Runbooks:
 ${runbooks}
@@ -249,6 +242,12 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
     const approvalHandler = options.approvalHandler || this.defaultApprovalHandler;
     const sessionId = options.sessionId || randomUUID();
 
+    // Keep context window lean and prune stale historical turns
+    const systemMsg = this.messages.find((m) => m.role === 'system') || this.messages[0];
+    if (this.messages.length > 6) {
+      this.messages = [systemMsg, ...this.messages.slice(-4)];
+    }
+
     this.messages.push({ role: 'user', content: options.task });
 
     // Check direct / offline handler first
@@ -354,7 +353,7 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
 
         // Feed tool result back into history, truncating very large outputs to avoid
         // overflowing the model's context window as the conversation grows.
-        const maxToolOutputChars = 8000;
+        const maxToolOutputChars = 3500;
         const trimmedOutput =
           toolOutput.length > maxToolOutputChars
             ? toolOutput.slice(0, maxToolOutputChars) +

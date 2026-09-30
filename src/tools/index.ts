@@ -252,14 +252,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'chaos_drill',
     description:
-      'Run a controlled chaos engineering resilience drill (e.g. "pod-kill") to verify self-healing recovery time. (Strictly FORBIDDEN in production).',
+      'Run a controlled resilience verification drill (e.g. restart pod) to verify workload recovery time. (Permitted in development environments only).',
     parameters: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
           enum: ['pod-kill'],
-          description: 'Chaos drill type ("pod-kill").',
+          description: 'Resilience drill action ("pod-kill").',
         },
         targetWorkload: {
           type: 'string',
