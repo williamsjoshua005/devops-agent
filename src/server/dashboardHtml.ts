@@ -186,7 +186,8 @@ export function getDashboardHtml(context: any): string {
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
     /* Layout Grids */
-    .dual-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+    .dual-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; min-width: 0; }
+    .dual-grid > * { min-width: 0; max-width: 100%; }
     @media (max-width: 992px) { .dual-grid { grid-template-columns: 1fr; } }
 
     .panel {
@@ -195,6 +196,9 @@ export function getDashboardHtml(context: any): string {
       border-radius: 14px;
       padding: 22px;
       margin-bottom: 20px;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
     }
     .panel-header {
       display: flex;
@@ -287,8 +291,11 @@ export function getDashboardHtml(context: any): string {
       background: #020617;
       border: 1px solid #1e293b;
       border-radius: 10px;
-      overflow: hidden;
+      position: relative;
+      max-width: 100%;
+      min-width: 0;
       margin-top: 14px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
     }
     .terminal-topbar {
       display: flex;
@@ -299,6 +306,8 @@ export function getDashboardHtml(context: any): string {
       border-bottom: 1px solid #1e293b;
       font-size: 12px;
       color: var(--text-muted);
+      flex-wrap: wrap;
+      gap: 8px;
     }
     .terminal-dots { display: flex; gap: 6px; }
     .t-dot { width: 10px; height: 10px; border-radius: 50%; }
@@ -310,10 +319,21 @@ export function getDashboardHtml(context: any): string {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 13px;
       color: #e2e8f0;
-      min-height: 220px;
-      max-height: 520px;
-      overflow-y: auto;
-      line-height: 1.5;
+      min-height: 240px;
+      max-height: 560px;
+      overflow-y: scroll;
+      overflow-x: auto;
+      line-height: 1.55;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      scrollbar-width: thin;
+      scrollbar-color: #475569 #090d16;
+    }
+    .terminal-body.no-wrap {
+      white-space: pre;
+      word-break: normal;
+      overflow-wrap: normal;
     }
     .terminal-body pre {
       background: #090d16;
@@ -322,8 +342,76 @@ export function getDashboardHtml(context: any): string {
       border: 1px solid #1e293b;
       overflow-x: auto;
       margin: 8px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      max-width: 100%;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 #090d16;
     }
     .terminal-body code { color: #38bdf8; font-size: 12.5px; }
+
+    /* Custom Always-Visible Draggable Scrollbar */
+    .terminal-body::-webkit-scrollbar,
+    .terminal-body pre::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+    .terminal-body::-webkit-scrollbar-track,
+    .terminal-body pre::-webkit-scrollbar-track {
+      background: #090d16;
+      border-left: 1px solid #1e293b;
+      border-radius: 0 0 10px 0;
+    }
+    .terminal-body::-webkit-scrollbar-thumb,
+    .terminal-body pre::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 6px;
+      border: 2px solid #090d16;
+      cursor: grab;
+    }
+    .terminal-body::-webkit-scrollbar-thumb:hover,
+    .terminal-body pre::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .terminal-body::-webkit-scrollbar-thumb:active,
+    .terminal-body pre::-webkit-scrollbar-thumb:active {
+      background: #38bdf8;
+      cursor: grabbing;
+    }
+
+    /* Floating Scroll-to-Bottom Pill */
+    .terminal-scroll-pill {
+      position: absolute;
+      bottom: 16px;
+      right: 22px;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      transition: all 0.2s ease;
+      z-index: 10;
+    }
+    .terminal-scroll-pill:hover {
+      background: #0284c7;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(2, 132, 199, 0.4);
+    }
+    .btn-active {
+      background: rgba(56, 189, 248, 0.2) !important;
+      border-color: #38bdf8 !important;
+      color: #38bdf8 !important;
+    }
     .markdown-rendered h1, .markdown-rendered h2, .markdown-rendered h3 {
       color: #f8fafc; margin: 12px 0 6px; font-size: 15px; border-bottom: 1px solid #1e293b; padding-bottom: 4px;
     }
@@ -499,16 +587,26 @@ export function getDashboardHtml(context: any): string {
             <!-- Rich Terminal Output Box -->
             <div class="terminal-container">
               <div class="terminal-topbar">
-                <div class="terminal-dots">
-                  <div class="t-dot t-red"></div>
-                  <div class="t-dot t-yellow"></div>
-                  <div class="t-dot t-green"></div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div class="terminal-dots">
+                    <div class="t-dot t-red"></div>
+                    <div class="t-dot t-yellow"></div>
+                    <div class="t-dot t-green"></div>
+                  </div>
+                  <div id="terminalStatus" style="font-weight: 500;">Ready. Awaiting command...</div>
                 </div>
-                <div id="terminalStatus">Ready. Awaiting command...</div>
-                <button class="btn-secondary" onclick="copyTerminalOutput()" style="font-size: 11px; padding: 2px 8px;">Copy Output</button>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <button class="btn-secondary" id="wrapToggleBtn" onclick="toggleWrap()" style="font-size: 11px; padding: 3px 8px;" title="Toggle word wrap to prevent horizontal stretching">Wrap: ON</button>
+                  <button class="btn-secondary" onclick="scrollToBottom()" style="font-size: 11px; padding: 3px 8px;" title="Scroll directly to the bottom line">⬇ Bottom</button>
+                  <button class="btn-secondary" onclick="copyTerminalOutput()" style="font-size: 11px; padding: 3px 8px;" title="Copy terminal output to clipboard">📋 Copy</button>
+                  <button class="btn-secondary" onclick="clearTerminal()" style="font-size: 11px; padding: 3px 8px;" title="Clear terminal screen">🗑 Clear</button>
+                </div>
               </div>
               <div class="terminal-body" id="terminalOutput">Welcome to DevOps Agent Mission Control v4.0.
 Enter an instruction above or click any shortcut chip to dispatch autonomous diagnosis.</div>
+              <button id="terminalScrollBottomPill" class="terminal-scroll-pill" onclick="scrollToBottom()" style="display: none;" title="Jump to latest output">
+                ⬇ Scroll to Latest
+              </button>
             </div>
           </div>
         </div>
@@ -827,6 +925,38 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       setTimeout(() => toast.classList.remove('show'), 3500);
     }
 
+    // Terminal ANSI Color & Format Converter
+    function convertAnsiToHtml(str) {
+      if (!str) return '';
+      const ansiMap = {
+        '30': '#64748b', '31': '#f87171', '32': '#4ade80', '33': '#fbbf24',
+        '34': '#60a5fa', '35': '#c084fc', '36': '#38bdf8', '37': '#f1f5f9',
+        '90': '#94a3b8', '91': '#fca5a5', '92': '#86efac', '93': '#fde047',
+        '94': '#93c5fd', '95': '#d8b4fe', '96': '#67e8f9', '97': '#ffffff'
+      };
+
+      let out = str.replace(/(?:\\u001b|\\x1b|[\\u001b\\x1b])\\[([0-9;]+)m/g, (match, codeStr) => {
+        const codes = codeStr.split(';');
+        let span = '';
+        for (const c of codes) {
+          if (c === '0' || c === '39' || c === '49') return '</span>';
+          if (c === '1') span += '<span style="font-weight: 600;">';
+          else if (ansiMap[c]) span += '<span style="color: ' + ansiMap[c] + ';">';
+        }
+        return span || '';
+      });
+
+      // Handle naked bracket codes like [33m or [39m
+      out = out.replace(/\\[([0-9]{1,2})m/g, (match, c) => {
+        if (c === '0' || c === '39') return '</span>';
+        if (ansiMap[c]) return '<span style="color: ' + ansiMap[c] + ';">';
+        return '';
+      });
+
+      out = out.replace(/(?:\\u001b|\\x1b|[\\u001b\\x1b])\\[[0-9;]*[a-zA-Z]/g, '');
+      return out;
+    }
+
     // Markdown Formatter (Lightweight & Safe)
     function renderMarkdown(md) {
       if (!md) return '';
@@ -834,6 +964,9 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+
+      // Convert terminal ANSI colors and escape sequences to styled spans
+      html = convertAnsiToHtml(html);
 
       // Code blocks
       html = html.replace(/\\\\\`\\\\\`\\\\\`([a-z]*)\\n([\\s\\S]*?)\\\\\`\\\\\`\\\\\`/g, (m, lang, code) => {
@@ -993,6 +1126,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       agentText.innerText = 'Investigating...';
 
       out.innerHTML = '<span style="color: #38bdf8;">[DISPATCHING AGENT TASK]:</span> ' + task + '\\n\\n<span style="color: #94a3b8;">Gathering facts and analyzing cluster telemetry...</span>';
+      scrollToBottom();
 
       try {
         const res = await fetch('/api/task', {
@@ -1009,9 +1143,11 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
           out.innerHTML = renderMarkdown(data.result || '(Task completed with no text output)');
           showToast('Task completed successfully!');
         }
+        scrollToBottom();
         loadAudit();
       } catch (e) {
         out.innerHTML = '<span style="color: #f87171;">Network / Server Error:</span> ' + e.message;
+        scrollToBottom();
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>Execute Task</span> ⚡';
@@ -1026,9 +1162,51 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       runTask();
     }
 
+    function scrollToBottom() {
+      const el = document.getElementById('terminalOutput');
+      if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      }
+      const pill = document.getElementById('terminalScrollBottomPill');
+      if (pill) pill.style.display = 'none';
+    }
+
+    function toggleWrap() {
+      const el = document.getElementById('terminalOutput');
+      const btn = document.getElementById('wrapToggleBtn');
+      if (!el || !btn) return;
+      if (el.classList.contains('no-wrap')) {
+        el.classList.remove('no-wrap');
+        btn.innerText = 'Wrap: ON';
+        btn.classList.remove('btn-active');
+        showToast('Word wrap enabled: Lines wrap cleanly.');
+      } else {
+        el.classList.add('no-wrap');
+        btn.innerText = 'Wrap: OFF';
+        btn.classList.add('btn-active');
+        showToast('Word wrap disabled: Raw horizontal formatting.');
+      }
+    }
+
+    function setupTerminalScrollListener() {
+      const el = document.getElementById('terminalOutput');
+      const pill = document.getElementById('terminalScrollBottomPill');
+      if (!el || !pill) return;
+      el.addEventListener('scroll', () => {
+        const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distanceToBottom > 80) {
+          pill.style.display = 'flex';
+        } else {
+          pill.style.display = 'none';
+        }
+      });
+    }
+
     function clearTerminal() {
       document.getElementById('terminalOutput').innerHTML = 'Terminal cleared. Ready.';
       document.getElementById('terminalStatus').innerText = 'Ready.';
+      const pill = document.getElementById('terminalScrollBottomPill');
+      if (pill) pill.style.display = 'none';
     }
 
     function copyTerminalOutput() {
@@ -1285,6 +1463,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     loadAudit();
     loadSystemStatus();
     loadClusters();
+    setupTerminalScrollListener();
     // Auto-refresh audit trail every 6 seconds
     setInterval(loadAudit, 6000);
   </script>

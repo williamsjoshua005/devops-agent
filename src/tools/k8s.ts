@@ -11,7 +11,7 @@ export class K8sTool {
   ): Promise<string> {
     const nsFlag = namespace ? `-n ${namespace}` : '-A';
     const selectorFlag = labelSelector ? `-l ${labelSelector}` : '';
-    const cmd = `kubectl get ${resource} ${nsFlag} ${selectorFlag} -o wide`;
+    const cmd = `kubectl get ${resource} ${nsFlag} ${selectorFlag} --request-timeout=15s -o wide`;
     return await ShellTool.run(cmd);
   }
 
@@ -24,7 +24,7 @@ export class K8sTool {
     namespace?: string
   ): Promise<string> {
     const nsFlag = namespace ? `-n ${namespace}` : '';
-    const cmd = `kubectl describe ${resource} ${name} ${nsFlag}`;
+    const cmd = `kubectl describe ${resource} ${name} ${nsFlag} --request-timeout=15s`;
     return await ShellTool.run(cmd);
   }
 
@@ -41,7 +41,7 @@ export class K8sTool {
     const nsFlag = namespace ? `-n ${namespace}` : '';
     const containerFlag = container ? `-c ${container}` : '';
     const prevFlag = previous ? '-p' : '';
-    const cmd = `kubectl logs ${podName} ${nsFlag} ${containerFlag} --tail=${tailLines} ${prevFlag}`;
+    const cmd = `kubectl logs ${podName} ${nsFlag} ${containerFlag} --tail=${tailLines} ${prevFlag} --request-timeout=15s`;
     return await ShellTool.run(cmd);
   }
 
