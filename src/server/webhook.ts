@@ -147,7 +147,7 @@ export class AlertWebhookServer {
         return;
       }
 
-      // 10. Interactive Task Execution from Web UI
+      // 10. Interactive Task Execution from Web UI (Non-streaming fallback)
       if (req.method === 'POST' && url.pathname === '/api/task') {
         let body = '';
         req.on('data', (chunk) => {
@@ -173,6 +173,104 @@ export class AlertWebhookServer {
             res.end(JSON.stringify({ error: err.message }));
           }
         });
+        return;
+      }
+
+      // 11. Real-Time Streaming Task Execution (Server-Sent Events / SSE)
+      if (
+        (req.method === 'POST' && url.pathname === '/api/task/stream') ||
+        (req.method === 'GET' && url.pathname === '/api/task/stream')
+      ) {
+        const processStream = async (taskStr: string) => {
+          if (!taskStr || !taskStr.trim()) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing task string in payload.' }));
+            return;
+          }
+
+          console.log(`\n\x1b[35m[Web Console Stream Task]:\x1b[0m ${taskStr}`);
+
+          // SSE Headers
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+          });
+
+          // Flush headers immediately if available
+          (res as any).flushHeaders?.();
+
+          const sendSse = (eventType: string, payload: any) => {
+            res.write(`event: ${eventType}\ndata: ${JSON.stringify(payload)}\n\n`);
+          };
+
+          const startTime = Date.now();
+          sendSse('start', {
+            task: taskStr,
+            timestamp: new Date().toISOString(),
+          });
+
+          try {
+            const finalResult = await this.harness.run({
+              task: taskStr,
+              onTurnStart: (turn) => {
+                sendSse('turn_start', { turn });
+              },
+              onToolStart: (name, args) => {
+                sendSse('tool_start', { name, args });
+              },
+              onToolEnd: (name, output, durationMs) => {
+                sendSse('tool_end', {
+                  name,
+                  durationMs: durationMs || 0,
+                  outputSummary:
+                    output.length > 800 ? output.slice(0, 800) + '... [truncated]' : output,
+                });
+              },
+              onSreReview: (review) => {
+                sendSse('sre_review', {
+                  verdict: review.verdict,
+                  blastRadius: review.blastRadius,
+                  critique: review.critique,
+                });
+              },
+              onPolicyBlocked: (actionSummary, reason) => {
+                sendSse('policy_blocked', { actionSummary, reason });
+              },
+              onTextChunk: (chunk) => {
+                sendSse('text_chunk', { chunk });
+              },
+            });
+
+            const totalDurationMs = Date.now() - startTime;
+            sendSse('done', {
+              result: finalResult,
+              durationMs: totalDurationMs,
+            });
+            res.end();
+          } catch (err: any) {
+            sendSse('error', { error: err.message || String(err) });
+            res.end();
+          }
+        };
+
+        if (req.method === 'GET') {
+          const queryTask = url.searchParams.get('task') || '';
+          processStream(queryTask);
+        } else {
+          let body = '';
+          req.on('data', (chunk) => (body += chunk));
+          req.on('end', () => {
+            try {
+              const { task } = JSON.parse(body || '{}');
+              processStream(task);
+            } catch (e: any) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Malformed JSON payload.' }));
+            }
+          });
+        }
         return;
       }
 

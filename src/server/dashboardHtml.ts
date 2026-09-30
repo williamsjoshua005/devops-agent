@@ -412,6 +412,108 @@ export function getDashboardHtml(context: any): string {
       border-color: #38bdf8 !important;
       color: #38bdf8 !important;
     }
+
+    /* Real-Time Execution Streaming Styles */
+    .stream-header {
+      background: rgba(15, 23, 42, 0.6);
+      border-left: 3px solid #38bdf8;
+      padding: 10px 14px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+    .stream-turn-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin: 14px 0 8px;
+    }
+    .stream-turn-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #1e293b;
+    }
+    .stream-card {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 6px 0;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .stream-card-running {
+      border-left: 3px solid #f59e0b;
+    }
+    .stream-card-done {
+      border-left: 3px solid #10b981;
+    }
+    .stream-card-blocked {
+      border-left: 3px solid #ef4444;
+    }
+    .stream-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+    }
+    .stream-tool-badge {
+      background: #1e293b;
+      color: #38bdf8;
+      font-family: inherit;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .stream-duration-badge {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .stream-tool-body {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #cbd5e1;
+      max-height: 180px;
+      overflow-y: auto;
+      background: #020617;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #1e293b;
+      white-space: pre-wrap;
+      word-break: break-word;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 #090d16;
+    }
+    .stream-tool-body::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .stream-tool-body::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .stream-sre-card {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid #3b82f6;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 8px 0;
+    }
+    .stream-sre-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .stream-sre-approved { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .stream-sre-caution { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .stream-sre-rejected { background: rgba(239, 68, 68, 0.2); color: #f87171; }
     .markdown-rendered h1, .markdown-rendered h2, .markdown-rendered h3 {
       color: #f8fafc; margin: 12px 0 6px; font-size: 15px; border-bottom: 1px solid #1e293b; padding-bottom: 4px;
     }
@@ -1103,7 +1205,113 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       }
     }
 
-    // Interactive Terminal Execution
+    // HTML Entity Escaping
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Stream Event Dispatcher & Renderer
+    function handleStreamEvent(eventType, data, stepsContainer, finalContainer, status) {
+      if (eventType === 'turn_start') {
+        const div = document.createElement('div');
+        div.className = 'stream-turn-divider';
+        div.innerHTML = '<span>Turn ' + data.turn + ' • Reasoning & Planning</span>';
+        stepsContainer.appendChild(div);
+        status.innerText = 'Turn ' + data.turn + ': Agent analyzing...';
+        scrollToBottom();
+      } else if (eventType === 'tool_start') {
+        const card = document.createElement('div');
+        card.className = 'stream-card stream-card-running';
+        const argsStr = data.args ? JSON.stringify(data.args) : '';
+        const shortArgs = argsStr.length > 70 ? argsStr.slice(0, 70) + '...' : argsStr;
+        card.innerHTML = 
+          '<div class="stream-card-header">' +
+            '<div>' +
+              '<span style="color: #f59e0b;">⏳</span> ' +
+              '<span class="stream-tool-badge">' + escapeHtml(data.name) + '</span> ' +
+              '<span style="color: #94a3b8; font-size: 11.5px; margin-left: 6px;">' + escapeHtml(shortArgs) + '</span>' +
+            '</div>' +
+            '<span class="stream-duration-badge">Running...</span>' +
+          '</div>';
+        stepsContainer.appendChild(card);
+        status.innerText = 'Executing ' + data.name + '...';
+        scrollToBottom();
+      } else if (eventType === 'tool_end') {
+        const runningCards = stepsContainer.querySelectorAll('.stream-card-running');
+        const card = runningCards.length > 0 ? runningCards[runningCards.length - 1] : null;
+        const durSec = (data.durationMs / 1000).toFixed(1);
+        if (card) {
+          card.className = 'stream-card stream-card-done';
+          const header = card.querySelector('.stream-card-header');
+          if (header) {
+            header.innerHTML = 
+              '<div>' +
+                '<span style="color: #10b981;">✔</span> ' +
+                '<span class="stream-tool-badge">' + escapeHtml(data.name) + '</span>' +
+              '</div>' +
+              '<span class="stream-duration-badge" style="color: #34d399;">✔ ' + durSec + 's</span>';
+          }
+          if (data.outputSummary) {
+            const body = document.createElement('div');
+            body.className = 'stream-tool-body';
+            body.innerHTML = convertAnsiToHtml(escapeHtml(data.outputSummary));
+            card.appendChild(body);
+          }
+        }
+        status.innerText = 'Tool ' + data.name + ' completed (' + durSec + 's)';
+        scrollToBottom();
+      } else if (eventType === 'sre_review') {
+        const badgeClass = data.verdict === 'APPROVED' ? 'stream-sre-approved' : data.verdict === 'CAUTION' ? 'stream-sre-caution' : 'stream-sre-rejected';
+        const card = document.createElement('div');
+        card.className = 'stream-sre-card';
+        card.innerHTML = 
+          '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+            '<div style="font-weight: 600; font-size: 12px; color: #60a5fa;">🛡️ Senior SRE Architectural Review</div>' +
+            '<span class="stream-sre-badge ' + badgeClass + '">' + escapeHtml(data.verdict) + ' (Blast Radius: ' + escapeHtml(data.blastRadius) + ')</span>' +
+          '</div>' +
+          '<div style="font-size: 11.5px; color: #cbd5e1; margin-top: 6px;">' + escapeHtml(data.critique) + '</div>';
+        stepsContainer.appendChild(card);
+        scrollToBottom();
+      } else if (eventType === 'policy_blocked') {
+        const card = document.createElement('div');
+        card.className = 'stream-card stream-card-blocked';
+        card.innerHTML = 
+          '<div style="color: #f87171; font-weight: 600; font-size: 12.5px;">⛔ Action Blocked by Policy</div>' +
+          '<div style="color: #e2e8f0; font-size: 12px; margin-top: 4px;"><strong>' + escapeHtml(data.actionSummary) + '</strong></div>' +
+          '<div style="color: #94a3b8; font-size: 11.5px; margin-top: 2px;">Reason: ' + escapeHtml(data.reason) + '</div>';
+        stepsContainer.appendChild(card);
+        scrollToBottom();
+      } else if (eventType === 'done') {
+        const durSec = (data.durationMs / 1000).toFixed(1);
+        finalContainer.innerHTML = 
+          '<div class="stream-turn-divider" style="margin-top: 16px;"><span>Final Solution & Root Cause Analysis</span></div>' +
+          '<div class="markdown-rendered" style="margin-top: 8px;">' +
+            renderMarkdown(data.result || '(Task completed with no text output)') +
+          '</div>' +
+          '<div style="color: #34d399; font-size: 11px; margin-top: 12px; display: flex; align-items: center; gap: 6px;">' +
+            '<span>✔ Autonomous investigation finished in ' + durSec + 's</span>' +
+          '</div>';
+        status.innerText = 'Task completed in ' + durSec + 's.';
+        showToast('Task completed successfully!');
+        scrollToBottom();
+      } else if (eventType === 'error') {
+        finalContainer.innerHTML = 
+          '<div class="stream-card stream-card-blocked" style="margin-top: 14px;">' +
+            '<div style="color: #f87171; font-weight: bold;">[Execution Error]</div>' +
+            '<div style="margin-top: 6px;">' + escapeHtml(data.error || 'Unknown execution error') + '</div>' +
+          '</div>';
+        status.innerText = 'Task failed.';
+        showToast('Execution error.');
+        scrollToBottom();
+      }
+    }
+
+    // Interactive Terminal Real-Time Streaming Execution
     async function runTask() {
       const task = document.getElementById('taskInput').value.trim();
       if (!task) {
@@ -1120,40 +1328,97 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       const agentText = document.getElementById('agentStatusText');
 
       btn.disabled = true;
-      btn.innerHTML = '<span>Executing...</span> ⏳';
-      status.innerText = 'Agent executing task...';
+      btn.innerHTML = '<span>Streaming...</span> ⏳';
+      status.innerText = 'Connecting to agent engine...';
       dot.className = 'status-dot dot-amber';
       agentText.innerText = 'Investigating...';
 
-      out.innerHTML = '<span style="color: #38bdf8;">[DISPATCHING AGENT TASK]:</span> ' + task + '\\n\\n<span style="color: #94a3b8;">Gathering facts and analyzing cluster telemetry...</span>';
+      // Initialize terminal stream view
+      out.innerHTML = 
+        '<div class="stream-header">' +
+          '<div style="color: #38bdf8; font-weight: 600; font-size: 13.5px;">⚡ [TASK DISPATCHED]: "' + escapeHtml(task) + '"</div>' +
+          '<div style="color: #94a3b8; font-size: 11.5px; margin-top: 4px;">Connected to SRE autonomous execution pipeline. Telemetry stream active...</div>' +
+        '</div>' +
+        '<div id="streamSteps"></div>' +
+        '<div id="streamFinalResult"></div>';
       scrollToBottom();
 
+      const stepsContainer = document.getElementById('streamSteps');
+      const finalContainer = document.getElementById('streamFinalResult');
+
       try {
-        const res = await fetch('/api/task', {
+        const response = await fetch('/api/task/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ task })
         });
-        const data = await res.json();
 
-        if (data.error) {
-          out.innerHTML = '<span style="color: #f87171; font-weight: bold;">[Execution Error]:</span>\\n' + data.error;
-          showToast('Task execution encountered an error.');
-        } else {
-          out.innerHTML = renderMarkdown(data.result || '(Task completed with no text output)');
-          showToast('Task completed successfully!');
+        if (!response.ok || !response.body) {
+          throw new Error('Streaming failed with HTTP ' + response.status);
         }
-        scrollToBottom();
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\\n\\n');
+          buffer = parts.pop() || '';
+
+          for (const chunk of parts) {
+            const lines = chunk.split('\\n');
+            let eventType = 'message';
+            let dataStr = '';
+
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                eventType = line.slice(7).trim();
+              } else if (line.startsWith('data: ')) {
+                dataStr = line.slice(6);
+              }
+            }
+
+            if (!dataStr) continue;
+
+            try {
+              const data = JSON.parse(dataStr);
+              handleStreamEvent(eventType, data, stepsContainer, finalContainer, status);
+            } catch (err) {
+              console.warn('Failed to parse SSE payload:', err, dataStr);
+            }
+          }
+        }
+
         loadAudit();
       } catch (e) {
-        out.innerHTML = '<span style="color: #f87171;">Network / Server Error:</span> ' + e.message;
-        scrollToBottom();
+        console.warn('Streaming error, falling back to synchronous execution:', e);
+        try {
+          const res = await fetch('/api/task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task })
+          });
+          const data = await res.json();
+          if (data.error) {
+            out.innerHTML = '<span style="color: #f87171; font-weight: bold;">[Execution Error]:</span><br>' + escapeHtml(data.error);
+          } else {
+            out.innerHTML = renderMarkdown(data.result || '(Task completed with no output)');
+            showToast('Task completed successfully!');
+          }
+          loadAudit();
+        } catch (fallbackErr) {
+          out.innerHTML = '<span style="color: #f87171;">Connection Error:</span> ' + escapeHtml(fallbackErr.message);
+        }
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>Execute Task</span> ⚡';
-        status.innerText = 'Execution finished.';
         dot.className = 'status-dot dot-green';
         agentText.innerText = 'Agent Ready';
+        scrollToBottom();
       }
     }
 

@@ -22,8 +22,11 @@ export interface AgentRunOptions {
   maxTurns?: number;
   approvalHandler?: ApprovalHandler;
   onTextChunk?: (text: string) => void;
+  onTurnStart?: (turn: number) => void;
   onToolStart?: (name: string, args: any) => void;
-  onToolEnd?: (name: string, output: string) => void;
+  onToolEnd?: (name: string, output: string, durationMs?: number) => void;
+  onSreReview?: (review: SreReview) => void;
+  onPolicyBlocked?: (actionSummary: string, reason: string) => void;
 }
 
 export class DevOpsAgentHarness {
@@ -33,6 +36,7 @@ export class DevOpsAgentHarness {
   private defaultApprovalHandler: ApprovalHandler;
   private auditLogger: AuditLogger;
   private sreReviewer: SeniorSreReviewer;
+  private taskQueue: Promise<any> = Promise.resolve();
 
   constructor(llm: LLMClient, context: AgentContext, auditLogger?: AuditLogger) {
     this.llm = llm;
@@ -238,6 +242,19 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
   }
 
   async run(options: AgentRunOptions): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      this.taskQueue = this.taskQueue.then(async () => {
+        try {
+          const res = await this.executeRun(options);
+          resolve(res);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+  }
+
+  private async executeRun(options: AgentRunOptions): Promise<string> {
     const maxTurns = options.maxTurns ?? 15;
     const approvalHandler = options.approvalHandler || this.defaultApprovalHandler;
     const sessionId = options.sessionId || randomUUID();
@@ -266,6 +283,9 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
 
     while (currentTurn < maxTurns) {
       currentTurn++;
+      if (options.onTurnStart) {
+        options.onTurnStart(currentTurn);
+      }
 
       // 1. Query LLM
       let response;
@@ -314,10 +334,16 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
         if (policy.isBlocked) {
           toolOutput = `[BLOCKED BY POLICY]: ${policy.actionSummary}\nReason: ${policy.reason}\nJunior DevOps agent is restricted from performing this destructive action.`;
           console.log(`\n\x1b[31m⛔ ${toolOutput}\x1b[0m\n`);
+          if (options.onPolicyBlocked) {
+            options.onPolicyBlocked(policy.actionSummary, policy.reason);
+          }
           approved = false;
         } else if (policy.requiresApproval) {
           // Pre-flight Senior SRE Architectural Review
           const sreReview = await this.sreReviewer.review(policy, tc.name, tc.arguments, this.context);
+          if (options.onSreReview) {
+            options.onSreReview(sreReview);
+          }
 
           approved = await approvalHandler.requestApproval(policy, tc.name, tc.arguments, sreReview);
           if (!approved) {
@@ -348,7 +374,7 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
         });
 
         if (options.onToolEnd) {
-          options.onToolEnd(tc.name, toolOutput);
+          options.onToolEnd(tc.name, toolOutput, durationMs);
         }
 
         // Feed tool result back into history, truncating very large outputs to avoid
