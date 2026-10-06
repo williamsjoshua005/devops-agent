@@ -1286,6 +1286,54 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
           '<div style="color: #94a3b8; font-size: 11.5px; margin-top: 2px;">Reason: ' + escapeHtml(data.reason) + '</div>';
         stepsContainer.appendChild(card);
         scrollToBottom();
+      } else if (eventType === 'approval_requested') {
+        const card = document.createElement('div');
+        const isProd = data.isProduction;
+        card.id = 'approval-card-' + data.approvalId;
+        card.className = 'stream-card';
+        card.style.borderLeft = isProd ? '4px solid #ef4444' : '4px solid #f59e0b';
+        card.style.background = isProd ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)';
+        card.style.padding = '14px';
+
+        let diffHtml = '';
+        if (data.diff) {
+          diffHtml = '<div style="margin-top: 10px; font-size: 11px; background: #020617; padding: 10px; border-radius: 6px; overflow-x: auto; font-family: monospace; border: 1px solid #334155;">' +
+            convertAnsiToHtml(escapeHtml(data.diff)) +
+          '</div>';
+        }
+
+        let sreHtml = '';
+        if (data.sreReview) {
+          const badgeClass = data.sreReview.verdict === 'APPROVED' ? 'stream-sre-approved' : 'stream-sre-caution';
+          sreHtml = '<div style="margin-top: 8px; font-size: 11.5px; color: #94a3b8; background: rgba(30, 41, 59, 0.5); padding: 8px 10px; border-radius: 6px;">' +
+            '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+              '<strong style="color: #60a5fa;">🛡️ Senior SRE Pre-Flight Review</strong>' +
+              '<span class="stream-sre-badge ' + badgeClass + '">' + escapeHtml(data.sreReview.verdict) + ' (' + escapeHtml(data.sreReview.blastRadius) + ')</span>' +
+            '</div>' +
+            '<div style="margin-top: 4px; color: #cbd5e1;">' + escapeHtml(data.sreReview.critique) + '</div>' +
+          '</div>';
+        }
+
+        card.innerHTML = 
+          '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+            '<div style="color: ' + (isProd ? '#f87171' : '#f59e0b') + '; font-weight: 700; font-size: 13px;">' +
+              (isProd ? '🚨 PRODUCTION MUTATION APPROVAL REQUIRED' : '⚠️ HUMAN-IN-THE-LOOP APPROVAL REQUIRED') +
+            '</div>' +
+            '<span style="font-size: 11px; color: #94a3b8; font-family: monospace;">ID: ' + escapeHtml((data.approvalId || '').slice(0, 8)) + '</span>' +
+          '</div>' +
+          '<div style="margin-top: 8px; font-size: 12.5px; color: #f1f5f9;"><strong>Action:</strong> ' + escapeHtml(data.actionSummary) + '</div>' +
+          '<div style="margin-top: 4px; font-size: 11.5px; color: #94a3b8;"><strong>Reason:</strong> ' + escapeHtml(data.reason) + '</div>' +
+          sreHtml +
+          diffHtml +
+          '<div id="approval-actions-' + data.approvalId + '" style="margin-top: 12px; display: flex; gap: 10px;">' +
+            '<button class="btn btn-primary" onclick="resolveWebApproval(\'' + data.approvalId + '\', true)" style="background: #10b981; border-color: #059669; font-size: 12px; padding: 6px 16px;">✔ Approve & Execute</button>' +
+            '<button class="btn" onclick="resolveWebApproval(\'' + data.approvalId + '\', false)" style="background: #ef4444; border-color: #dc2626; color: white; font-size: 12px; padding: 6px 16px;">✖ Reject / Cancel</button>' +
+          '</div>';
+
+        stepsContainer.appendChild(card);
+        status.innerText = isProd ? '⚠️ Awaiting PRODUCTION approval...' : '⚠️ Awaiting operator approval...';
+        showToast('Approval required for: ' + data.actionSummary);
+        scrollToBottom();
       } else if (eventType === 'done') {
         const durSec = (data.durationMs / 1000).toFixed(1);
         finalContainer.innerHTML = 
@@ -1434,6 +1482,34 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       }
       const pill = document.getElementById('terminalScrollBottomPill');
       if (pill) pill.style.display = 'none';
+    }
+
+    async function resolveWebApproval(approvalId, approved) {
+      const actionsEl = document.getElementById('approval-actions-' + approvalId);
+      if (actionsEl) {
+        actionsEl.innerHTML = '<span style="font-size: 12px; color: #94a3b8;">Submitting response... ⏳</span>';
+      }
+      try {
+        const res = await fetch('/api/task/approval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approvalId, approved })
+        });
+        const data = await res.json();
+        if (actionsEl) {
+          if (approved) {
+            actionsEl.innerHTML = '<span style="font-size: 12px; color: #34d399; font-weight: 600;">✔ Operator Approved. Resuming execution...</span>';
+            showToast('Action approved by operator.');
+          } else {
+            actionsEl.innerHTML = '<span style="font-size: 12px; color: #f87171; font-weight: 600;">✖ Operator Declined. Action safely aborted.</span>';
+            showToast('Action rejected.');
+          }
+        }
+      } catch (err) {
+        if (actionsEl) {
+          actionsEl.innerHTML = '<span style="font-size: 12px; color: #ef4444;">Failed to submit approval: ' + escapeHtml(err.message) + '</span>';
+        }
+      }
     }
 
     function toggleWrap() {

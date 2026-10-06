@@ -1,7 +1,32 @@
 import * as readline from 'node:readline';
 import { TOOL_DEFINITIONS, executeTool } from '../tools/index.js';
+import { Guardrails } from '../policy/guardrails.js';
+import { AuditLogger } from '../policy/audit.js';
+import { SecretSanitizer } from '../policy/sanitizer.js';
+import { AgentContext } from '../types.js';
 
 export class DevOpsMcpServer {
+  private static auditLogger = new AuditLogger();
+  private static context: AgentContext = DevOpsMcpServer.detectContext();
+
+  private static detectContext(): AgentContext {
+    const rawEnv = (process.env.ENVIRONMENT || '').toLowerCase();
+    const isProd = rawEnv.includes('prod') || rawEnv.includes('production');
+    return {
+      cwd: process.cwd(),
+      installedTools: ['git', 'kubectl', 'helm', 'docker', 'az', 'aws', 'gcloud'],
+      environment: isProd ? 'production' : 'development',
+      isProduction: isProd,
+    };
+  }
+
+  /**
+   * Set context override (useful for testing or session initialization)
+   */
+  static setContext(ctx: AgentContext) {
+    this.context = ctx;
+  }
+
   /**
    * Start the MCP server over standard input/output (stdio JSON-RPC)
    */
@@ -32,7 +57,7 @@ export class DevOpsMcpServer {
       }
     });
 
-    console.error('[MCP Server] Junior DevOps MCP server running on stdio');
+    console.error('[MCP Server] Junior DevOps MCP server running on stdio with strict Guardrail enforcement');
   }
 
   static async handleMessage(request: any): Promise<any> {
@@ -71,13 +96,98 @@ export class DevOpsMcpServer {
       };
     }
 
-    // 3. tools/call
+    // 3. tools/call with Guardrail, Audit, and Secret Sanitization Enforcement
     if (method === 'tools/call') {
       const toolName = params?.name;
       const toolArgs = params?.arguments || {};
+      const startTime = Date.now();
 
+      // Policy Evaluation
+      const policy = Guardrails.evaluate(toolName, toolArgs, this.context);
+
+      // Blocked Actions (Tier 3: DANGEROUS)
+      if (policy.isBlocked) {
+        const blockedMsg = `⛔ [SECURITY GUARDRAIL - BLOCKED]: Execution of "${toolName}" was strictly blocked by Tier 3 safety policy.\nAction: ${policy.actionSummary}\nReason: ${policy.reason}\nJunior DevOps agent is restricted from executing destructive actions.`;
+
+        await this.auditLogger.record({
+          sessionId: 'mcp-session',
+          toolName: toolName || 'unknown',
+          args: toolArgs,
+          tier: policy.tier,
+          isBlocked: true,
+          requiresApproval: false,
+          approved: false,
+          durationMs: Date.now() - startTime,
+          outputSummary: `BLOCKED: ${policy.actionSummary}`,
+          error: policy.reason,
+        });
+
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [{ type: 'text', text: blockedMsg }],
+            isError: true,
+          },
+        };
+      }
+
+      // Mutating Actions (Tier 2: MUTATE)
+      if (policy.requiresApproval) {
+        const isConfirmed = toolArgs.confirmed === true || toolArgs.approved === true;
+
+        if (!isConfirmed) {
+          let warnMsg = `⚠️ [APPROVAL REQUIRED - TIER: MUTATE]: Tool "${toolName}" modifies cluster or cloud state.\n` +
+            `• Action: ${policy.actionSummary}\n` +
+            `• Reason: ${policy.reason}\n`;
+
+          if (policy.isProductionWarning) {
+            warnMsg += `• 🚨 CRITICAL WARNING: Active environment is PRODUCTION.\n`;
+          }
+
+          warnMsg += `\nTo confirm execution over MCP, re-invoke this tool with argument "confirmed": true after operator review.`;
+
+          await this.auditLogger.record({
+            sessionId: 'mcp-session',
+            toolName: toolName || 'unknown',
+            args: toolArgs,
+            tier: policy.tier,
+            isBlocked: false,
+            requiresApproval: true,
+            approved: false,
+            durationMs: Date.now() - startTime,
+            outputSummary: `AWAITING APPROVAL: ${policy.actionSummary}`,
+          });
+
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [{ type: 'text', text: warnMsg }],
+              isError: true,
+            },
+          };
+        }
+      }
+
+      // Execute Allowed / Confirmed Tool
       try {
-        const output = await executeTool(toolName, toolArgs);
+        const rawOutput = await executeTool(toolName, toolArgs, this.context);
+        const durationMs = Date.now() - startTime;
+        const sanitizedOutput = SecretSanitizer.sanitize(rawOutput);
+
+        await this.auditLogger.record({
+          sessionId: 'mcp-session',
+          toolName: toolName || 'unknown',
+          args: toolArgs,
+          tier: policy.tier,
+          isBlocked: false,
+          requiresApproval: policy.requiresApproval,
+          approved: true,
+          durationMs,
+          outputSummary: sanitizedOutput.slice(0, 500),
+        });
+
         return {
           jsonrpc: '2.0',
           id,
@@ -85,13 +195,29 @@ export class DevOpsMcpServer {
             content: [
               {
                 type: 'text',
-                text: output,
+                text: sanitizedOutput,
               },
             ],
             isError: false,
           },
         };
       } catch (err: any) {
+        const durationMs = Date.now() - startTime;
+        const sanitizedErr = SecretSanitizer.sanitize(err.message || String(err));
+
+        await this.auditLogger.record({
+          sessionId: 'mcp-session',
+          toolName: toolName || 'unknown',
+          args: toolArgs,
+          tier: policy.tier,
+          isBlocked: false,
+          requiresApproval: policy.requiresApproval,
+          approved: true,
+          durationMs,
+          outputSummary: 'Execution error',
+          error: sanitizedErr,
+        });
+
         return {
           jsonrpc: '2.0',
           id,
@@ -99,7 +225,7 @@ export class DevOpsMcpServer {
             content: [
               {
                 type: 'text',
-                text: `Tool execution failed: ${err.message}`,
+                text: `Tool execution failed: ${sanitizedErr}`,
               },
             ],
             isError: true,

@@ -1,5 +1,6 @@
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { randomUUID } from 'node:crypto';
 import { PolicyEvaluation } from '../types.js';
 import { colorizeDiff } from './diff.js';
 import { SreReview } from '../harness/reviewer.js';
@@ -83,5 +84,104 @@ export class CliApprovalHandler implements ApprovalHandler {
     } finally {
       rl.close();
     }
+  }
+}
+
+export interface PendingApproval {
+  id: string;
+  evaluation: PolicyEvaluation;
+  toolName: string;
+  args: Record<string, any>;
+  sreReview?: SreReview;
+  createdAt: number;
+  resolve: (approved: boolean) => void;
+  reject: (err: any) => void;
+}
+
+/**
+ * Asynchronous Web & Dashboard Approval Handler
+ * Dispatches approval requests to browser clients via SSE and awaits operator click
+ */
+export class WebApprovalHandler implements ApprovalHandler {
+  private static pendingMap = new Map<string, PendingApproval>();
+  private onRequested?: (pending: Omit<PendingApproval, 'resolve' | 'reject'>) => void;
+
+  constructor(onRequested?: (pending: Omit<PendingApproval, 'resolve' | 'reject'>) => void) {
+    this.onRequested = onRequested;
+  }
+
+  static getPending(id: string): PendingApproval | undefined {
+    return this.pendingMap.get(id);
+  }
+
+  static getAllPending(): Array<Omit<PendingApproval, 'resolve' | 'reject'>> {
+    const list: Array<Omit<PendingApproval, 'resolve' | 'reject'>> = [];
+    for (const [id, item] of this.pendingMap.entries()) {
+      list.push({
+        id,
+        evaluation: item.evaluation,
+        toolName: item.toolName,
+        args: item.args,
+        sreReview: item.sreReview,
+        createdAt: item.createdAt,
+      });
+    }
+    return list;
+  }
+
+  static resolveApproval(id: string, approved: boolean): boolean {
+    const item = this.pendingMap.get(id);
+    if (!item) return false;
+    this.pendingMap.delete(id);
+    item.resolve(approved);
+    return true;
+  }
+
+  requestApproval(
+    evaluation: PolicyEvaluation,
+    toolName: string,
+    args: Record<string, any>,
+    sreReview?: SreReview
+  ): Promise<boolean> {
+    const id = randomUUID();
+    return new Promise<boolean>((resolve, reject) => {
+      // 5-minute timeout fallback to prevent hung tasks
+      const timeoutTimer = setTimeout(() => {
+        if (WebApprovalHandler.pendingMap.has(id)) {
+          WebApprovalHandler.pendingMap.delete(id);
+          resolve(false);
+        }
+      }, 5 * 60 * 1000);
+
+      const pending: PendingApproval = {
+        id,
+        evaluation,
+        toolName,
+        args,
+        sreReview,
+        createdAt: Date.now(),
+        resolve: (approved) => {
+          clearTimeout(timeoutTimer);
+          resolve(approved);
+        },
+        reject: (err) => {
+          clearTimeout(timeoutTimer);
+          reject(err);
+        },
+      };
+
+      WebApprovalHandler.pendingMap.set(id, pending);
+
+      if (this.onRequested) {
+        this.onRequested({
+          id,
+          evaluation,
+          toolName,
+          args,
+          sreReview,
+          createdAt: pending.createdAt,
+        });
+      }
+    });
   }
 }

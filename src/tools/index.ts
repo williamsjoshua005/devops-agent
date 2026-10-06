@@ -610,19 +610,27 @@ export async function executeTool(name: string, args: Record<string, any>, conte
   switch (name) {
     case 'shell_exec':
       return await ShellTool.run(args.command, { maxOutputChars: 12000 });
-    case 'k8s_get_resources':
-      return await K8sTool.getResources(args.resource, args.namespace, args.labelSelector);
-    case 'k8s_describe_resource':
-      return await K8sTool.describeResource(args.resource, args.name, args.namespace);
-    case 'k8s_get_logs':
-      return await K8sTool.getLogs(args.podName, args.namespace, args.container, args.tailLines, args.previous);
+    case 'k8s_get_resources': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.getResources(args.resource, args.namespace, args.labelSelector, targetCtx);
+    }
+    case 'k8s_describe_resource': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.describeResource(args.resource, args.name, args.namespace, targetCtx);
+    }
+    case 'k8s_get_logs': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.getLogs(args.podName, args.namespace, args.container, args.tailLines, args.previous, targetCtx);
+    }
     case 'k8s_rollout_restart': {
-      const restartOutput = await K8sTool.rolloutRestart(args.name, args.kind, args.namespace);
-      const watchResult = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, 25);
+      const targetCtx = args.context || context?.kubeContext;
+      const restartOutput = await K8sTool.rolloutRestart(args.name, args.kind, args.namespace, targetCtx);
+      const watchResult = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, 25, targetCtx);
       return `${restartOutput}\n\n[Post-Mutation Verification]: ${watchResult.message}`;
     }
     case 'k8s_watch_rollout': {
-      const res = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, args.timeoutSeconds);
+      const targetCtx = args.context || context?.kubeContext;
+      const res = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, args.timeoutSeconds, targetCtx);
       return `Rollout Watcher Result:\nSuccess: ${res.succeeded}\nMessage: ${res.message}\nAuto-RolledBack: ${res.rolledBack}`;
     }
     case 'k8s_list_contexts': {

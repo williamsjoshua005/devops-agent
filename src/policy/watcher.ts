@@ -15,11 +15,13 @@ export class RolloutWatcher {
     name: string,
     kind: string = 'deployment',
     namespace: string = 'default',
-    timeoutSeconds: number = 30
+    timeoutSeconds: number = 30,
+    context?: string
   ): Promise<WatcherResult> {
-    console.log(`\n\x1b[36m⏳ [Rollout Watcher Active]: Monitoring ${kind}/${name} in namespace "${namespace}" (${timeoutSeconds}s timeout)...\x1b[0m`);
+    const ctxFlag = context ? `--context=${context} ` : '';
+    console.log(`\n\x1b[36m⏳ [Rollout Watcher Active]: Monitoring ${kind}/${name} in namespace "${namespace}" (${timeoutSeconds}s timeout)... [Context: ${context || 'default'}]\x1b[0m`);
 
-    const statusCmd = `kubectl rollout status ${kind}/${name} -n ${namespace} --timeout=${timeoutSeconds}s`;
+    const statusCmd = `kubectl ${ctxFlag}rollout status ${kind}/${name} -n ${namespace} --timeout=${timeoutSeconds}s`;
     const statusOutput = await ShellTool.run(statusCmd);
 
     const isSuccess =
@@ -36,7 +38,7 @@ export class RolloutWatcher {
 
     // Rollout failed or timed out — initiate safety rollback!
     console.log(`\n\x1b[41m\x1b[37m\x1b[1m 🚨 ROLLOUT FAILURE DETECTED: Initiating Automated Safety Rollback! 🚨 \x1b[0m`);
-    const undoCmd = `kubectl rollout undo ${kind}/${name} -n ${namespace}`;
+    const undoCmd = `kubectl ${ctxFlag}rollout undo ${kind}/${name} -n ${namespace}`;
     const rollbackOutput = await ShellTool.run(undoCmd);
 
     const alertMsg =

@@ -9,6 +9,7 @@ import { CertExpiryTool } from '../tools/certificates.js';
 import { K8sTool } from '../tools/k8s.js';
 import { TOOL_DEFINITIONS } from '../tools/index.js';
 import { getDashboardHtml } from './dashboardHtml.js';
+import { WebApprovalHandler } from '../policy/approvals.js';
 
 export interface WebhookServerOptions {
   port?: number;
@@ -39,6 +40,19 @@ export class AlertWebhookServer {
         res.writeHead(204);
         res.end();
         return;
+      }
+
+      // Security: Validate auth token if WEB_AUTH_TOKEN environment variable is set (skipping /health)
+      const expectedToken = process.env.WEB_AUTH_TOKEN;
+      if (expectedToken && url.pathname !== '/health') {
+        const authHeader = req.headers['authorization'];
+        const queryToken = url.searchParams.get('token');
+        const provided = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : queryToken;
+        if (!provided || provided !== expectedToken) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Unauthorized: valid WEB_AUTH_TOKEN required.' }));
+          return;
+        }
       }
 
       // 1. Dashboard Web UI
@@ -214,6 +228,18 @@ export class AlertWebhookServer {
           try {
             const finalResult = await this.harness.run({
               task: taskStr,
+              approvalHandler: new WebApprovalHandler((pending) => {
+                sendSse('approval_requested', {
+                  approvalId: pending.id,
+                  toolName: pending.toolName,
+                  args: pending.args,
+                  actionSummary: pending.evaluation.actionSummary,
+                  reason: pending.evaluation.reason,
+                  diff: pending.evaluation.diff,
+                  isProduction: pending.evaluation.isProductionWarning,
+                  sreReview: pending.sreReview,
+                });
+              }),
               onTurnStart: (turn) => {
                 sendSse('turn_start', { turn });
               },
@@ -271,6 +297,55 @@ export class AlertWebhookServer {
             }
           });
         }
+        return;
+      }
+
+      // 6b. Resolve Human-in-the-Loop Task Approval
+      if (
+        req.method === 'POST' &&
+        (url.pathname === '/api/task/approval' || url.pathname === '/api/tasks/approval')
+      ) {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body || '{}');
+            const { approvalId, approved } = data;
+            if (!approvalId || typeof approved !== 'boolean') {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Missing approvalId or boolean approved flag.' }));
+              return;
+            }
+
+            const success = WebApprovalHandler.resolveApproval(approvalId, approved);
+            if (!success) {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(
+                JSON.stringify({
+                  error: `Pending approval "${approvalId}" not found or timed out.`,
+                })
+              );
+              return;
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'ok', approvalId, approved }));
+          } catch (err: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Invalid JSON body: ${err.message}` }));
+          }
+        });
+        return;
+      }
+
+      // 6c. List Active Pending Approvals
+      if (
+        req.method === 'GET' &&
+        (url.pathname === '/api/task/pending-approvals' ||
+          url.pathname === '/api/tasks/pending-approvals')
+      ) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ pending: WebApprovalHandler.getAllPending() }));
         return;
       }
 

@@ -1,5 +1,6 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { SecretSanitizer } from '../policy/sanitizer.js';
 
 const execAsync = promisify(exec);
 
@@ -7,6 +8,7 @@ export interface ShellExecOptions {
   cwd?: string;
   timeoutMs?: number;
   maxOutputChars?: number;
+  sanitize?: boolean;
 }
 
 export class ShellTool {
@@ -14,6 +16,7 @@ export class ShellTool {
     const cwd = options.cwd || process.cwd();
     const timeout = options.timeoutMs || 30000;
     const maxOutput = options.maxOutputChars;
+    const shouldSanitize = options.sanitize !== false;
 
     try {
       const { stdout, stderr } = await execAsync(command, {
@@ -30,6 +33,10 @@ export class ShellTool {
         return '(Command executed successfully with no output)';
       }
 
+      if (shouldSanitize) {
+        output = SecretSanitizer.sanitize(output);
+      }
+
       if (maxOutput !== undefined && output.length > maxOutput) {
         return (
           output.slice(0, maxOutput) +
@@ -42,7 +49,8 @@ export class ShellTool {
       const message = err.message || String(err);
       const stderr = err.stderr ? `\nStderr:\n${err.stderr}` : '';
       const stdout = err.stdout ? `\nStdout:\n${err.stdout}` : '';
-      return `Error executing command: ${message}${stdout}${stderr}`;
+      let rawError = `Error executing command: ${message}${stdout}${stderr}`;
+      return shouldSanitize ? SecretSanitizer.sanitize(rawError) : rawError;
     }
   }
 }

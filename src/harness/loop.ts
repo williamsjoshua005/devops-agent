@@ -12,6 +12,7 @@ import { FinOpsTool } from '../tools/finops.js';
 import { SecurityLinterTool } from '../tools/security.js';
 import { TopologyTool } from '../tools/topology.js';
 import { PostmortemTool } from '../tools/postmortem.js';
+import { SecretSanitizer } from '../policy/sanitizer.js';
 import { K8sTool } from '../tools/k8s.js';
 import { AwsTool } from '../tools/aws.js';
 import { GcpTool } from '../tools/gcp.js';
@@ -390,7 +391,7 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
           role: 'tool',
           name: tc.name,
           toolCallId: tc.id,
-          content: trimmedOutput,
+          content: SecretSanitizer.sanitize(trimmedOutput),
         });
       }
     }

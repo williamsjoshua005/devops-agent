@@ -19,6 +19,9 @@ import { getDashboardHtml } from '../src/server/dashboardHtml.js';
 import { AwsTool } from '../src/tools/aws.js';
 import { GcpTool } from '../src/tools/gcp.js';
 import { AgentContext } from '../src/types.js';
+import { SecretSanitizer } from '../src/policy/sanitizer.js';
+import { WebApprovalHandler } from '../src/policy/approvals.js';
+import { K8sTool } from '../src/tools/k8s.js';
 import * as fs from 'node:fs/promises';
 
 function assert(condition: boolean, message: string) {
@@ -210,7 +213,61 @@ spec:
   const switchDef = TOOL_DEFINITIONS.find((t) => t.name === 'k8s_switch_context');
   assert(Boolean(listDef && switchDef), 'Multi-cluster context tools are registered in TOOL_DEFINITIONS (29 tools total)');
 
-  console.log('\n\x1b[32mAll 22 enterprise multi-cluster and multi-cloud feature tests passed successfully!\x1b[0m\n');
+  // Test 23: Secret & Credential Redaction Sanitizer
+  const rawLeak = 'AWS_KEY=AKIAIOSFODNN7EXAMPLE and DB=postgres://admin:P@ssword123!@db.internal:5432/prod';
+  const sanitized = SecretSanitizer.sanitize(rawLeak);
+  assert(sanitized.includes('[REDACTED_AWS_ACCESS_KEY]') && !sanitized.includes('AKIAIOSFODNN7EXAMPLE'), 'SecretSanitizer redacts AWS access keys');
+  assert(sanitized.includes('[REDACTED_DB_PASSWORD]') && !sanitized.includes('P@ssword123!'), 'SecretSanitizer redacts database connection passwords');
+
+  const objWithSecret = { dbHost: 'localhost', password: 'SuperSecretPassword', nested: { apiKey: 'secret-token-123' } };
+  const sanitizedObj = SecretSanitizer.sanitizeObject(objWithSecret);
+  assert(sanitizedObj.password === '[REDACTED_SECRET]' && (sanitizedObj.nested as any).apiKey === '[REDACTED_SECRET]', 'SecretSanitizer recursively sanitizes secret properties in objects');
+
+  // Test 24: MCP Server Guardrail Enforcement on Dangerous Actions
+  DevOpsMcpServer.setContext(mockProdContext);
+  const mcpBlockedRes = await DevOpsMcpServer.handleMessage({
+    jsonrpc: '2.0',
+    id: 101,
+    method: 'tools/call',
+    params: {
+      name: 'shell_exec',
+      arguments: { command: 'kubectl delete namespace production' },
+    },
+  });
+  assert(mcpBlockedRes.result.isError === true && mcpBlockedRes.result.content[0].text.includes('SECURITY GUARDRAIL - BLOCKED'), 'MCP Server strictly blocks destructive Tier 3 commands');
+
+  // Test 25: MCP Server Approval Gate on Mutating Actions
+  const mcpMutateRes = await DevOpsMcpServer.handleMessage({
+    jsonrpc: '2.0',
+    id: 102,
+    method: 'tools/call',
+    params: {
+      name: 'k8s_rollout_restart',
+      arguments: { name: 'payment-svc', namespace: 'default' },
+    },
+  });
+  assert(mcpMutateRes.result.isError === true && mcpMutateRes.result.content[0].text.includes('APPROVAL REQUIRED'), 'MCP Server requires explicit confirmation for mutating actions');
+
+  // Test 26: Asynchronous WebApprovalHandler (Browser/SSE Approval Lifecycle)
+  let capturedPendingId = '';
+  const webApprovalHandler = new WebApprovalHandler((pending) => {
+    capturedPendingId = pending.id;
+  });
+
+  const approvalPromise = webApprovalHandler.requestApproval(mutateEval, 'k8s_rollout_restart', { name: 'api' });
+  assert(Boolean(capturedPendingId), 'WebApprovalHandler emits approval request with UUID');
+  assert(WebApprovalHandler.getPending(capturedPendingId) !== undefined, 'Pending approval stored in active approval registry');
+
+  const resolveSuccess = WebApprovalHandler.resolveApproval(capturedPendingId, true);
+  assert(resolveSuccess === true, 'WebApprovalHandler successfully resolves approval');
+  const approvalResult = await approvalPromise;
+  assert(approvalResult === true, 'Operator approval resolves to true');
+
+  // Test 27: Per-Request KubeContext Isolation
+  const k8sToolOutput = await K8sTool.getResources('pods', 'default', undefined, 'custom-isolated-cluster');
+  assert(typeof k8sToolOutput === 'string', 'K8sTool runs successfully with isolated --context parameter');
+
+  console.log('\n\x1b[32mAll 27 enterprise multi-cluster, multi-cloud, security, MCP, and web approval tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

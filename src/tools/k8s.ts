@@ -2,16 +2,25 @@ import { ShellTool } from './shell.js';
 
 export class K8sTool {
   /**
-   * List Kubernetes resources with optional namespace and label selector
+   * Helper to format --context flag
+   */
+  private static getContextFlag(context?: string): string {
+    return context ? `--context=${context}` : '';
+  }
+
+  /**
+   * List Kubernetes resources with optional namespace, label selector, and cluster context
    */
   static async getResources(
     resource: string = 'pods',
     namespace?: string,
-    labelSelector?: string
+    labelSelector?: string,
+    context?: string
   ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
     const nsFlag = namespace ? `-n ${namespace}` : '-A';
     const selectorFlag = labelSelector ? `-l ${labelSelector}` : '';
-    const cmd = `kubectl get ${resource} ${nsFlag} ${selectorFlag} --request-timeout=15s -o wide`;
+    const cmd = `kubectl ${ctxFlag} get ${resource} ${nsFlag} ${selectorFlag} --request-timeout=15s -o wide`.replace(/\s+/g, ' ');
     return await ShellTool.run(cmd);
   }
 
@@ -21,10 +30,12 @@ export class K8sTool {
   static async describeResource(
     resource: string,
     name: string,
-    namespace?: string
+    namespace?: string,
+    context?: string
   ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
     const nsFlag = namespace ? `-n ${namespace}` : '';
-    const cmd = `kubectl describe ${resource} ${name} ${nsFlag} --request-timeout=15s`;
+    const cmd = `kubectl ${ctxFlag} describe ${resource} ${name} ${nsFlag} --request-timeout=15s`.replace(/\s+/g, ' ');
     return await ShellTool.run(cmd);
   }
 
@@ -36,12 +47,14 @@ export class K8sTool {
     namespace?: string,
     container?: string,
     tailLines: number = 100,
-    previous: boolean = false
+    previous: boolean = false,
+    context?: string
   ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
     const nsFlag = namespace ? `-n ${namespace}` : '';
     const containerFlag = container ? `-c ${container}` : '';
     const prevFlag = previous ? '-p' : '';
-    const cmd = `kubectl logs ${podName} ${nsFlag} ${containerFlag} --tail=${tailLines} ${prevFlag} --request-timeout=15s`;
+    const cmd = `kubectl ${ctxFlag} logs ${podName} ${nsFlag} ${containerFlag} --tail=${tailLines} ${prevFlag} --request-timeout=15s`.replace(/\s+/g, ' ');
     return await ShellTool.run(cmd);
   }
 
@@ -51,9 +64,11 @@ export class K8sTool {
   static async rolloutRestart(
     name: string,
     kind: string = 'deployment',
-    namespace: string = 'default'
+    namespace: string = 'default',
+    context?: string
   ): Promise<string> {
-    const cmd = `kubectl rollout restart ${kind}/${name} -n ${namespace}`;
+    const ctxFlag = this.getContextFlag(context);
+    const cmd = `kubectl ${ctxFlag} rollout restart ${kind}/${name} -n ${namespace}`.replace(/\s+/g, ' ');
     return await ShellTool.run(cmd);
   }
 
