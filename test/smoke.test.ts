@@ -26,6 +26,10 @@ import { TerraformTool } from '../src/tools/terraform.js';
 import { HelmTool } from '../src/tools/helm.js';
 import { ArgoCdTool } from '../src/tools/argocd.js';
 import { ObservabilityTool } from '../src/tools/observability.js';
+import { IncidentManagementTool } from '../src/tools/incident_management.js';
+import { DisasterRecoveryTool } from '../src/tools/disaster_recovery.js';
+import { CiCdTool } from '../src/tools/cicd.js';
+import { AdmissionPolicyTool } from '../src/tools/admission_policy.js';
 import * as fs from 'node:fs/promises';
 
 function assert(condition: boolean, message: string) {
@@ -327,13 +331,63 @@ spec:
   const debugProdEval = Guardrails.evaluate('k8s_debug_pod', { targetPod: 'api-pod-123' }, mockProdContext);
   assert(debugProdEval.tier === 'MUTATE' && debugProdEval.requiresApproval && debugProdEval.isProductionWarning, 'k8s_debug_pod in production enforces operator approval');
 
-  // Test 33: Total Platform Tool Suite Registration & MCP Hub Exposure
+  // Test 33: Total Platform Tool Suite Registration & MCP Hub Exposure (Phase 2)
   assert(TOOL_DEFINITIONS.length >= 41, `All platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools total)`);
 
-  const updatedMcpRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 999, method: 'tools/list' });
-  assert(updatedMcpRes.result.tools.length >= 41, `MCP Server exposes all tools over JSON-RPC (${updatedMcpRes.result.tools.length} tools)`);
+  // Test 34: PagerDuty & Opsgenie Incident Escalation Safety Policy
+  const pdEval = Guardrails.evaluate('pagerduty_manage', { action: 'list' }, mockDevContext);
+  assert(pdEval.tier === 'READ' && !pdEval.requiresApproval, 'pagerduty_manage passes autonomously as READ');
 
-  console.log(`\n\x1b[32mAll 33 enterprise IaC, GitOps, Observability, Multi-Cloud, and Security feature tests passed successfully!\x1b[0m\n`);
+  const ogEval = Guardrails.evaluate('opsgenie_manage', { action: 'list' }, mockDevContext);
+  assert(ogEval.tier === 'READ' && !ogEval.requiresApproval, 'opsgenie_manage passes autonomously as READ');
+
+  const pdOut = await IncidentManagementTool.managePagerDuty('list');
+  assert(pdOut.includes('PagerDuty') && pdOut.includes('Queue'), 'PagerDuty tool generates structured incident queue report');
+
+  const ogOut = await IncidentManagementTool.manageOpsgenie('list');
+  assert(ogOut.includes('Opsgenie') && ogOut.includes('Alert'), 'Opsgenie tool generates structured alert report');
+
+  // Test 35: Disaster Recovery & Velero Pre-Flight Audit
+  const veleroCheckEval = Guardrails.evaluate('velero_backup_check', {}, mockDevContext);
+  assert(veleroCheckEval.tier === 'READ' && !veleroCheckEval.requiresApproval, 'velero_backup_check evaluates autonomously as READ');
+
+  const veleroCreateEval = Guardrails.evaluate('velero_create_backup', { includeNamespaces: ['default'] }, mockDevContext);
+  assert(veleroCreateEval.tier === 'MUTATE' && veleroCreateEval.requiresApproval, 'velero_create_backup requires human confirmation');
+
+  const veleroOut = await DisasterRecoveryTool.checkVeleroBackups();
+  assert(veleroOut.includes('Velero') && veleroOut.includes('Backup'), 'Velero tool audits cluster backups and freshness');
+
+  // Test 36: Cloud Database Snapshot Safety Policy
+  const dbSnapDevEval = Guardrails.evaluate('cloud_db_snapshot', { provider: 'aws', databaseIdentifier: 'postgres-prod' }, mockDevContext);
+  assert(dbSnapDevEval.tier === 'MUTATE' && dbSnapDevEval.requiresApproval, 'cloud_db_snapshot requires human confirmation');
+
+  const dbSnapProdEval = Guardrails.evaluate('cloud_db_snapshot', { provider: 'aws', databaseIdentifier: 'postgres-prod' }, mockProdContext);
+  assert(dbSnapProdEval.tier === 'MUTATE' && dbSnapProdEval.isProductionWarning, 'cloud_db_snapshot enforces production alert');
+
+  // Test 37: CI/CD Pipeline Triage & Rerun Safety Policy
+  const ciLogsEval = Guardrails.evaluate('ci_pipeline_logs', { provider: 'github' }, mockDevContext);
+  assert(ciLogsEval.tier === 'READ' && !ciLogsEval.requiresApproval, 'ci_pipeline_logs evaluates autonomously as READ');
+
+  const ciRerunEval = Guardrails.evaluate('ci_rerun_failed', { provider: 'github', runId: '12345678' }, mockDevContext);
+  assert(ciRerunEval.tier === 'MUTATE' && ciRerunEval.requiresApproval, 'ci_rerun_failed requires operator confirmation');
+
+  const ciLogsOut = await CiCdTool.viewPipelineLogs('github');
+  assert(typeof ciLogsOut === 'string' && ciLogsOut.length > 0, 'CI/CD tool queries workflow run history');
+
+  // Test 38: Admission Control & Kyverno / OPA Policy Audit
+  const policyAuditEval = Guardrails.evaluate('k8s_policy_audit', {}, mockDevContext);
+  assert(policyAuditEval.tier === 'READ' && !policyAuditEval.requiresApproval, 'k8s_policy_audit evaluates autonomously as READ');
+
+  const policyAuditOut = await AdmissionPolicyTool.audit();
+  assert(policyAuditOut.includes('Policy') || policyAuditOut.includes('Security'), 'Admission policy tool generates compliance audit');
+
+  // Test 39: Complete Platform Suite (49 Registered Tools & Full MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 49, `All 49+ platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+
+  const updatedMcpRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 9999, method: 'tools/list' });
+  assert(updatedMcpRes.result.tools.length >= 49, `MCP Server exposes all tools over JSON-RPC (${updatedMcpRes.result.tools.length} tools)`);
+
+  console.log(`\n\x1b[32mAll 39 enterprise SRE, DR, CI/CD, GitOps, IaC, and Multi-Cloud feature tests passed successfully!\x1b[0m\n`);
 }
 
 runTests().catch((err) => {

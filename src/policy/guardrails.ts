@@ -110,7 +110,12 @@ export class Guardrails {
       toolName === 'argocd_app_status' ||
       toolName === 'argocd_diff_app' ||
       toolName === 'loki_log_query' ||
-      toolName === 'trace_latency_query'
+      toolName === 'trace_latency_query' ||
+      toolName === 'pagerduty_manage' ||
+      toolName === 'opsgenie_manage' ||
+      toolName === 'velero_backup_check' ||
+      toolName === 'ci_pipeline_logs' ||
+      toolName === 'k8s_policy_audit'
     ) {
       return {
         tier: 'READ',
@@ -232,6 +237,41 @@ export class Guardrails {
           ? 'WARNING: Target cluster is PRODUCTION. Spawning diagnostic container requires operator confirmation.'
           : 'Spawning ephemeral diagnostic container in cluster.',
         requiresApproval: isProd,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'velero_create_backup') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Velero Disaster Recovery: Create on-demand backup "${args.backupName || 'preflight'}"`,
+        reason: 'Initiates a cluster-wide persistent volume and resource backup snapshot.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'cloud_db_snapshot') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Cloud Database Snapshot: Trigger point-in-time snapshot for ${String(args.provider || 'cloud').toUpperCase()} database "${args.databaseIdentifier}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target database is in PRODUCTION. Triggering snapshot requires operator confirmation.'
+          : 'Triggering database backup snapshot.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'ci_rerun_failed') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `CI/CD Re-run: Re-trigger failed workflow run #${args.runId}`,
+        reason: 'Re-triggering failed CI/CD pipelines consumes build runners and triggers deployment workflows.',
+        requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,
       };

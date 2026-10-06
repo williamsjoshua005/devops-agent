@@ -21,6 +21,10 @@ import { TerraformTool } from './terraform.js';
 import { HelmTool } from './helm.js';
 import { ArgoCdTool } from './argocd.js';
 import { ObservabilityTool } from './observability.js';
+import { IncidentManagementTool } from './incident_management.js';
+import { DisasterRecoveryTool } from './disaster_recovery.js';
+import { CiCdTool } from './cicd.js';
+import { AdmissionPolicyTool } from './admission_policy.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -893,6 +897,190 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['targetPod'],
     },
   },
+  {
+    name: 'pagerduty_manage',
+    description:
+      'Manage PagerDuty on-call incidents: list triggered alerts, acknowledge, attach diagnostic notes with root cause, or resolve.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['list', 'acknowledge', 'note', 'resolve'],
+          description: 'Action to perform on PagerDuty incident (defaults to "list").',
+        },
+        incidentId: {
+          type: 'string',
+          description: 'Target PagerDuty incident ID (e.g. "PD-9921").',
+        },
+        noteText: {
+          type: 'string',
+          description: 'Diagnostic root cause note to attach to the incident timeline.',
+        },
+      },
+    },
+  },
+  {
+    name: 'opsgenie_manage',
+    description:
+      'Manage Opsgenie on-call alerts: list open alerts, acknowledge, add notes, or close.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['list', 'acknowledge', 'note', 'close'],
+          description: 'Action to perform on Opsgenie alert (defaults to "list").',
+        },
+        alertId: {
+          type: 'string',
+          description: 'Target Opsgenie alert ID.',
+        },
+        noteText: {
+          type: 'string',
+          description: 'Note content to append to the alert.',
+        },
+      },
+    },
+  },
+  {
+    name: 'velero_backup_check',
+    description:
+      'Audit Kubernetes cluster backup health using Velero, verifying schedule status, recent backup age, and failure rates.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Velero controller namespace (defaults to "velero").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'velero_create_backup',
+    description:
+      'Create an on-demand Velero backup snapshot prior to performing high-risk mutations or migrations.',
+    parameters: {
+      type: 'object',
+      properties: {
+        backupName: {
+          type: 'string',
+          description: 'Custom backup name (defaults to auto-generated preflight name).',
+        },
+        includeNamespaces: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of namespaces to back up (defaults to ["default"]).',
+        },
+        ttlHours: {
+          type: 'number',
+          description: 'Snapshot retention time in hours (defaults to 72).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'cloud_db_snapshot',
+    description:
+      'Trigger an on-demand point-in-time snapshot for AWS RDS, Azure Database, or GCP Cloud SQL before database mutations.',
+    parameters: {
+      type: 'object',
+      properties: {
+        provider: {
+          type: 'string',
+          enum: ['aws', 'azure', 'gcp'],
+          description: 'Cloud provider hosting the database.',
+        },
+        databaseIdentifier: {
+          type: 'string',
+          description: 'Database instance identifier / name.',
+        },
+        snapshotName: {
+          type: 'string',
+          description: 'Optional snapshot name.',
+        },
+        region: {
+          type: 'string',
+          description: 'Cloud region (e.g. "us-east-1").',
+        },
+      },
+      required: ['provider', 'databaseIdentifier'],
+    },
+  },
+  {
+    name: 'ci_pipeline_logs',
+    description:
+      'Inspect failed CI/CD pipeline runs, job steps, and error stack traces (GitHub Actions & GitLab CI).',
+    parameters: {
+      type: 'object',
+      properties: {
+        provider: {
+          type: 'string',
+          enum: ['github', 'gitlab'],
+          description: 'CI/CD provider (defaults to "github").',
+        },
+        runId: {
+          type: 'string',
+          description: 'Specific workflow run or pipeline ID (omit to list recent runs).',
+        },
+        repo: {
+          type: 'string',
+          description: 'Repository name in "owner/repo" format (optional).',
+        },
+      },
+    },
+  },
+  {
+    name: 'ci_rerun_failed',
+    description:
+      'Re-trigger failed CI/CD workflow jobs in GitHub Actions or GitLab CI after resolving issues.',
+    parameters: {
+      type: 'object',
+      properties: {
+        provider: {
+          type: 'string',
+          enum: ['github', 'gitlab'],
+          description: 'CI/CD provider (defaults to "github").',
+        },
+        runId: {
+          type: 'string',
+          description: 'Workflow run or pipeline ID to rerun.',
+        },
+        repo: {
+          type: 'string',
+          description: 'Repository name in "owner/repo" format (optional).',
+        },
+      },
+      required: ['runId'],
+    },
+  },
+  {
+    name: 'k8s_policy_audit',
+    description:
+      'Audit live Kubernetes admission control policy compliance (Kyverno, OPA Gatekeeper, and Pod Security Standards).',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace to audit (omit to audit all namespaces).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -1025,6 +1213,28 @@ export async function executeTool(name: string, args: Record<string, any>, conte
     case 'k8s_debug_pod': {
       const targetCtx = args.context || context?.kubeContext;
       return await K8sTool.debugPod(args.targetPod, args.namespace, args.command, args.image, targetCtx);
+    }
+    case 'pagerduty_manage':
+      return await IncidentManagementTool.managePagerDuty(args.action, args.incidentId, args.noteText);
+    case 'opsgenie_manage':
+      return await IncidentManagementTool.manageOpsgenie(args.action, args.alertId, args.noteText);
+    case 'velero_backup_check': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await DisasterRecoveryTool.checkVeleroBackups(args.namespace, targetCtx);
+    }
+    case 'velero_create_backup': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await DisasterRecoveryTool.createVeleroBackup(args.backupName, args.includeNamespaces, args.ttlHours, targetCtx);
+    }
+    case 'cloud_db_snapshot':
+      return await DisasterRecoveryTool.createCloudDbSnapshot(args.provider, args.databaseIdentifier, args.snapshotName, args.region);
+    case 'ci_pipeline_logs':
+      return await CiCdTool.viewPipelineLogs(args.provider, args.runId, args.repo);
+    case 'ci_rerun_failed':
+      return await CiCdTool.rerunFailed(args.provider, args.runId, args.repo);
+    case 'k8s_policy_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await AdmissionPolicyTool.audit(args.namespace, targetCtx);
     }
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
