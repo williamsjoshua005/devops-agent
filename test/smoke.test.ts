@@ -30,6 +30,9 @@ import { IncidentManagementTool } from '../src/tools/incident_management.js';
 import { DisasterRecoveryTool } from '../src/tools/disaster_recovery.js';
 import { CiCdTool } from '../src/tools/cicd.js';
 import { AdmissionPolicyTool } from '../src/tools/admission_policy.js';
+import { RunbookTool } from '../src/tools/runbook.js';
+import { VaultSecretTool } from '../src/tools/vault_secret.js';
+import { ServiceMeshTool } from '../src/tools/service_mesh.js';
 import * as fs from 'node:fs/promises';
 
 function assert(condition: boolean, message: string) {
@@ -381,13 +384,66 @@ spec:
   const policyAuditOut = await AdmissionPolicyTool.audit();
   assert(policyAuditOut.includes('Policy') || policyAuditOut.includes('Security'), 'Admission policy tool generates compliance audit');
 
-  // Test 39: Complete Platform Suite (49 Registered Tools & Full MCP Exposure)
+  // Test 39: Complete Platform Suite (49 Registered Tools)
   assert(TOOL_DEFINITIONS.length >= 49, `All 49+ platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
 
-  const updatedMcpRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 9999, method: 'tools/list' });
-  assert(updatedMcpRes.result.tools.length >= 49, `MCP Server exposes all tools over JSON-RPC (${updatedMcpRes.result.tools.length} tools)`);
+  // Test 40: Enterprise Runbook Catalog & Search Policy
+  const rbListEval = Guardrails.evaluate('runbook_list', {}, mockDevContext);
+  assert(rbListEval.tier === 'READ' && !rbListEval.requiresApproval, 'runbook_list evaluates autonomously as READ');
 
-  console.log(`\n\x1b[32mAll 39 enterprise SRE, DR, CI/CD, GitOps, IaC, and Multi-Cloud feature tests passed successfully!\x1b[0m\n`);
+  const rbCatalog = RunbookTool.listRunbooks();
+  assert(rbCatalog.includes('Enterprise SRE Runbook Catalog') && rbCatalog.includes('oomkilled-pod-remediation'), 'Runbook catalog lists standard enterprise runbooks');
+
+  const rbFiltered = RunbookTool.listRunbooks({ symptom: 'OOMKilled' });
+  assert(rbFiltered.includes('oomkilled-pod-remediation'), 'Runbook catalog filters by incident symptom');
+
+  // Test 41: Runbook Pre-Flight Validation
+  const rbValEval = Guardrails.evaluate('runbook_validate', { runbookId: 'oomkilled-pod-remediation' }, mockDevContext);
+  assert(rbValEval.tier === 'READ' && !rbValEval.requiresApproval, 'runbook_validate evaluates autonomously as READ');
+
+  const invalidVal = RunbookTool.validateRunbook('oomkilled-pod-remediation', {});
+  assert(!invalidVal.valid && invalidVal.missingParams.includes('workloadName'), 'Runbook validation flags missing required parameters');
+
+  const validVal = RunbookTool.validateRunbook('oomkilled-pod-remediation', { workloadName: 'payment-api', namespace: 'prod' });
+  assert(validVal.valid, 'Runbook validation passes when parameters are satisfied');
+
+  // Test 42: Runbook Dry-Run Execution & Safety Guardrails
+  const rbExecDevEval = Guardrails.evaluate('runbook_execute', { runbookId: 'oomkilled-pod-remediation' }, mockDevContext);
+  assert(rbExecDevEval.tier === 'MUTATE' && rbExecDevEval.requiresApproval, 'runbook_execute requires operator confirmation');
+
+  const rbExecProdEval = Guardrails.evaluate('runbook_execute', { runbookId: 'oomkilled-pod-remediation' }, mockProdContext);
+  assert(rbExecProdEval.tier === 'MUTATE' && rbExecProdEval.isProductionWarning, 'runbook_execute in production flags critical warning');
+
+  const dryRunOut = await RunbookTool.executeRunbook('oomkilled-pod-remediation', { workloadName: 'order-service', namespace: 'default' }, { dryRun: true });
+  assert(dryRunOut.includes('DRY-RUN PREVIEW') && dryRunOut.includes('RESOLVED SUCCESSFULLY'), 'Runbook execution in dry-run verifies all step commands');
+
+  // Test 43: Safe Vault & Kubernetes Secret Metadata Audit (Zero-Leakage)
+  const vaultInspectEval = Guardrails.evaluate('vault_secret_inspect', { secretIdentifier: 'app-secret' }, mockDevContext);
+  assert(vaultInspectEval.tier === 'READ' && !vaultInspectEval.requiresApproval, 'vault_secret_inspect evaluates autonomously as READ');
+
+  const vaultInspectOut = await VaultSecretTool.inspectSecret('database-credentials', { provider: 'k8s' });
+  assert(vaultInspectOut.includes('Kubernetes Secret') && !vaultInspectOut.includes('password123'), 'Secret inspection redacts plaintext data');
+
+  const sealedSecretsEval = Guardrails.evaluate('sealed_secrets_check', {}, mockDevContext);
+  assert(sealedSecretsEval.tier === 'READ' && !sealedSecretsEval.requiresApproval, 'sealed_secrets_check evaluates autonomously as READ');
+
+  const sealedOut = await VaultSecretTool.auditSealedSecrets();
+  assert(sealedOut.includes('SealedSecrets'), 'Bitnami SealedSecrets audit generates report');
+
+  // Test 44: Service Mesh & Ingress Health Diagnostics
+  const meshDiagEval = Guardrails.evaluate('service_mesh_diagnose', {}, mockDevContext);
+  assert(meshDiagEval.tier === 'READ' && !meshDiagEval.requiresApproval, 'service_mesh_diagnose evaluates autonomously as READ');
+
+  const meshOut = await ServiceMeshTool.diagnoseMesh();
+  assert(meshOut.includes('Service Mesh Diagnostics'), 'Service mesh tool generates diagnostic report');
+
+  // Test 45: Enterprise Suite (55 Registered Tools & Full MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 55, `All 55+ platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+
+  const mcp55Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10000, method: 'tools/list' });
+  assert(mcp55Res.result.tools.length >= 55, `MCP Server exposes all tools over JSON-RPC (${mcp55Res.result.tools.length} tools)`);
+
+  console.log(`\n\x1b[32mAll 45 enterprise SRE, DR, CI/CD, GitOps, IaC, Runbook, Vault, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n`);
 }
 
 runTests().catch((err) => {

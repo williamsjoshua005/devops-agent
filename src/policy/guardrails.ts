@@ -115,7 +115,12 @@ export class Guardrails {
       toolName === 'opsgenie_manage' ||
       toolName === 'velero_backup_check' ||
       toolName === 'ci_pipeline_logs' ||
-      toolName === 'k8s_policy_audit'
+      toolName === 'k8s_policy_audit' ||
+      toolName === 'runbook_list' ||
+      toolName === 'runbook_validate' ||
+      toolName === 'vault_secret_inspect' ||
+      toolName === 'sealed_secrets_check' ||
+      toolName === 'service_mesh_diagnose'
     ) {
       return {
         tier: 'READ',
@@ -271,6 +276,19 @@ export class Guardrails {
         tier: 'MUTATE',
         actionSummary: `CI/CD Re-run: Re-trigger failed workflow run #${args.runId}`,
         reason: 'Re-triggering failed CI/CD pipelines consumes build runners and triggers deployment workflows.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'runbook_execute') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Execute SRE Runbook "${args.runbookId}" on namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Executing automated runbook mutates live infrastructure.'
+          : 'Executing automated SRE runbook steps mutates cluster workloads. Operator confirmation required.',
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,

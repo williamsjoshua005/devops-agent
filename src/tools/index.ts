@@ -25,6 +25,9 @@ import { IncidentManagementTool } from './incident_management.js';
 import { DisasterRecoveryTool } from './disaster_recovery.js';
 import { CiCdTool } from './cicd.js';
 import { AdmissionPolicyTool } from './admission_policy.js';
+import { RunbookTool } from './runbook.js';
+import { VaultSecretTool } from './vault_secret.js';
+import { ServiceMeshTool } from './service_mesh.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -1081,6 +1084,160 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'runbook_list',
+    description:
+      'List available vetted enterprise SRE runbooks matching optional symptoms, target resources, or severity level.',
+    parameters: {
+      type: 'object',
+      properties: {
+        symptom: {
+          type: 'string',
+          description: 'Alert symptom or error code to filter by (e.g. "OOMKilled", "DiskPressure", "certificate expired").',
+        },
+        target: {
+          type: 'string',
+          description: 'Target resource type to filter by (e.g. "Deployment", "PVC", "Redis").',
+        },
+        severity: {
+          type: 'string',
+          enum: ['CRITICAL', 'HIGH', 'MEDIUM'],
+          description: 'Runbook severity tier.',
+        },
+      },
+    },
+  },
+  {
+    name: 'runbook_validate',
+    description:
+      'Pre-flight validation of SRE runbook prerequisites, parameters, target environment, and estimated blast radius.',
+    parameters: {
+      type: 'object',
+      properties: {
+        runbookId: {
+          type: 'string',
+          description: 'Unique runbook ID to validate (e.g. "oomkilled-pod-remediation", "pvc-disk-pressure-expand").',
+        },
+        params: {
+          type: 'object',
+          description: 'Key-value parameters required by the runbook (e.g. {"workloadName":"api", "namespace":"prod"}).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Target Kubernetes namespace.',
+        },
+      },
+      required: ['runbookId'],
+    },
+  },
+  {
+    name: 'runbook_execute',
+    description:
+      'Execute a vetted enterprise SRE runbook step-by-step with checkpoints, health verification, and rollback handlers.',
+    parameters: {
+      type: 'object',
+      properties: {
+        runbookId: {
+          type: 'string',
+          description: 'Unique runbook ID to execute (e.g. "oomkilled-pod-remediation", "pvc-disk-pressure-expand").',
+        },
+        params: {
+          type: 'object',
+          description: 'Execution parameters for the runbook.',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'If true, simulates execution and parameter expansion without applying mutating commands.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Target Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['runbookId'],
+    },
+  },
+  {
+    name: 'vault_secret_inspect',
+    description:
+      'Safely audit HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, or Kubernetes secret metadata (TTL, version, key names) strictly redacting plaintext values.',
+    parameters: {
+      type: 'object',
+      properties: {
+        secretIdentifier: {
+          type: 'string',
+          description: 'Secret name, Vault path (e.g. "secret/data/payment/api-keys"), AWS secret ID, or K8s secret name.',
+        },
+        provider: {
+          type: 'string',
+          enum: ['vault', 'aws', 'azure', 'k8s'],
+          description: 'Secrets management provider (defaults to "vault" if path contains "/", else "k8s").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (if provider is "k8s").',
+        },
+        vaultName: {
+          type: 'string',
+          description: 'Azure Key Vault name (required if provider is "azure").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['secretIdentifier'],
+    },
+  },
+  {
+    name: 'sealed_secrets_check',
+    description:
+      'Audit Bitnami SealedSecrets in the Kubernetes cluster, checking decryption synchronization status and certificate health.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace to audit (omit to audit all namespaces).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'service_mesh_diagnose',
+    description:
+      'Diagnose service mesh (Istio / Linkerd) proxy synchronization (CDS/LDS/EDS/RDS), mTLS enforcement, and circuit-breaker trip metrics.',
+    parameters: {
+      type: 'object',
+      properties: {
+        meshType: {
+          type: 'string',
+          enum: ['istio', 'linkerd', 'auto'],
+          description: 'Service mesh technology (defaults to auto-detecting Istio or Linkerd).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace under diagnosis.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Specific pod under investigation for sidecar analysis.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -1235,6 +1392,43 @@ export async function executeTool(name: string, args: Record<string, any>, conte
     case 'k8s_policy_audit': {
       const targetCtx = args.context || context?.kubeContext;
       return await AdmissionPolicyTool.audit(args.namespace, targetCtx);
+    }
+    case 'runbook_list':
+      return RunbookTool.listRunbooks(args);
+    case 'runbook_validate':
+      return RunbookTool.validateRunbook(args.runbookId, args.params, args.namespace).report;
+    case 'runbook_execute': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RunbookTool.executeRunbook(args.runbookId, args.params, {
+        dryRun: args.dryRun,
+        namespace: args.namespace,
+        context: targetCtx,
+      });
+    }
+    case 'vault_secret_inspect': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await VaultSecretTool.inspectSecret(args.secretIdentifier, {
+        provider: args.provider,
+        namespace: args.namespace,
+        vaultName: args.vaultName,
+        context: targetCtx,
+      });
+    }
+    case 'sealed_secrets_check': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await VaultSecretTool.auditSealedSecrets({
+        namespace: args.namespace,
+        context: targetCtx,
+      });
+    }
+    case 'service_mesh_diagnose': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ServiceMeshTool.diagnoseMesh({
+        meshType: args.meshType,
+        namespace: args.namespace,
+        podName: args.podName,
+        context: targetCtx,
+      });
     }
     default:
       throw new Error(`Tool "${name}" is not implemented.`);

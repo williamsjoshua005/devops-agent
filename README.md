@@ -76,7 +76,7 @@ npm test
 
 ---
 
-## 🛠️ Registered DevOps Tools (49 Tools)
+## 🛠️ Registered DevOps Tools (55 Tools)
 
 | Tool | Purpose | Autonomy Tier |
 | :--- | :--- | :--- |
@@ -127,5 +127,12 @@ npm test
 | `ci_pipeline_logs` | View failed CI/CD workflow logs & stack traces (GH Actions / GitLab) | Tier 1 (Read-Only) |
 | `ci_rerun_failed` | Re-trigger failed CI/CD pipeline jobs after automated fixes | Tier 2 (SRE + Operator Approval) |
 | `k8s_policy_audit` | Audit admission control violations (Kyverno, OPA Gatekeeper, PSS) | Tier 1 (Read-Only) |
+| `runbook_list` | List available vetted enterprise SRE runbooks & symptoms | Tier 1 (Read-Only) |
+| `runbook_validate` | Pre-flight validation of runbook prerequisites & blast radius | Tier 1 (Read-Only) |
+| `runbook_execute` | Step-by-step SRE runbook remediation with auto-rollback | Tier 2 (SRE + Operator Approval) |
+| `vault_secret_inspect` | Safe audit of Vault / AWS / Azure / K8s secret metadata & TTL | Tier 1 (Read-Only) |
+| `sealed_secrets_check` | Audit Bitnami SealedSecrets decryption sync & cert health | Tier 1 (Read-Only) |
+| `service_mesh_diagnose` | Diagnose Istio / Linkerd proxy sync (CDS/LDS/EDS/RDS) & mTLS | Tier 1 (Read-Only) |
+
 
 
