@@ -1,4 +1,5 @@
 import * as readline from 'node:readline';
+import { randomUUID } from 'node:crypto';
 import { TOOL_DEFINITIONS, executeTool } from '../tools/index.js';
 import { Guardrails } from '../policy/guardrails.js';
 import { AuditLogger } from '../policy/audit.js';
@@ -137,15 +138,19 @@ export class DevOpsMcpServer {
         const isConfirmed = toolArgs.confirmed === true || toolArgs.approved === true;
 
         if (!isConfirmed) {
+          const approvalId = randomUUID();
           let warnMsg = `⚠️ [APPROVAL REQUIRED - TIER: MUTATE]: Tool "${toolName}" modifies cluster or cloud state.\n` +
             `• Action: ${policy.actionSummary}\n` +
-            `• Reason: ${policy.reason}\n`;
+            `• Reason: ${policy.reason}\n` +
+            `• Approval ID: ${approvalId}\n`;
 
           if (policy.isProductionWarning) {
             warnMsg += `• 🚨 CRITICAL WARNING: Active environment is PRODUCTION.\n`;
           }
 
-          warnMsg += `\nTo confirm execution over MCP, re-invoke this tool with argument "confirmed": true after operator review.`;
+          warnMsg += `\nTo confirm execution over MCP, either:\n` +
+            `1. Re-invoke this tool with argument "confirmed": true after operator review.\n` +
+            `2. Approve via Mission Control Web Console at http://localhost:3456/dashboard or POST /api/task/approval with {"approvalId":"${approvalId}","approved":true}`;
 
           await this.auditLogger.record({
             sessionId: 'mcp-session',

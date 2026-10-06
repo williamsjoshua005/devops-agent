@@ -4,7 +4,7 @@ import { TOOL_DEFINITIONS, executeTool } from '../tools/index.js';
 import { Guardrails } from '../policy/guardrails.js';
 import { ApprovalHandler, CliApprovalHandler } from '../policy/approvals.js';
 import { AuditLogger } from '../policy/audit.js';
-import { LLMClient } from './llm.js';
+import { LLMClient, fitMessagesToBudget } from './llm.js';
 import { getRunbookPrompt } from '../runbooks/index.js';
 import { SeniorSreReviewer, SreReview } from './reviewer.js';
 import { CertExpiryTool } from '../tools/certificates.js';
@@ -355,11 +355,8 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
     const approvalHandler = options.approvalHandler || this.defaultApprovalHandler;
     const sessionId = options.sessionId || randomUUID();
 
-    // Keep context window lean and prune stale historical turns
-    const systemMsg = this.messages.find((m) => m.role === 'system') || this.messages[0];
-    if (this.messages.length > 6) {
-      this.messages = [systemMsg, ...this.messages.slice(-4)];
-    }
+    // Keep context window within budget using token-aware pruning (preserving system prompt and recent turns)
+    this.messages = fitMessagesToBudget(this.messages, 16000, 3500);
 
     this.messages.push({ role: 'user', content: options.task });
 

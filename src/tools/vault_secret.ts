@@ -236,4 +236,68 @@ export class VaultSecretTool {
       return `Failed to audit SealedSecrets: ${err.message}`;
     }
   }
+
+  /**
+   * Audit External Secrets Operator (ESO) resources (ExternalSecret & SecretStore CRDs)
+   */
+  static async auditExternalSecrets(options?: { namespace?: string; context?: string }): Promise<string> {
+    const ctxFlag = this.getContextFlag(options?.context);
+    const nsFlag = options?.namespace ? `-n ${options.namespace}` : '-A';
+    const esCmd = `kubectl ${ctxFlag} get externalsecrets.external-secrets.io ${nsFlag} -o json`.replace(/\s+/g, ' ');
+
+    try {
+      const output = await ShellTool.run(esCmd, { timeoutMs: 15000 });
+
+      if (output.startsWith('Error') || !output.trim().startsWith('{')) {
+        return (
+          `## ⚡ External Secrets Operator (ESO) Audit\n\n` +
+          `• **Status:** ExternalSecret CRD not discovered in cluster or ESO not installed.\n` +
+          `• **Recommendation:** In cloud-native Kubernetes, deploy ESO to sync AWS Secrets Manager, Vault, or GCP Secret Manager into native Kubernetes secrets:\n` +
+          `  \`helm repo add external-secrets https://charts.external-secrets.io && helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace\``
+        );
+      }
+
+      const json = JSON.parse(output);
+      const items: any[] = json.items || [];
+
+      if (items.length === 0) {
+        return `## ⚡ External Secrets Operator (ESO) Audit\n\n• **Total ExternalSecrets:** 0 discovered in specified scope.\n`;
+      }
+
+      let out = `## ⚡ External Secrets Operator (ESO) Audit (${items.length} ExternalSecrets Found)\n\n`;
+      out += `| Namespace | Name | SecretStore | Target Secret | Status | Refresh Interval |\n`;
+      out += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      let syncErrors = 0;
+      for (const item of items) {
+        const ns = item.metadata?.namespace || 'default';
+        const name = item.metadata?.name || 'unknown';
+        const storeRef = item.spec?.secretStoreRef?.name || item.spec?.secretStoreRef?.kind || 'DefaultStore';
+        const targetSec = item.spec?.target?.name || name;
+        const refreshInterval = item.spec?.refreshInterval || '1h';
+
+        const readyCond = (item.status?.conditions || []).find((c: any) => c.type === 'Ready');
+        const isReady = readyCond?.status === 'True';
+        const statusText = isReady ? '✅ Ready / Synced' : `❌ ${readyCond?.reason || 'SyncError'}`;
+
+        if (!isReady) syncErrors++;
+
+        out += `| \`${ns}\` | \`${name}\` | \`${storeRef}\` | \`${targetSec}\` | ${statusText} | ${refreshInterval} |\n`;
+      }
+
+      out += `\n`;
+      if (syncErrors > 0) {
+        out += `### ⚠️ SRE Attention Required:\n`;
+        out += `• **${syncErrors} ExternalSecret(s) failed synchronization.**\n`;
+        out += `• Pods referencing these secrets may experience \`CreateContainerConfigError\` or crash on startup.\n`;
+        out += `• Common root causes: Missing IAM Role (IRSA / Workload Identity), expired Vault token, or secret path does not exist in remote secret store.\n`;
+      } else {
+        out += `✅ All ${items.length} ExternalSecrets are synchronized and ready in target cluster.\n`;
+      }
+
+      return out;
+    } catch (err: any) {
+      return `Failed to audit ExternalSecrets: ${err.message}`;
+    }
+  }
 }

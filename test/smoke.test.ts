@@ -34,6 +34,7 @@ import { RunbookTool } from '../src/tools/runbook.js';
 import { VaultSecretTool } from '../src/tools/vault_secret.js';
 import { ServiceMeshTool } from '../src/tools/service_mesh.js';
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -478,7 +479,57 @@ spec:
   const intermediateDangerousEval = Guardrails.evaluate('shell_exec', { command: 'kubectl delete namespace default' }, intermediateDevContext);
   assert(intermediateDangerousEval.isBlocked === true && intermediateDangerousEval.tier === 'DANGEROUS', 'Dangerous commands remain strictly BLOCKED for Intermediate DevOps role');
 
-  console.log('\n\x1b[32mAll 46 enterprise SRE, DR, CI/CD, GitOps, IaC, Runbook, Vault, Mesh, Multi-Cloud, and 3-tier role hierarchy feature tests passed successfully!\x1b[0m\n');
+  // Test 47: Enhanced SecretSanitizer Cloud & Kubeconfig Patterns
+  const gcpJson = '{"type": "service_account", "private_key_id": "ab12cd34ef56gh78ij90kl12", "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgk\\n-----END PRIVATE KEY-----"}';
+  const sanitizedGcp = SecretSanitizer.sanitize(gcpJson);
+  assert(sanitizedGcp.includes('[REDACTED_GCP_KEY_ID]') && sanitizedGcp.includes('[REDACTED_PRIVATE_KEY]'), 'SecretSanitizer redacts GCP service account JSON credentials');
+
+  const kubeconfigRaw = 'client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t\nclient-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQ==';
+  const sanitizedKube = SecretSanitizer.sanitize(kubeconfigRaw);
+  assert(sanitizedKube.includes('[REDACTED_KUBECONFIG_CREDENTIAL]'), 'SecretSanitizer redacts Kubeconfig client credentials');
+
+  const urlWithCreds = 'https://admin:SuperSecretPass123!@git.internal.company.com/repo.git';
+  const sanitizedUrl = SecretSanitizer.sanitize(urlWithCreds);
+  assert(sanitizedUrl.includes('[REDACTED_URL_PASSWORD]') && !sanitizedUrl.includes('SuperSecretPass123!'), 'SecretSanitizer redacts URL basic auth credentials');
+
+  const azureSecretStr = 'azure_client_secret = "AZURE_SECRET_KEY_VALUE_XYZ123"';
+  const sanitizedAzure = SecretSanitizer.sanitize(azureSecretStr);
+  assert(sanitizedAzure.includes('[REDACTED_AZURE_SECRET]'), 'SecretSanitizer redacts Azure client secrets');
+
+  // Test 48: AuditLogger AES-256-GCM Encryption at Rest
+  const testEncDir = path.join(process.cwd(), '.audit-test-enc');
+  const encLogger = new AuditLogger(testEncDir, 'aes-256-audit-test-key-32byteslong!');
+  const testRec = await encLogger.record({
+    sessionId: 'enc-test-session',
+    toolName: 'k8s_get_resources',
+    tier: 'READ',
+    isBlocked: false,
+    requiresApproval: false,
+    outputSummary: 'Sensitive pod list with confidential data',
+  });
+  assert(testRec.id !== undefined, 'Encrypted AuditLogger records entry');
+
+  const rawEncFile = await fs.readFile(path.join(testEncDir, '.audit', 'audit.jsonl'), 'utf-8');
+  assert(rawEncFile.includes('"_enc":true') && rawEncFile.includes('"ciphertext"'), 'AuditLogger writes AES-256-GCM encrypted envelope on disk');
+
+  const decryptedEntries = await encLogger.getRecent(5);
+  assert(decryptedEntries.length > 0 && decryptedEntries[0].outputSummary === 'Sensitive pod list with confidential data', 'AuditLogger seamlessly decrypts entries with key');
+  await fs.rm(testEncDir, { recursive: true, force: true });
+
+  // Test 49: External Secrets Operator (ESO) Safety & Execution
+  const esoEval = Guardrails.evaluate('external_secrets_check', {}, mockDevContext);
+  assert(esoEval.tier === 'READ' && !esoEval.requiresApproval, 'external_secrets_check evaluates autonomously as READ');
+
+  const esoReport = await VaultSecretTool.auditExternalSecrets();
+  assert(esoReport.includes('External Secrets Operator') || esoReport.includes('ExternalSecret'), 'ESO audit tool generates compliance report');
+
+  // Test 50: Complete Platform Suite (56 Tools & Full MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 56, `All 56+ platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+
+  const mcp56Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10001, method: 'tools/list' });
+  assert(mcp56Res.result.tools.length >= 56, `MCP Server exposes all tools over JSON-RPC (${mcp56Res.result.tools.length} tools)`);
+
+  console.log('\n\x1b[32mAll 50 enterprise SRE, DR, CI/CD, GitOps, IaC, Runbook, Vault, ESO, Mesh, Multi-Cloud, and Security feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

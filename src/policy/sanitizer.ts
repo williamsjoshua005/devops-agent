@@ -56,6 +56,30 @@ export class SecretSanitizer {
       regex: /(Authorization:\s*Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi,
       replacement: '$1[REDACTED_BEARER_TOKEN]',
     },
+    // 11. GCP Service Account JSON Credentials
+    {
+      regex: /("private_key_id"\s*:\s*")[A-Za-z0-9]{20,}(")/gi,
+      replacement: '$1[REDACTED_GCP_KEY_ID]$2',
+    },
+    {
+      regex: /("private_key"\s*:\s*")-----BEGIN (?:[A-Z ]*?)PRIVATE KEY-----[^"]*(")/gi,
+      replacement: '$1[REDACTED_GCP_PRIVATE_KEY]$2',
+    },
+    // 12. Kubeconfig Client Certificate & Key Data
+    {
+      regex: /((?:client-certificate-data|client-key-data)\s*:\s*)[A-Za-z0-9+/=]{20,}/gi,
+      replacement: '$1[REDACTED_KUBECONFIG_CREDENTIAL]',
+    },
+    // 13. Basic Auth Credentials in HTTP(S) URLs
+    {
+      regex: /((?:https?):\/\/[^:\s\/]+:)([^@\s\/]{3,})(@)/gi,
+      replacement: '$1[REDACTED_URL_PASSWORD]$3',
+    },
+    // 14. Azure Client Secrets & Subscription Keys
+    {
+      regex: /((?:azure[_-]?(?:client[_-]?secret|secret|subscription[_-]?key))\s*[:=]\s*["']?)([^"'\s\n\r]{8,})(["']?)/gi,
+      replacement: '$1[REDACTED_AZURE_SECRET]$3',
+    },
   ];
 
   /**

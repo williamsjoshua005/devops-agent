@@ -76,7 +76,7 @@ npm test
 
 ---
 
-## 🛠️ Registered DevOps Tools (23 Tools)
+## 🛠️ Registered DevOps Tools (56 Tools)
 
 | Tool | Purpose | Autonomy Tier |
 | :--- | :--- | :--- |
@@ -101,3 +101,36 @@ npm test
 | `file_read` / `file_write` | Manifest and config reading / writing with diffs | Tier 1 (Read) / Tier 2 (Write) |
 | `az_resource_list` | Query Azure resources across groups/types | Tier 1 (Read-Only) |
 | `az_aks_status` | Inspect AKS cluster health and node pool status | Tier 1 (Read-Only) |
+| `aws_resource_list` | Query AWS resources across EC2, S3, RDS, Lambda, VPC | Tier 1 (Read-Only) |
+| `aws_eks_status` | Inspect Amazon EKS cluster health & node groups | Tier 1 (Read-Only) |
+| `gcp_resource_list` | Query GCP compute, buckets, Cloud SQL, VPCs | Tier 1 (Read-Only) |
+| `gcp_gke_status` | Inspect Google Kubernetes Engine cluster status | Tier 1 (Read-Only) |
+| `k8s_list_contexts` | List configured Kubernetes contexts and clusters | Tier 1 (Read-Only) |
+| `k8s_switch_context` | Safely switch active cluster context with prod warnings | Tier 1 (Dev) / Tier 2 (Prod Approval) |
+| `terraform_plan` | Plan & summarize additions, modifications, destructions | Tier 1 (Read-Only) |
+| `terraform_drift_detect` | Detect infrastructure drift against state without mutating | Tier 1 (Read-Only) |
+| `helm_diff` | Visual unified diff of release upgrades before deployment | Tier 1 (Read-Only) |
+| `helm_status` | Query release status, revision, and resource health | Tier 1 (Read-Only) |
+| `helm_history` | Inspect historical Helm deployment revisions | Tier 1 (Read-Only) |
+| `helm_rollback` | Rollback failed/degraded release to previous revision | Tier 2 (SRE + Operator Approval) |
+| `argocd_app_status` | Query sync and health status for Argo CD applications | Tier 1 (Read-Only) |
+| `argocd_diff_app` | Inspect out-of-sync manifest drift in GitOps applications | Tier 1 (Read-Only) |
+| `argocd_sync_app` | Synchronize application to reconcile live cluster with Git | Tier 2 (SRE + Operator Approval) |
+| `loki_log_query` | Query centralized multi-service logs via Grafana Loki LogQL | Tier 1 (Read-Only) |
+| `trace_latency_query` | Pinpoint microservice latency bottlenecks via Jaeger/Tempo | Tier 1 (Read-Only) |
+| `k8s_debug_pod` | Ephemeral diagnostic container for sockets & network | Tier 2 (Dev) / Tier 2 (Prod Approval) |
+| `pagerduty_manage` | Triage, acknowledge, note, or resolve PagerDuty incidents | Tier 1 (Read-Only / Triage) |
+| `opsgenie_manage` | Triage, acknowledge, close, or add notes to Opsgenie alerts | Tier 1 (Read-Only / Triage) |
+| `velero_backup_check` | Audit Velero cluster backup status, completion, and freshness | Tier 1 (Read-Only) |
+| `velero_create_backup` | On-demand cluster backup pre-flight snapshot before maintenance | Tier 2 (SRE + Operator Approval) |
+| `cloud_db_snapshot` | Trigger point-in-time snapshot for AWS RDS, Azure DB, GCP Cloud SQL | Tier 2 (SRE + Operator Approval) |
+| `ci_pipeline_logs` | View failed CI/CD workflow logs & stack traces (GH Actions / GitLab) | Tier 1 (Read-Only) |
+| `ci_rerun_failed` | Re-trigger failed CI/CD pipeline jobs after automated fixes | Tier 2 (SRE + Operator Approval) |
+| `k8s_policy_audit` | Audit admission control violations (Kyverno, OPA Gatekeeper, PSS) | Tier 1 (Read-Only) |
+| `runbook_list` | List available vetted enterprise SRE runbooks & symptoms | Tier 1 (Read-Only) |
+| `runbook_validate` | Pre-flight validation of runbook prerequisites & blast radius | Tier 1 (Read-Only) |
+| `runbook_execute` | Step-by-step SRE runbook remediation with auto-rollback | Tier 2 (SRE + Operator Approval) |
+| `vault_secret_inspect` | Safe audit of Vault / AWS / Azure / K8s secret metadata & TTL | Tier 1 (Read-Only) |
+| `sealed_secrets_check` | Audit Bitnami SealedSecrets decryption sync & cert health | Tier 1 (Read-Only) |
+| `external_secrets_check` | Audit External Secrets Operator (ESO) CRDs & sync status | Tier 1 (Read-Only) |
+| `service_mesh_diagnose` | Diagnose Istio / Linkerd proxy sync (CDS/LDS/EDS/RDS) & mTLS | Tier 1 (Read-Only) |

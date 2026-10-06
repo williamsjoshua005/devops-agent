@@ -1238,6 +1238,24 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'external_secrets_check',
+    description:
+      'Audit External Secrets Operator (ESO) resources in Kubernetes (ExternalSecret, SecretStore, ClusterSecretStore CRDs) and verify synchronization status.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace to audit (omit to audit all namespaces).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -1427,6 +1445,13 @@ export async function executeTool(name: string, args: Record<string, any>, conte
         meshType: args.meshType,
         namespace: args.namespace,
         podName: args.podName,
+        context: targetCtx,
+      });
+    }
+    case 'external_secrets_check': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await VaultSecretTool.auditExternalSecrets({
+        namespace: args.namespace,
         context: targetCtx,
       });
     }

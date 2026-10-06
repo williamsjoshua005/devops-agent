@@ -125,6 +125,7 @@ export class Guardrails {
       toolName === 'runbook_validate' ||
       toolName === 'vault_secret_inspect' ||
       toolName === 'sealed_secrets_check' ||
+      toolName === 'external_secrets_check' ||
       toolName === 'service_mesh_diagnose'
     ) {
       return {
