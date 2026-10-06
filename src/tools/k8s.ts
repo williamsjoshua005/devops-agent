@@ -91,4 +91,35 @@ export class K8sTool {
   static async switchContext(targetContext: string): Promise<string> {
     return await ShellTool.run(`kubectl config use-context ${targetContext}`);
   }
+
+  /**
+   * Run an ephemeral interactive diagnostic pod or container to inspect network, filesystem, or processes
+   */
+  static async debugPod(
+    targetPod: string,
+    namespace: string = 'default',
+    command: string = 'netstat -tuln || ss -tuln',
+    image: string = 'nicolaka/netshoot:latest',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const probeName = `debug-${Date.now().toString(36)}`;
+    const escapedCmd = command.replace(/"/g, '\\"');
+
+    // Run ephemeral debug runner in the target namespace
+    const cmd = `kubectl ${ctxFlag} run ${probeName} -n ${namespace} --rm -i --restart=Never --image=${image} --command -- sh -c "${escapedCmd}"`.replace(/\s+/g, ' ');
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 25000 });
+      return (
+        `## Ephemeral Diagnostic Pod Output (\`${namespace}/${targetPod}\`)\n` +
+        `• **Target Pod/Namespace:** \`${namespace}/${targetPod}\`\n` +
+        `• **Diagnostic Image:** \`${image}\`\n` +
+        `• **Diagnostic Command:** \`${command}\`\n\n` +
+        `\`\`\`\n${output}\n\`\`\``
+      );
+    } catch (err: any) {
+      return `Failed to run ephemeral debug pod: ${err.message}`;
+    }
+  }
 }

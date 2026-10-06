@@ -22,6 +22,10 @@ import { AgentContext } from '../src/types.js';
 import { SecretSanitizer } from '../src/policy/sanitizer.js';
 import { WebApprovalHandler } from '../src/policy/approvals.js';
 import { K8sTool } from '../src/tools/k8s.js';
+import { TerraformTool } from '../src/tools/terraform.js';
+import { HelmTool } from '../src/tools/helm.js';
+import { ArgoCdTool } from '../src/tools/argocd.js';
+import { ObservabilityTool } from '../src/tools/observability.js';
 import * as fs from 'node:fs/promises';
 
 function assert(condition: boolean, message: string) {
@@ -267,7 +271,69 @@ spec:
   const k8sToolOutput = await K8sTool.getResources('pods', 'default', undefined, 'custom-isolated-cluster');
   assert(typeof k8sToolOutput === 'string', 'K8sTool runs successfully with isolated --context parameter');
 
-  console.log('\n\x1b[32mAll 27 enterprise multi-cluster, multi-cloud, security, MCP, and web approval tests passed successfully!\x1b[0m\n');
+  // Test 28: Terraform / OpenTofu Plan & Drift Safety Gates
+  const tfPlanEval = Guardrails.evaluate('terraform_plan', { dirPath: '.' }, mockDevContext);
+  assert(tfPlanEval.tier === 'READ' && !tfPlanEval.requiresApproval, 'terraform_plan evaluates autonomously as READ');
+
+  const tfDriftEval = Guardrails.evaluate('terraform_drift_detect', { dirPath: '.' }, mockDevContext);
+  assert(tfDriftEval.tier === 'READ' && !tfDriftEval.requiresApproval, 'terraform_drift_detect evaluates autonomously as READ');
+
+  const tfDestroyEval = Guardrails.evaluate('shell_exec', { command: 'terraform destroy -auto-approve' }, mockProdContext);
+  assert(tfDestroyEval.tier === 'DANGEROUS' && tfDestroyEval.isBlocked, 'terraform destroy is strictly BLOCKED by Tier 3 policy');
+
+  const tofuDestroyEval = Guardrails.evaluate('shell_exec', { command: 'tofu destroy' }, mockProdContext);
+  assert(tofuDestroyEval.tier === 'DANGEROUS' && tofuDestroyEval.isBlocked, 'tofu destroy is strictly BLOCKED by Tier 3 policy');
+
+  const tfApplyEval = Guardrails.evaluate('shell_exec', { command: 'terraform apply tfplan' }, mockDevContext);
+  assert(tfApplyEval.tier === 'MUTATE' && tfApplyEval.requiresApproval, 'terraform apply requires human approval');
+
+  // Test 29: Helm Diff, Status & Rollback Policy
+  const helmDiffEval = Guardrails.evaluate('helm_diff', { releaseName: 'api', chartPath: './charts/api' }, mockDevContext);
+  assert(helmDiffEval.tier === 'READ' && !helmDiffEval.requiresApproval, 'helm_diff evaluates autonomously as READ preview');
+
+  const helmRollbackDevEval = Guardrails.evaluate('helm_rollback', { releaseName: 'api', revision: 2 }, mockDevContext);
+  assert(helmRollbackDevEval.tier === 'MUTATE' && helmRollbackDevEval.requiresApproval, 'helm_rollback requires human confirmation');
+
+  const helmRollbackProdEval = Guardrails.evaluate('helm_rollback', { releaseName: 'api', revision: 2 }, mockProdContext);
+  assert(helmRollbackProdEval.tier === 'MUTATE' && helmRollbackProdEval.isProductionWarning, 'helm_rollback in production raises high-risk alert');
+
+  // Test 30: Argo CD GitOps Application Controller Safety Policy
+  const argoStatusEval = Guardrails.evaluate('argocd_app_status', { appName: 'frontend' }, mockDevContext);
+  assert(argoStatusEval.tier === 'READ' && !argoStatusEval.requiresApproval, 'argocd_app_status evaluates autonomously as READ');
+
+  const argoDiffEval = Guardrails.evaluate('argocd_diff_app', { appName: 'frontend' }, mockDevContext);
+  assert(argoDiffEval.tier === 'READ' && !argoDiffEval.requiresApproval, 'argocd_diff_app evaluates autonomously as READ');
+
+  const argoSyncEval = Guardrails.evaluate('argocd_sync_app', { appName: 'frontend' }, mockDevContext);
+  assert(argoSyncEval.tier === 'MUTATE' && argoSyncEval.requiresApproval, 'argocd_sync_app requires human approval before reconciling');
+
+  // Test 31: Centralized Observability (Grafana Loki & Tracing)
+  const lokiEval = Guardrails.evaluate('loki_log_query', { query: '{app="api"} |= "error"' }, mockDevContext);
+  assert(lokiEval.tier === 'READ' && !lokiEval.requiresApproval, 'loki_log_query evaluates autonomously as READ');
+
+  const traceEval = Guardrails.evaluate('trace_latency_query', { serviceName: 'payment-svc' }, mockDevContext);
+  assert(traceEval.tier === 'READ' && !traceEval.requiresApproval, 'trace_latency_query evaluates autonomously as READ');
+
+  const lokiOut = await ObservabilityTool.queryLoki('{app="api"} |= "error"');
+  assert(lokiOut.includes('Log Stream') || lokiOut.includes('LogQL'), 'Loki tool generates structured log report');
+
+  const traceOut = await ObservabilityTool.queryTraces('payment-svc');
+  assert(traceOut.includes('Trace Waterfall') || traceOut.includes('payment-svc'), 'Tracing tool analyzes latency bottlenecks');
+
+  // Test 32: Ephemeral Diagnostic Debug Pod Safety
+  const debugDevEval = Guardrails.evaluate('k8s_debug_pod', { targetPod: 'api-pod-123' }, mockDevContext);
+  assert(debugDevEval.tier === 'MUTATE' && !debugDevEval.requiresApproval, 'k8s_debug_pod executes in dev autonomously');
+
+  const debugProdEval = Guardrails.evaluate('k8s_debug_pod', { targetPod: 'api-pod-123' }, mockProdContext);
+  assert(debugProdEval.tier === 'MUTATE' && debugProdEval.requiresApproval && debugProdEval.isProductionWarning, 'k8s_debug_pod in production enforces operator approval');
+
+  // Test 33: Total Platform Tool Suite Registration & MCP Hub Exposure
+  assert(TOOL_DEFINITIONS.length >= 41, `All platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools total)`);
+
+  const updatedMcpRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 999, method: 'tools/list' });
+  assert(updatedMcpRes.result.tools.length >= 41, `MCP Server exposes all tools over JSON-RPC (${updatedMcpRes.result.tools.length} tools)`);
+
+  console.log(`\n\x1b[32mAll 33 enterprise IaC, GitOps, Observability, Multi-Cloud, and Security feature tests passed successfully!\x1b[0m\n`);
 }
 
 runTests().catch((err) => {

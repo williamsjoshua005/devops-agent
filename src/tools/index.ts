@@ -17,6 +17,10 @@ import { NetworkProberTool } from './network.js';
 import { CanaryTool } from './canary.js';
 import { ChaosTool } from './chaos.js';
 import { SemanticKbTool } from './semantic_kb.js';
+import { TerraformTool } from './terraform.js';
+import { HelmTool } from './helm.js';
+import { ArgoCdTool } from './argocd.js';
+import { ObservabilityTool } from './observability.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -604,6 +608,291 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'terraform_plan',
+    description:
+      'Run a Terraform or OpenTofu Plan to inspect proposed infrastructure changes, summarize additions/modifications/destructions, and detect high-risk replacements.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dirPath: {
+          type: 'string',
+          description: 'Working directory containing Terraform files (defaults to ".").',
+        },
+        varFile: {
+          type: 'string',
+          description: 'Optional path to terraform variables file (e.g. "prod.tfvars").',
+        },
+      },
+    },
+  },
+  {
+    name: 'terraform_drift_detect',
+    description:
+      'Detect configuration drift between live cloud resources and declared Terraform state without modifying state.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dirPath: {
+          type: 'string',
+          description: 'Working directory containing Terraform files (defaults to ".").',
+        },
+      },
+    },
+  },
+  {
+    name: 'helm_diff',
+    description:
+      'Generate a visual unified diff of what a Helm release upgrade would change before deploying.',
+    parameters: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name of the Helm release.',
+        },
+        chartPath: {
+          type: 'string',
+          description: 'Path or repository reference for the Helm chart (e.g. "./charts/api").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        valuesFile: {
+          type: 'string',
+          description: 'Optional path to custom values YAML file (e.g. "values-prod.yaml").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['releaseName', 'chartPath'],
+    },
+  },
+  {
+    name: 'helm_status',
+    description:
+      'Query the current status, revision, chart version, and resource health of a deployed Helm release.',
+    parameters: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name of the Helm release.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['releaseName'],
+    },
+  },
+  {
+    name: 'helm_history',
+    description:
+      'List historical revisions and deployment descriptions for a Helm release.',
+    parameters: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name of the Helm release.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['releaseName'],
+    },
+  },
+  {
+    name: 'helm_rollback',
+    description:
+      'Rollback a failed or degraded Helm release to a previous revision.',
+    parameters: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name of the Helm release.',
+        },
+        revision: {
+          type: 'number',
+          description: 'Target revision number to rollback to (omitting rolls back to previous revision).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['releaseName'],
+    },
+  },
+  {
+    name: 'argocd_app_status',
+    description:
+      'Query sync status (Synced/OutOfSync) and health status (Healthy/Degraded) for Argo CD GitOps applications.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appName: {
+          type: 'string',
+          description: 'Specific application name (omit to list all applications across the cluster).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Argo CD controller namespace (defaults to "argocd").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'argocd_diff_app',
+    description:
+      'Inspect specific out-of-sync resources and manifest drift for an Argo CD application.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appName: {
+          type: 'string',
+          description: 'Argo CD application name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Argo CD namespace (defaults to "argocd").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['appName'],
+    },
+  },
+  {
+    name: 'argocd_sync_app',
+    description:
+      'Trigger an automated GitOps sync operation on an Argo CD application to reconcile live cluster state with Git.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appName: {
+          type: 'string',
+          description: 'Argo CD application name to synchronize.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Argo CD namespace (defaults to "argocd").',
+        },
+        prune: {
+          type: 'boolean',
+          description: 'Whether to prune resources no longer in Git (defaults to false).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['appName'],
+    },
+  },
+  {
+    name: 'loki_log_query',
+    description:
+      'Query centralized multi-service and multi-container logs across the cluster using Grafana Loki LogQL.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'LogQL query string (e.g. \'{app="checkout"} |= "error"\').',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of log lines to return (defaults to 50).',
+        },
+        startRange: {
+          type: 'string',
+          description: 'Time window to search (e.g. "1h", "6h", "24h").',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'trace_latency_query',
+    description:
+      'Query distributed traces from Jaeger / Tempo / OpenTelemetry to pinpoint microservice latency bottlenecks and error spans.',
+    parameters: {
+      type: 'object',
+      properties: {
+        serviceName: {
+          type: 'string',
+          description: 'Microservice name to query traces for (e.g. "payment-svc").',
+        },
+        minDurationMs: {
+          type: 'number',
+          description: 'Minimum trace latency in milliseconds (defaults to 500).',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum traces to analyze (defaults to 5).',
+        },
+      },
+      required: ['serviceName'],
+    },
+  },
+  {
+    name: 'k8s_debug_pod',
+    description:
+      'Launch an ephemeral diagnostic pod or container attached to a target workload to inspect sockets, DNS, and processes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetPod: {
+          type: 'string',
+          description: 'Target pod name or workload.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to "default").',
+        },
+        command: {
+          type: 'string',
+          description: 'Diagnostic shell command to execute in the container (e.g. "netstat -tuln" or "curl -v localhost:8080").',
+        },
+        image: {
+          type: 'string',
+          description: 'Diagnostic container image (defaults to "nicolaka/netshoot:latest").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['targetPod'],
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -697,6 +986,46 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       return await FileTool.write(args.path, args.content);
     case 'file_list':
       return await FileTool.list(args.dirPath);
+    case 'terraform_plan':
+      return await TerraformTool.plan(args.dirPath, args.varFile);
+    case 'terraform_drift_detect':
+      return await TerraformTool.detectDrift(args.dirPath);
+    case 'helm_diff': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await HelmTool.diff(args.releaseName, args.chartPath, args.namespace, args.valuesFile, targetCtx);
+    }
+    case 'helm_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await HelmTool.status(args.releaseName, args.namespace, targetCtx);
+    }
+    case 'helm_history': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await HelmTool.history(args.releaseName, args.namespace, targetCtx);
+    }
+    case 'helm_rollback': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await HelmTool.rollback(args.releaseName, args.revision, args.namespace, targetCtx);
+    }
+    case 'argocd_app_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ArgoCdTool.getAppStatus(args.appName, args.namespace, targetCtx);
+    }
+    case 'argocd_diff_app': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ArgoCdTool.diffApp(args.appName, args.namespace, targetCtx);
+    }
+    case 'argocd_sync_app': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ArgoCdTool.syncApp(args.appName, args.namespace, args.prune, targetCtx);
+    }
+    case 'loki_log_query':
+      return await ObservabilityTool.queryLoki(args.query, args.limit, args.startRange);
+    case 'trace_latency_query':
+      return await ObservabilityTool.queryTraces(args.serviceName, args.minDurationMs, args.limit);
+    case 'k8s_debug_pod': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.debugPod(args.targetPod, args.namespace, args.command, args.image, targetCtx);
+    }
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
   }

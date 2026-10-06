@@ -9,7 +9,7 @@ const DANGEROUS_PATTERNS = [
   /kubectl\s+delete\s+(namespace|ns)\b/i,
   /kubectl\s+delete\s+all\b/i,
   /kubectl\s+delete\s+nodes?\b/i,
-  /terraform\s+destroy\b/i,
+  /(terraform|tofu)\s+destroy\b/i,
   /az\s+group\s+delete\b/i,
   /az\s+aks\s+delete\b/i,
   /aws\s+ec2\s+terminate-instances\b/i,
@@ -30,6 +30,7 @@ const DANGEROUS_PATTERNS = [
 // Patterns that mutate state (requiring human confirmation)
 const MUTATING_PATTERNS = [
   /kubectl\s+(apply|create|delete|scale|rollout\s+restart|patch|edit|replace|label|annotate)\b/i,
+  /(terraform|tofu)\s+(apply|init|taint|import|state)\b/i,
   /helm\s+(install|upgrade|rollback|uninstall)\b/i,
   /docker\s+(run|stop|restart|rm|rmi|kill|build|compose\s+(up|down|restart))\b/i,
   /az\s+[a-z0-9-]+\s+(create|update|delete|restart|start|stop)\b/i,
@@ -100,7 +101,16 @@ export class Guardrails {
       toolName === 'topology_graph' ||
       toolName === 'diagnose_connectivity' ||
       toolName === 'semantic_kb_search' ||
-      toolName === 'k8s_list_contexts'
+      toolName === 'k8s_list_contexts' ||
+      toolName === 'terraform_plan' ||
+      toolName === 'terraform_drift_detect' ||
+      toolName === 'helm_diff' ||
+      toolName === 'helm_status' ||
+      toolName === 'helm_history' ||
+      toolName === 'argocd_app_status' ||
+      toolName === 'argocd_diff_app' ||
+      toolName === 'loki_log_query' ||
+      toolName === 'trace_latency_query'
     ) {
       return {
         tier: 'READ',
@@ -185,6 +195,45 @@ export class Guardrails {
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: false,
+      };
+    }
+
+    if (toolName === 'helm_rollback') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Helm Rollback: Rollback release "${args.releaseName}" in namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Rolling back a Helm release mutates live workloads.'
+          : 'Rolling back Helm release alters cluster workloads and requires human confirmation.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'argocd_sync_app') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Argo CD Sync: Reconcile application "${args.appName}" with Git state`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Argo CD sync reconciles live manifests against Git.'
+          : 'Triggering Argo CD sync modifies cluster workloads according to Git state. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_debug_pod') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Launch ephemeral debug pod attached to "${args.targetPod}" in namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'WARNING: Target cluster is PRODUCTION. Spawning diagnostic container requires operator confirmation.'
+          : 'Spawning ephemeral diagnostic container in cluster.',
+        requiresApproval: isProd,
+        isBlocked: false,
+        isProductionWarning: isProd,
       };
     }
 

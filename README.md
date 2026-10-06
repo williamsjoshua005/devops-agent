@@ -76,7 +76,7 @@ npm test
 
 ---
 
-## 🛠️ Registered DevOps Tools (23 Tools)
+## 🛠️ Registered DevOps Tools (41 Tools)
 
 | Tool | Purpose | Autonomy Tier |
 | :--- | :--- | :--- |
@@ -101,3 +101,20 @@ npm test
 | `file_read` / `file_write` | Manifest and config reading / writing with diffs | Tier 1 (Read) / Tier 2 (Write) |
 | `az_resource_list` | Query Azure resources across groups/types | Tier 1 (Read-Only) |
 | `az_aks_status` | Inspect AKS cluster health and node pool status | Tier 1 (Read-Only) |
+| `aws_resource_list` | Query AWS resources across EC2, S3, RDS, Lambda, VPC | Tier 1 (Read-Only) |
+| `aws_eks_status` | Inspect Amazon EKS cluster health & node groups | Tier 1 (Read-Only) |
+| `gcp_resource_list` | Query GCP compute, buckets, Cloud SQL, VPCs | Tier 1 (Read-Only) |
+| `gcp_gke_status` | Inspect Google Kubernetes Engine cluster status | Tier 1 (Read-Only) |
+| `terraform_plan` | Plan & summarize additions, modifications, destructions | Tier 1 (Read-Only) |
+| `terraform_drift_detect` | Detect infrastructure drift against state without mutating | Tier 1 (Read-Only) |
+| `helm_diff` | Visual unified diff of release upgrades before deployment | Tier 1 (Read-Only) |
+| `helm_status` | Query release status, revision, and resource health | Tier 1 (Read-Only) |
+| `helm_history` | Inspect historical Helm deployment revisions | Tier 1 (Read-Only) |
+| `helm_rollback` | Rollback failed/degraded release to previous revision | Tier 2 (SRE + Operator Approval) |
+| `argocd_app_status` | Query sync and health status for Argo CD applications | Tier 1 (Read-Only) |
+| `argocd_diff_app` | Inspect out-of-sync manifest drift in GitOps applications | Tier 1 (Read-Only) |
+| `argocd_sync_app` | Synchronize application to reconcile live cluster with Git | Tier 2 (SRE + Operator Approval) |
+| `loki_log_query` | Query centralized multi-service logs via Grafana Loki LogQL | Tier 1 (Read-Only) |
+| `trace_latency_query` | Pinpoint microservice latency bottlenecks via Jaeger/Tempo | Tier 1 (Read-Only) |
+| `k8s_debug_pod` | Ephemeral diagnostic container for sockets & network | Tier 2 (Dev) / Tier 2 (Prod Approval) |
+
