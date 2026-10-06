@@ -5,13 +5,14 @@ export function getDashboardHtml(context: any): string {
 
   const kubeCtx = context.kubeContext || 'None (Local / Cloud CLIs)';
   const toolsCount = context.installedTools?.length || 5;
+  const roleStr = (context.roleLevel || 'intermediate').toUpperCase();
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DevOps Agent — Mission Control v4.0</title>
+  <title>DevOps Agent — Mission Control v4.5</title>
   <!-- Optional Mermaid for Live Topology -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <style>
@@ -46,7 +47,9 @@ export function getDashboardHtml(context: any): string {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 14px 28px;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px 24px;
       background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--card-border);
@@ -54,7 +57,7 @@ export function getDashboardHtml(context: any): string {
       top: 0;
       z-index: 100;
     }
-    .nav-brand { display: flex; align-items: center; gap: 14px; }
+    .nav-brand { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
     .brand-logo {
       width: 36px; height: 36px; border-radius: 10px;
       background: linear-gradient(135deg, #0284c7, #38bdf8);
@@ -64,11 +67,21 @@ export function getDashboardHtml(context: any): string {
     }
     .brand-text h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
     .brand-text p { font-size: 11px; color: var(--text-muted); font-weight: 500; }
-    .nav-meta { display: flex; align-items: center; gap: 12px; }
+    .nav-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .ctx-pill {
       display: flex; align-items: center; gap: 6px;
       background: #020617; border: 1px solid var(--card-border);
       padding: 5px 12px; border-radius: 9999px; font-size: 12px; color: var(--text-muted);
+    }
+    .role-pill-highlight {
+      background: rgba(56, 189, 248, 0.12) !important;
+      border: 1px solid rgba(56, 189, 248, 0.45) !important;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+      cursor: pointer;
+    }
+    .role-pill-highlight strong, .role-pill-highlight code {
+      color: #38bdf8 !important;
+      font-weight: 700;
     }
     .ctx-pill code { color: #38bdf8; font-family: ui-monospace, monospace; }
     .badge {
@@ -591,11 +604,40 @@ export function getDashboardHtml(context: any): string {
     <div class="nav-brand">
       <div class="brand-logo">⚡</div>
       <div class="brand-text">
-        <h1>DevOps Agent — Mission Control v4.0</h1>
-        <p>Autonomous SRE • Multi-Cloud Orchestration • 3-Tier Guardrails</p>
+        <h1>DevOps Agent — Mission Control v4.5</h1>
+        <p>Junior • Intermediate • Senior SRE • Multi-Cloud Orchestration • Guardrails</p>
       </div>
     </div>
     <div class="nav-meta">
+      <div class="ctx-pill role-pill-highlight" id="rolePill" onclick="toggleRoleDropdown(event)" style="cursor: pointer; position: relative;" title="Click to switch DevOps Role Hierarchy">
+        <span>👔 Role:</span>
+        <code id="activeRoleText" class="activeRoleTextSync">${roleStr}</code>
+        <span class="status-dot dot-green" id="roleDot"></span>
+        <span style="font-size: 10px; color: var(--text-muted); margin-left: 2px;">▼</span>
+
+        <!-- Role Dropdown Menu -->
+        <div id="roleDropdownMenu" class="cluster-dropdown" style="display: none; min-width: 280px;">
+          <div class="dropdown-header">SWITCH DEVOPS ROLE HIERARCHY</div>
+          <div class="cluster-item" onclick="switchRole('junior', event)">
+            <div>
+              <div style="font-weight: 700; color: #facc15;">🟡 Junior DevOps Agent</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Strict approval gate; all mutations require human approval</div>
+            </div>
+          </div>
+          <div class="cluster-item" onclick="switchRole('intermediate', event)">
+            <div>
+              <div style="font-weight: 700; color: #38bdf8;">🔵 Intermediate DevOps</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Autonomous non-prod fixes, self-healing rollouts, GitOps PRs</div>
+            </div>
+          </div>
+          <div class="cluster-item" onclick="switchRole('senior', event)">
+            <div>
+              <div style="font-weight: 700; color: #c084fc;">🟣 Senior SRE Architect</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Architectural peer reviews, blast radius analysis, error budgets</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="ctx-pill" id="clusterPill" onclick="toggleClusterDropdown(event)" style="cursor: pointer; position: relative;" title="Click to switch Kubernetes cluster context">
         <span>☸️ Context:</span>
         <code id="activeKubeCtx">${kubeCtx}</code>
@@ -619,9 +661,9 @@ export function getDashboardHtml(context: any): string {
   <div class="container">
     <!-- Top System Metrics Strip -->
     <div class="metrics-grid">
-      <div class="metric-card" onclick="openToolsModal()" style="cursor: pointer;" title="Click to view all 27 native tools">
+      <div class="metric-card" onclick="openToolsModal()" style="cursor: pointer;" title="Click to view all native tools">
         <div class="metric-label">Platform Tools</div>
-        <div class="metric-val" id="toolCountVal">27 Native ↗</div>
+        <div class="metric-val" id="toolCountVal">29 Native ↗</div>
         <div class="metric-sub">K8s • Azure • AWS • GCP • FinOps</div>
       </div>
       <div class="metric-card">
@@ -634,10 +676,10 @@ export function getDashboardHtml(context: any): string {
         <div class="metric-val" id="auditMetricVal" style="color: #38bdf8;">Immutable</div>
         <div class="metric-sub">Protected in <code>.audit/audit.jsonl</code></div>
       </div>
-      <div class="metric-card">
-        <div class="metric-label">Multi-Agent SRE Loop</div>
-        <div class="metric-val" style="color: #a855f7;">Dual-Agent</div>
-        <div class="metric-sub">Junior Investigator + Senior Reviewer</div>
+      <div class="metric-card" onclick="toggleRoleDropdown(event)" style="cursor: pointer;" title="Click to toggle DevOps role hierarchy">
+        <div class="metric-label">DevOps Hierarchy Role</div>
+        <div class="metric-val" id="roleMetricVal" style="color: #a855f7;">${roleStr}</div>
+        <div class="metric-sub">Junior • Intermediate • Senior SRE</div>
       </div>
     </div>
 
@@ -657,9 +699,16 @@ export function getDashboardHtml(context: any): string {
       <div class="dual-grid">
         <div>
           <div class="panel">
-            <div class="panel-header">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <div class="panel-title">⚡ Interactive Autonomous Terminal</div>
-              <button class="btn-secondary" onclick="clearTerminal()" style="font-size: 11px;">Clear Output</button>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="ctx-pill role-pill-highlight" onclick="toggleRoleDropdown(event)" style="font-size: 11px; padding: 4px 10px; cursor: pointer;" title="Click to change DevOps role autonomy">
+                  <span>Autonomy:</span>
+                  <strong class="activeRoleTextSync" style="color: #38bdf8;">${roleStr}</strong>
+                  <span style="font-size: 9px; color: var(--text-muted); margin-left: 2px;">▼</span>
+                </div>
+                <button class="btn-secondary" onclick="clearTerminal()" style="font-size: 11px;">Clear Output</button>
+              </div>
             </div>
             <div class="task-box">
               <textarea id="taskInput" rows="3" placeholder="Enter instructions for the agent (e.g. 'Diagnose failing pods in default', 'List all AWS EC2 instances', 'Audit cluster for waste', 'Check TLS cert expiry')..."></textarea>
@@ -1106,6 +1155,14 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         systemStatus = await res.json();
         if (systemStatus.toolsCount) {
           document.getElementById('toolCountVal').innerText = systemStatus.toolsCount + ' Native ↗';
+        }
+        if (systemStatus.context && systemStatus.context.roleLevel) {
+          const r = systemStatus.context.roleLevel.toUpperCase();
+          document.querySelectorAll('.activeRoleTextSync').forEach(function(el) {
+            el.innerText = r;
+          });
+          const metricVal = document.getElementById('roleMetricVal');
+          if (metricVal) metricVal.innerText = r;
         }
       } catch (e) {
         console.warn('Status load error:', e);
@@ -1751,13 +1808,54 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       }
     }
 
-    // Close cluster menu when clicking outside
+    // Close menus when clicking outside
     document.addEventListener('click', (e) => {
-      const menu = document.getElementById('clusterDropdownMenu');
-      if (menu && !e.target.closest('#clusterPill')) {
-        menu.style.display = 'none';
+      const clusterMenu = document.getElementById('clusterDropdownMenu');
+      if (clusterMenu && !e.target.closest('#clusterPill')) {
+        clusterMenu.style.display = 'none';
+      }
+      const roleMenu = document.getElementById('roleDropdownMenu');
+      if (roleMenu && !e.target.closest('#rolePill')) {
+        roleMenu.style.display = 'none';
       }
     });
+
+    function toggleRoleDropdown(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('roleDropdownMenu');
+      const clusterMenu = document.getElementById('clusterDropdownMenu');
+      if (clusterMenu) clusterMenu.style.display = 'none';
+      if (!menu) return;
+      menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+    }
+
+    async function switchRole(newRole, e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('roleDropdownMenu');
+      if (menu) menu.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/role', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: newRole })
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.querySelectorAll('.activeRoleTextSync').forEach(function(el) {
+            el.innerText = newRole.toUpperCase();
+          });
+          const metricVal = document.getElementById('roleMetricVal');
+          if (metricVal) metricVal.innerText = newRole.toUpperCase();
+          showToast('DevOps Role updated to ' + newRole.toUpperCase());
+          loadAudit();
+        } else {
+          showToast('Failed to switch role: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        showToast('Error switching role: ' + err.message);
+      }
+    }
 
     async function switchClusterContext(targetContext, e) {
       if (e) e.stopPropagation();

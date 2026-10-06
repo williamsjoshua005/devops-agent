@@ -51,6 +51,8 @@ export class Guardrails {
     context?: AgentContext
   ): PolicyEvaluation {
     const isProd = context?.isProduction ?? false;
+    const role = context?.roleLevel || 'junior';
+    const isIntermediateOrSenior = role === 'intermediate' || role === 'senior';
 
     // 1. Filesystem write tools
     if (toolName === 'file_write') {
@@ -64,14 +66,17 @@ export class Guardrails {
       } catch {}
 
       const diff = generateUnifiedDiff(filePath, existingText, filePath, args.content || '');
+      const requiresApproval = isProd || !isIntermediateOrSenior;
 
       return {
         tier: 'MUTATE',
         actionSummary: `Write/modify file: ${filePath}`,
         reason: isProd
           ? 'CRITICAL WARNING: Target environment is PRODUCTION. Modifying files requires explicit operator approval.'
+          : isIntermediateOrSenior
+          ? 'Intermediate DevOps autonomy: Modifying non-production configuration executed autonomously.'
           : 'Modifying files requires user verification to prevent unintended configuration overwrites.',
-        requiresApproval: true,
+        requiresApproval,
         isBlocked: false,
         diff,
         isProductionWarning: isProd,
@@ -153,24 +158,32 @@ export class Guardrails {
     }
 
     if (toolName === 'k8s_rollout_restart') {
+      const requiresApproval = isProd || !isIntermediateOrSenior;
       return {
         tier: 'MUTATE',
         actionSummary: `Restart Kubernetes workload: ${args.kind || 'deployment'}/${args.name} in namespace "${args.namespace || 'default'}"`,
         reason: isProd
           ? 'CRITICAL WARNING: Running in PRODUCTION cluster. Workload restart may cause customer-facing latency or downtime.'
+          : isIntermediateOrSenior
+          ? 'Intermediate DevOps autonomy: Non-production workload restart executed autonomously.'
           : 'Restarting workloads can cause transient service disruption and requires user approval.',
-        requiresApproval: true,
+        requiresApproval,
         isBlocked: false,
         isProductionWarning: isProd,
       };
     }
 
     if (toolName === 'canary_deploy') {
+      const requiresApproval = isProd || !isIntermediateOrSenior;
       return {
         tier: 'MUTATE',
         actionSummary: `Canary Deployment: Deploy canary for "${args.serviceName}" with image "${args.newImage}"`,
-        reason: 'Deploying a canary workload mutates cluster state and shifts live traffic.',
-        requiresApproval: true,
+        reason: isProd
+          ? 'CRITICAL WARNING: Canary deployment in PRODUCTION shifts live traffic. SRE review and human approval required.'
+          : isIntermediateOrSenior
+          ? 'Intermediate DevOps autonomy: Non-production canary deployment executed autonomously.'
+          : 'Deploying a canary workload mutates cluster state and shifts live traffic.',
+        requiresApproval,
         isBlocked: false,
         isProductionWarning: isProd,
       };
@@ -201,8 +214,10 @@ export class Guardrails {
       return {
         tier: 'MUTATE',
         actionSummary: `GitOps: Create branch "${args.branchName}" and open Pull Request for fix`,
-        reason: 'Creating branches and opening PRs is a safe GitOps practice, but requires operator approval before pushing.',
-        requiresApproval: true,
+        reason: isIntermediateOrSenior
+          ? 'Intermediate DevOps autonomy: Creating branches and opening GitOps PRs is permitted autonomously.'
+          : 'Creating branches and opening PRs is a safe GitOps practice, but requires operator approval before pushing.',
+        requiresApproval: !isIntermediateOrSenior,
         isBlocked: false,
         isProductionWarning: false,
       };
@@ -305,7 +320,7 @@ export class Guardrails {
           return {
             tier: 'DANGEROUS',
             actionSummary: `BLOCKED command: "${command}"`,
-            reason: 'Matches high-risk/destructive policy pattern. Junior agent is forbidden from running this action.',
+            reason: 'Matches high-risk/destructive policy pattern. Forbidden across all roles.',
             requiresApproval: false,
             isBlocked: true,
             isProductionWarning: isProd,
@@ -316,13 +331,16 @@ export class Guardrails {
       // Check mutating
       for (const pattern of MUTATING_PATTERNS) {
         if (pattern.test(command)) {
+          const requiresApproval = isProd || !isIntermediateOrSenior;
           return {
             tier: 'MUTATE',
             actionSummary: `Execute mutating command: "${command}"`,
             reason: isProd
               ? `CRITICAL WARNING: Executing mutating command against PRODUCTION cluster/environment: "${command}". Operator confirmation mandatory.`
+              : isIntermediateOrSenior
+              ? `Intermediate DevOps autonomy: Standard mutating command in non-production executed autonomously: "${command}".`
               : 'Command alters infrastructure or cluster state. User confirmation required.',
-            requiresApproval: true,
+            requiresApproval,
             isBlocked: false,
             isProductionWarning: isProd,
           };

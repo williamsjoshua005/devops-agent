@@ -6,3 +6,4 @@ dist/
 reports/
 knowledge_base/
 *.log
+.DS_Store

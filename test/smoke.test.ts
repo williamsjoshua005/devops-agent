@@ -443,7 +443,42 @@ spec:
   const mcp55Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10000, method: 'tools/list' });
   assert(mcp55Res.result.tools.length >= 55, `MCP Server exposes all tools over JSON-RPC (${mcp55Res.result.tools.length} tools)`);
 
-  console.log(`\n\x1b[32mAll 45 enterprise SRE, DR, CI/CD, GitOps, IaC, Runbook, Vault, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n`);
+  // Test 46: Intermediate DevOps Role Hierarchy & Guardrail Autonomy
+  const intermediateDevContext: AgentContext = {
+    cwd: process.cwd(),
+    installedTools: ['git', 'kubectl', 'docker'],
+    environment: 'development',
+    isProduction: false,
+    roleLevel: 'intermediate',
+  };
+
+  const intermediateProdContext: AgentContext = {
+    cwd: process.cwd(),
+    installedTools: ['git', 'kubectl', 'docker'],
+    environment: 'production',
+    isProduction: true,
+    roleLevel: 'intermediate',
+  };
+
+  const juniorRestartEval = Guardrails.evaluate('k8s_rollout_restart', { name: 'api', kind: 'deployment' }, mockDevContext);
+  assert(juniorRestartEval.requiresApproval === true, 'Junior DevOps role requires approval for workload restart in dev');
+
+  const intermediateRestartEval = Guardrails.evaluate('k8s_rollout_restart', { name: 'api', kind: 'deployment' }, intermediateDevContext);
+  assert(intermediateRestartEval.requiresApproval === false, 'Intermediate DevOps role restarts workload autonomously in non-prod');
+
+  const intermediatePrEval = Guardrails.evaluate('gitops_create_pr', { branchName: 'fix-db', title: 'Fix DB pool' }, intermediateDevContext);
+  assert(intermediatePrEval.requiresApproval === false, 'Intermediate DevOps role opens GitOps PRs autonomously in non-prod');
+
+  const intermediateShellEval = Guardrails.evaluate('shell_exec', { command: 'kubectl scale --replicas=3 deploy/api' }, intermediateDevContext);
+  assert(intermediateShellEval.requiresApproval === false, 'Intermediate DevOps role executes scaling command autonomously in non-prod');
+
+  const intermediateProdRestartEval = Guardrails.evaluate('k8s_rollout_restart', { name: 'api', kind: 'deployment' }, intermediateProdContext);
+  assert(intermediateProdRestartEval.requiresApproval === true && intermediateProdRestartEval.isProductionWarning === true, 'Intermediate DevOps role enforces strict approval & warning on PRODUCTION');
+
+  const intermediateDangerousEval = Guardrails.evaluate('shell_exec', { command: 'kubectl delete namespace default' }, intermediateDevContext);
+  assert(intermediateDangerousEval.isBlocked === true && intermediateDangerousEval.tier === 'DANGEROUS', 'Dangerous commands remain strictly BLOCKED for Intermediate DevOps role');
+
+  console.log('\n\x1b[32mAll 46 enterprise SRE, DR, CI/CD, GitOps, IaC, Runbook, Vault, Mesh, Multi-Cloud, and 3-tier role hierarchy feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

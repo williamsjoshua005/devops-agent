@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Message, ToolCall, AgentContext } from '../types.js';
+import { Message, ToolCall, AgentContext, RoleLevel } from '../types.js';
 import { TOOL_DEFINITIONS, executeTool } from '../tools/index.js';
 import { Guardrails } from '../policy/guardrails.js';
 import { ApprovalHandler, CliApprovalHandler } from '../policy/approvals.js';
@@ -56,6 +56,11 @@ export class DevOpsAgentHarness {
     return this.context;
   }
 
+  setRoleLevel(role: RoleLevel) {
+    this.context.roleLevel = role;
+    this.initSystemPrompt();
+  }
+
   updateKubeContext(newContext: string) {
     this.context.kubeContext = newContext;
     const raw = `${process.env.ENVIRONMENT || ''} ${newContext}`.toLowerCase();
@@ -78,12 +83,31 @@ export class DevOpsAgentHarness {
 
   private initSystemPrompt() {
     const runbooks = getRunbookPrompt();
+    const role = this.context.roleLevel || 'junior';
+    const roleTitle =
+      role === 'senior'
+        ? 'Senior Principal SRE & Systems Architect'
+        : role === 'intermediate'
+        ? 'Intermediate DevOps & SRE Engineer'
+        : 'Junior DevOps & SRE Assistant';
+
+    const roleGuidance =
+      role === 'senior'
+        ? 'You operate as a Senior SRE: lead incident response, assess cross-cluster blast radius, verify PDBs, and provide architectural critiques.'
+        : role === 'intermediate'
+        ? 'You operate as an Intermediate DevOps Engineer: you have autonomous remediation authority in non-production (development/staging) to restart workloads, scale pods, open GitOps PRs, and verify rollouts. In production, you synthesize complete remediations and seek operator approval.'
+        : 'You operate as a Junior DevOps Agent: gather facts, run read-only diagnostics, and request operator confirmation before any state modifications.';
+
     const envWarning = this.context.isProduction
       ? `\nActive Environment: PRODUCTION (${this.context.kubeContext || 'prod'}). Read-only diagnostic mode is active. Mutating operations require human approval.\n`
-      : `\nActive Environment: ${this.context.environment.toUpperCase()} (Standard operational mode)\n`;
+      : `\nActive Environment: ${this.context.environment.toUpperCase()} (Standard operational mode - ${role.toUpperCase()} autonomy active)\n`;
 
-    const systemPrompt = `You are a DevOps and Site Reliability Engineering Assistant on the platform engineering team.
+    const systemPrompt = `You are a ${roleTitle} on the platform engineering team.
 Your goal is to investigate, diagnose, and resolve infrastructure, Kubernetes, cloud, and CI/CD tasks methodically.
+
+### Role & Autonomy:
+- Active Role: ${role.toUpperCase()} (${roleTitle})
+- ${roleGuidance}
 
 ### Environment Context:
 - Current Working Directory: ${this.context.cwd}
@@ -97,7 +121,7 @@ ${envWarning}
 3. Perform security reviews with security_scan on manifests and Dockerfiles before deployment.
 4. Prefer GitOps Pull Requests (gitops_create_pr) for configuration changes.
 5. Provide structured Root Cause Analysis: Symptom -> Root Cause -> Remediation -> Verification.
-6. Diagnostic queries execute automatically. Modifications require operator confirmation.
+6. Verify rollouts after mutations using k8s_watch_rollout; trigger rollback if health checks fail.
 
 ### Standard Operating Runbooks:
 ${runbooks}
@@ -177,6 +201,28 @@ ${runbooks}
       const q = trimmed.slice(4).trim();
       const out = await PostmortemTool.searchKnowledgeBase(q);
       return await recordDirect('knowledge_base_search', out);
+    }
+    if (trimmed === '/role' || trimmed.startsWith('/role ')) {
+      const parts = trimmed.split(/\s+/);
+      const newRole = parts[1]?.toLowerCase();
+      if (newRole === 'junior' || newRole === 'intermediate' || newRole === 'senior') {
+        this.setRoleLevel(newRole);
+        return `✔ Role updated to **${newRole.toUpperCase()}** (${
+          newRole === 'intermediate'
+            ? 'Autonomous non-prod remediation, self-healing rollouts'
+            : newRole === 'senior'
+            ? 'Architectural oversight, blast-radius assessment'
+            : 'Strict approval gate for all mutations'
+        }).`;
+      }
+      const cur = this.context.roleLevel || 'junior';
+      return (
+        `### Active DevOps Role: **${cur.toUpperCase()}**\n\n` +
+        `Options to switch:\n` +
+        `• \`/role junior\` - Cautious diagnostics; all mutations require human approval\n` +
+        `• \`/role intermediate\` - Autonomous non-prod remediation, self-healing rollouts, GitOps PRs\n` +
+        `• \`/role senior\` - Architectural critiques, cross-cluster blast-radius assessment\n`
+      );
     }
 
     // 2. Direct intent matches (works in offline or online mode)

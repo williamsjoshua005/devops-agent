@@ -57,7 +57,12 @@ export class AlertWebhookServer {
 
       // 1. Dashboard Web UI
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/dashboard')) {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        });
         res.end(getDashboardHtml(this.harness.getContext()));
         return;
       }
@@ -85,6 +90,36 @@ export class AlertWebhookServer {
             uptime: process.uptime(),
           })
         );
+        return;
+      }
+
+      // 3b. Role management endpoints
+      if (req.method === 'GET' && url.pathname === '/api/role') {
+        const role = this.harness.getContext().roleLevel || 'junior';
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ role, available: ['junior', 'intermediate', 'senior'] }));
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/role') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { role } = JSON.parse(body || '{}');
+            if (role === 'junior' || role === 'intermediate' || role === 'senior') {
+              this.harness.setRoleLevel(role);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, role }));
+            } else {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Invalid role. Must be junior, intermediate, or senior.' }));
+            }
+          } catch (e: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Malformed JSON payload.' }));
+          }
+        });
         return;
       }
 
