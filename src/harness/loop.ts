@@ -16,6 +16,7 @@ import { SecretSanitizer } from '../policy/sanitizer.js';
 import { K8sTool } from '../tools/k8s.js';
 import { AwsTool } from '../tools/aws.js';
 import { GcpTool } from '../tools/gcp.js';
+import { AzureTool } from '../tools/azure.js';
 
 export interface AgentRunOptions {
   task: string;
@@ -100,7 +101,7 @@ export class DevOpsAgentHarness {
 
     const envWarning = this.context.isProduction
       ? `\nActive Environment: PRODUCTION (${this.context.kubeContext || 'prod'}). Read-only diagnostic mode is active. Mutating operations require human approval.\n`
-      : `\nActive Environment: ${this.context.environment.toUpperCase()} (Standard operational mode - ${role.toUpperCase()} autonomy active)\n`;
+      : `\nActive Environment: ${(this.context.environment || 'development').toUpperCase()} (Standard operational mode - ${role.toUpperCase()} autonomy active)\n`;
 
     const systemPrompt = `You are a ${roleTitle} on the platform engineering team.
 Your goal is to investigate, diagnose, and resolve infrastructure, Kubernetes, cloud, and CI/CD tasks methodically.
@@ -240,7 +241,7 @@ ${runbooks}
       const out = await FinOpsTool.audit();
       return await recordDirect('finops_idle_resources_audit', out);
     }
-    if (lower.includes('security posture') || lower.includes('security audit') || lower.includes('security scan')) {
+    if (lower.includes('security posture') || lower.includes('security audit') || lower.includes('security scan') || lower.includes('dockerfile')) {
       const out = await SecurityLinterTool.scan('.');
       return await recordDirect('security_scan', out);
     }
@@ -248,9 +249,57 @@ ${runbooks}
       const out = await TopologyTool.discover();
       return await recordDirect('topology_graph', out);
     }
+    if (
+      lower.includes('failing pods') ||
+      lower.includes('pod crash triage') ||
+      lower.includes('why pods in the default namespace are failing') ||
+      (lower.includes('pods') && (lower.includes('fail') || lower.includes('crash')))
+    ) {
+      const pods = await K8sTool.getResources('pods', 'default');
+      const events = await K8sTool.getResources('events', 'default');
+      return await recordDirect(
+        'k8s_get_resources',
+        `### Kubernetes Pod Crash Triage (default namespace)\n\n${pods}\n\n### Recent Namespace Events\n\n${events}`
+      );
+    }
+    if (
+      lower.includes('list all configured kubernetes contexts') ||
+      lower.includes('list clusters') ||
+      (lower.includes('list') && (lower.includes('contexts') || lower.includes('clusters')))
+    ) {
+      const ctxs = await K8sTool.listContexts();
+      return await recordDirect(
+        'k8s_list_contexts',
+        `### Configured Kubernetes Clusters & Contexts\n- **Active Context:** \`${ctxs.current}\`\n- **Available Clusters:**\n${ctxs.contexts.map((c) => `  • ${c}`).join('\n')}`
+      );
+    }
+    if (
+      lower.includes('list all pods and deployments') ||
+      lower.includes('k8s workloads') ||
+      (lower.includes('pods') && lower.includes('deployment'))
+    ) {
+      const pods = await K8sTool.getResources('pods', 'default');
+      const deploys = await K8sTool.getResources('deployments', 'default');
+      return await recordDirect(
+        'k8s_get_resources',
+        `### Kubernetes Workloads (default namespace)\n\n**Pods:**\n${pods}\n\n**Deployments:**\n${deploys}`
+      );
+    }
     if (lower === 'list pods in default namespace' || lower === 'get pods in default' || lower === 'pods in default') {
       const out = await K8sTool.getResources('pods', 'default');
       return await recordDirect('k8s_get_resources', out);
+    }
+    if (lower.includes('aws') && (lower.includes('ec2') || lower.includes('eks') || lower.includes('resource') || lower.includes('instance'))) {
+      const out = await AwsTool.listResources('ec2');
+      return await recordDirect('aws_resource_list', out);
+    }
+    if (lower.includes('gcp') && (lower.includes('compute') || lower.includes('gke') || lower.includes('instance') || lower.includes('resource'))) {
+      const out = await GcpTool.listResources('instances');
+      return await recordDirect('gcp_resource_list', out);
+    }
+    if (lower.includes('azure') && (lower.includes('aks') || lower.includes('vm') || lower.includes('resource'))) {
+      const out = await AzureTool.listResources();
+      return await recordDirect('azure_resource_list', out);
     }
 
     // 3. If LLM is not configured (or key is dummy), provide actionable guidance
@@ -339,7 +388,18 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
       try {
         response = await this.llm.chat(this.messages, TOOL_DEFINITIONS);
       } catch (err: any) {
-        const errorMsg = `⚠️ [LLM API Error]: ${err.message}\n\nPlease check your LLM provider configuration and API key in .env.`;
+        const isNetworkOrProxy =
+          err.message?.includes('fetch failed') ||
+          err.name === 'AbortError' ||
+          err.message?.includes('ENOTFOUND') ||
+          err.message?.includes('ETIMEDOUT');
+
+        let hint = 'Please check your LLM provider configuration and API key in .env.';
+        if (isNetworkOrProxy) {
+          hint =
+            'The LLM endpoint could not be reached. If you are using a corporate gateway or proxy (e.g. ai-gateway.isw.la), verify your VPN/office connection, or configure a public provider (Gemini, OpenAI, Ollama) in .env.\n\n💡 *Tip: Quick Action shortcuts, diagnostic commands (/certs, /finops, /security, /topology, /aws, /gcp, /clusters), and runbooks continue to operate offline.*';
+        }
+        const errorMsg = `⚠️ [LLM Connection Error]: ${err.message}\n\n${hint}`;
         if (options.onTextChunk) options.onTextChunk(errorMsg);
         return errorMsg;
       }

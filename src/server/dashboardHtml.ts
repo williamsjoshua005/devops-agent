@@ -1391,18 +1391,32 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         status.innerText = isProd ? '⚠️ Awaiting PRODUCTION approval...' : '⚠️ Awaiting operator approval...';
         showToast('Approval required for: ' + data.actionSummary);
         scrollToBottom();
+      } else if (eventType === 'text_chunk') {
+        let chunkContainer = document.getElementById('streamLiveText');
+        if (!chunkContainer) {
+          chunkContainer = document.createElement('div');
+          chunkContainer.id = 'streamLiveText';
+          chunkContainer.className = 'markdown-rendered';
+          chunkContainer.style.marginTop = '10px';
+          chunkContainer.style.color = '#cbd5e1';
+          stepsContainer.appendChild(chunkContainer);
+        }
+        chunkContainer.innerHTML += renderMarkdown(data.chunk || '');
+        scrollToBottom();
       } else if (eventType === 'done') {
         const durSec = (data.durationMs / 1000).toFixed(1);
+        const resStr = data.result || '';
+        const hasWarning = resStr.includes('⚠️') || resStr.includes('[LLM Connection Error]') || resStr.includes('[LLM API');
         finalContainer.innerHTML = 
           '<div class="stream-turn-divider" style="margin-top: 16px;"><span>Final Solution & Root Cause Analysis</span></div>' +
           '<div class="markdown-rendered" style="margin-top: 8px;">' +
-            renderMarkdown(data.result || '(Task completed with no text output)') +
+            renderMarkdown(resStr || '(Task completed with no text output)') +
           '</div>' +
-          '<div style="color: #34d399; font-size: 11px; margin-top: 12px; display: flex; align-items: center; gap: 6px;">' +
-            '<span>✔ Autonomous investigation finished in ' + durSec + 's</span>' +
+          '<div style="color: ' + (hasWarning ? '#f59e0b' : '#34d399') + '; font-size: 11px; margin-top: 12px; display: flex; align-items: center; gap: 6px;">' +
+            '<span>' + (hasWarning ? '⚠️ Investigation completed with notice in ' : '✔ Autonomous investigation finished in ') + durSec + 's</span>' +
           '</div>';
-        status.innerText = 'Task completed in ' + durSec + 's.';
-        showToast('Task completed successfully!');
+        status.innerText = (hasWarning ? 'Completed with notice in ' : 'Task completed in ') + durSec + 's.';
+        showToast(hasWarning ? 'Completed with diagnostic notice.' : 'Task completed successfully!');
         scrollToBottom();
       } else if (eventType === 'error') {
         finalContainer.innerHTML = 

@@ -101,11 +101,36 @@ export class LLMClient {
   }
 
   private async makeRequest(url: string, init: any): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const requestInit = { ...init, signal: controller.signal };
+
     if (this.proxyAgent) {
-      init.dispatcher = this.proxyAgent;
+      requestInit.dispatcher = this.proxyAgent;
     }
-    const res = await (undiciFetch as any)(url, init);
-    return res;
+
+    try {
+      const res = await (undiciFetch as any)(url, requestInit);
+      clearTimeout(timeout);
+      return res;
+    } catch (err: any) {
+      clearTimeout(timeout);
+      // Fallback: If proxy failed or timed out, attempt direct connection without proxy
+      if (this.proxyAgent) {
+        try {
+          const directController = new AbortController();
+          const directTimeout = setTimeout(() => directController.abort(), 6000);
+          const directInit = { ...init, signal: directController.signal };
+          delete directInit.dispatcher;
+          const directRes = await (undiciFetch as any)(url, directInit);
+          clearTimeout(directTimeout);
+          return directRes;
+        } catch {
+          // If direct attempt also fails, rethrow original error
+        }
+      }
+      throw err;
+    }
   }
 
   async chat(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {
