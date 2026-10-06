@@ -579,7 +579,8 @@ Please follow standard runbooks to diagnose the issue and determine root cause.`
 
   start(): Promise<number> {
     return new Promise((resolve) => {
-      this.server.listen(this.port, () => {
+      const host = process.env.WEBHOOK_HOST || undefined;
+      this.server.listen(this.port, host, () => {
         console.log(`\x1b[32m✔ Mission Control Web Console: http://localhost:${this.port}/dashboard\x1b[0m`);
         console.log(`  \x1b[90m- Ingest Alerts: POST http://localhost:${this.port}/api/alerts/webhook\x1b[0m`);
         console.log(`  \x1b[90m- Audit Log:    GET  http://localhost:${this.port}/api/audit\x1b[0m`);
