@@ -61,6 +61,7 @@ export interface LLMConfig {
 }
 
 export type EnvironmentLevel = 'development' | 'staging' | 'production' | 'unknown';
+export type RoleLevel = 'junior' | 'intermediate' | 'senior';
 
 export interface AgentContext {
   cwd: string;
@@ -69,6 +70,7 @@ export interface AgentContext {
   installedTools: string[];
   environment: EnvironmentLevel;
   isProduction: boolean;
+  roleLevel?: RoleLevel;
 }
 
 export interface AuditRecord {

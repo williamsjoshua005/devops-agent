@@ -5,7 +5,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { execSync } from 'node:child_process';
 import { LLMClient } from './harness/llm.js';
 import { DevOpsAgentHarness } from './harness/loop.js';
-import { AgentContext, EnvironmentLevel, LLMConfig } from './types.js';
+import { AgentContext, EnvironmentLevel, LLMConfig, RoleLevel } from './types.js';
 import { TOOL_DEFINITIONS, executeTool } from './tools/index.js';
 import { RUNBOOKS } from './runbooks/index.js';
 import { AuditLogger } from './policy/audit.js';
@@ -92,12 +92,28 @@ async function main() {
   const kubeContext = detectKubeContext();
   const { environment, isProduction } = detectEnvironment(kubeContext);
 
+  // Detect role level
+  const roleArgIdx = process.argv.indexOf('--role');
+  let roleLevel: RoleLevel = 'intermediate';
+  if (roleArgIdx !== -1 && process.argv[roleArgIdx + 1]) {
+    const r = process.argv[roleArgIdx + 1].toLowerCase();
+    if (r === 'junior' || r === 'intermediate' || r === 'senior') {
+      roleLevel = r as RoleLevel;
+    }
+  } else if (process.env.DEVOPS_ROLE) {
+    const r = process.env.DEVOPS_ROLE.toLowerCase();
+    if (r === 'junior' || r === 'intermediate' || r === 'senior') {
+      roleLevel = r as RoleLevel;
+    }
+  }
+
   const context: AgentContext = {
     cwd: process.cwd(),
     kubeContext,
     installedTools,
     environment,
     isProduction,
+    roleLevel,
   };
 
   const auditLogger = new AuditLogger(context.cwd);
@@ -109,18 +125,26 @@ async function main() {
     ? '\x1b[41m\x1b[37m\x1b[1m 🔴 PRODUCTION ENVIRONMENT (STRICT GUARDRAILS) \x1b[0m'
     : `\x1b[42m\x1b[30m\x1b[1m 🟢 ${environment.toUpperCase()} \x1b[0m`;
 
+  const roleBadge =
+    roleLevel === 'senior'
+      ? '\x1b[45m\x1b[37m\x1b[1m 🟣 SENIOR SRE ARCHITECT \x1b[0m'
+      : roleLevel === 'intermediate'
+      ? '\x1b[44m\x1b[37m\x1b[1m 🔵 INTERMEDIATE DEVOPS \x1b[0m'
+      : '\x1b[43m\x1b[30m\x1b[1m 🟡 JUNIOR DEVOPS \x1b[0m';
+
   console.log('\x1b[36m');
   console.log('╔════════════════════════════════════════════════════════════════╗');
-  console.log('║             JUNIOR DEVOPS AGENT ENGINE (v3.0)                  ║');
-  console.log('║   Autonomous • Dual-Agent SRE • Rollback Watcher • MCP Hub     ║');
+  console.log('║             DEVOPS AUTONOMOUS AGENT ENGINE (v4.5)              ║');
+  console.log('║   Junior • Intermediate • Senior SRE • Rollback Watcher • MCP  ║');
   console.log('╚════════════════════════════════════════════════════════════════╝');
   console.log('\x1b[0m');
+  console.log(`\x1b[1mActive Role:\x1b[0m          ${roleBadge}`);
   console.log(`\x1b[1mEnvironment:\x1b[0m         ${envBadge}`);
   console.log(`\x1b[1mModel Provider:\x1b[0m      ${llmConfig.provider} (${llmConfig.model})`);
   console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
   console.log(`\x1b[1mAudit Logging:\x1b[0m       .audit/audit.jsonl (Active)`);
-  console.log('\x1b[90mCommands: /runbooks, /tools, /clusters, /context <name>, /audit, /kb, /security, /certs, /finops, /aws, /gcp, /mcp, /teams, /exit\x1b[0m\n');
+  console.log('\x1b[90mCommands: /role, /runbooks, /tools, /clusters, /context <name>, /audit, /kb, /security, /certs, /finops, /aws, /gcp, /mcp, /teams, /exit\x1b[0m\n');
 
   // Check if --server flag passed
   const args = process.argv.slice(2);
@@ -155,6 +179,20 @@ async function main() {
       if (webhookServer) await webhookServer.stop();
       rl.close();
       process.exit(0);
+    }
+
+    if (trimmed === '/role' || trimmed.startsWith('/role ')) {
+      const parts = trimmed.split(/\s+/);
+      const newRole = parts[1]?.toLowerCase();
+      if (newRole === 'junior' || newRole === 'intermediate' || newRole === 'senior') {
+        harness.setRoleLevel(newRole);
+        console.log(`\n✔ Switched active role to \x1b[1m${newRole.toUpperCase()}\x1b[0m.\n`);
+      } else {
+        const cur = harness.getContext().roleLevel || 'junior';
+        console.log(`\n\x1b[1mActive DevOps Role:\x1b[0m \x1b[36m${cur.toUpperCase()}\x1b[0m`);
+        console.log(`Options to switch:\n  • /role junior\n  • /role intermediate\n  • /role senior\n`);
+      }
+      continue;
     }
 
     if (trimmed === '/clusters' || trimmed === '/contexts') {
