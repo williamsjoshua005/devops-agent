@@ -1120,12 +1120,12 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       html = convertAnsiToHtml(html);
 
       // Code blocks
-      html = html.replace(/\\\\\`\\\\\`\\\\\`([a-z]*)\\n([\\s\\S]*?)\\\\\`\\\\\`\\\\\`/g, (m, lang, code) => {
+      html = html.replace(/\`\`\`([a-z]*)\\n([\\s\\S]*?)\`\`\`/g, (m, lang, code) => {
         return '<pre><code>' + code + '</code></pre>';
       });
 
       // Inline code
-      html = html.replace(/\\\\\`([^\\\\\`]+)\\\\\`/g, '<code>$1</code>');
+      html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
 
       // Headers
       html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
@@ -1383,8 +1383,8 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
           sreHtml +
           diffHtml +
           '<div id="approval-actions-' + data.approvalId + '" style="margin-top: 12px; display: flex; gap: 10px;">' +
-            '<button class="btn btn-primary" onclick="resolveWebApproval(\'' + data.approvalId + '\', true)" style="background: #10b981; border-color: #059669; font-size: 12px; padding: 6px 16px;">✔ Approve & Execute</button>' +
-            '<button class="btn" onclick="resolveWebApproval(\'' + data.approvalId + '\', false)" style="background: #ef4444; border-color: #dc2626; color: white; font-size: 12px; padding: 6px 16px;">✖ Reject / Cancel</button>' +
+            '<button class="btn btn-primary" onclick="resolveWebApproval(&quot;' + escapeHtml(data.approvalId) + '&quot;, true)" style="background: #10b981; border-color: #059669; font-size: 12px; padding: 6px 16px;">✔ Approve & Execute</button>' +
+            '<button class="btn" onclick="resolveWebApproval(&quot;' + escapeHtml(data.approvalId) + '&quot;, false)" style="background: #ef4444; border-color: #dc2626; color: white; font-size: 12px; padding: 6px 16px;">✖ Reject / Cancel</button>' +
           '</div>';
 
         stepsContainer.appendChild(card);
@@ -1404,6 +1404,8 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         chunkContainer.innerHTML += renderMarkdown(data.chunk || '');
         scrollToBottom();
       } else if (eventType === 'done') {
+        const liveText = document.getElementById('streamLiveText');
+        if (liveText) liveText.remove();
         const durSec = (data.durationMs / 1000).toFixed(1);
         const resStr = data.result || '';
         const hasWarning = resStr.includes('⚠️') || resStr.includes('[LLM Connection Error]') || resStr.includes('[LLM API');
@@ -1419,6 +1421,8 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         showToast(hasWarning ? 'Completed with diagnostic notice.' : 'Task completed successfully!');
         scrollToBottom();
       } else if (eventType === 'error') {
+        const liveText = document.getElementById('streamLiveText');
+        if (liveText) liveText.remove();
         finalContainer.innerHTML = 
           '<div class="stream-card stream-card-blocked" style="margin-top: 14px;">' +
             '<div style="color: #f87171; font-weight: bold;">[Execution Error]</div>' +
@@ -1485,11 +1489,11 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split('\\n\\n');
+          const parts = buffer.split(/\\r?\\n\\r?\\n/);
           buffer = parts.pop() || '';
 
           for (const chunk of parts) {
-            const lines = chunk.split('\\n');
+            const lines = chunk.split(/\\r?\\n/);
             let eventType = 'message';
             let dataStr = '';
 
@@ -1497,7 +1501,8 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
               if (line.startsWith('event: ')) {
                 eventType = line.slice(7).trim();
               } else if (line.startsWith('data: ')) {
-                dataStr = line.slice(6);
+                const val = line.slice(6);
+                dataStr = dataStr ? (dataStr + '\\n' + val) : val;
               }
             }
 

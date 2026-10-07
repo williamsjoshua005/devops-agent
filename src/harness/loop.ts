@@ -339,14 +339,16 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
 
   async run(options: AgentRunOptions): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      this.taskQueue = this.taskQueue.then(async () => {
-        try {
-          const res = await this.executeRun(options);
-          resolve(res);
-        } catch (e) {
-          reject(e);
-        }
-      });
+      this.taskQueue = this.taskQueue
+        .catch(() => {})
+        .then(async () => {
+          try {
+            const res = await this.executeRun(options);
+            resolve(res);
+          } catch (e) {
+            reject(e);
+          }
+        });
     });
   }
 
@@ -453,12 +455,20 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
           if (!approved) {
             toolOutput = `[ACTION CANCELLED BY USER]: Operator declined approval for "${policy.actionSummary}". Please revise your plan or ask the operator for alternate instructions.`;
           } else {
-            toolOutput = await executeTool(tc.name, tc.arguments, this.context);
+            try {
+              toolOutput = await executeTool(tc.name, tc.arguments, this.context);
+            } catch (err: any) {
+              toolOutput = `[Tool Execution Error]: ${err?.message || String(err)}`;
+            }
           }
         } else {
           // Read-only autonomous execution
           approved = true;
-          toolOutput = await executeTool(tc.name, tc.arguments, this.context);
+          try {
+            toolOutput = await executeTool(tc.name, tc.arguments, this.context);
+          } catch (err: any) {
+            toolOutput = `[Tool Execution Error]: ${err?.message || String(err)}`;
+          }
         }
 
         const durationMs = Date.now() - startTime;
