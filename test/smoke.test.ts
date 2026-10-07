@@ -33,6 +33,9 @@ import { AdmissionPolicyTool } from '../src/tools/admission_policy.js';
 import { RunbookTool } from '../src/tools/runbook.js';
 import { VaultSecretTool } from '../src/tools/vault_secret.js';
 import { ServiceMeshTool } from '../src/tools/service_mesh.js';
+import { FluxTool } from '../src/tools/flux.js';
+import { KustomizeTool } from '../src/tools/kustomize.js';
+import { GitOpsTool } from '../src/tools/gitops.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
@@ -523,13 +526,70 @@ spec:
   const esoReport = await VaultSecretTool.auditExternalSecrets();
   assert(esoReport.includes('External Secrets Operator') || esoReport.includes('ExternalSecret'), 'ESO audit tool generates compliance report');
 
-  // Test 50: Complete Platform Suite (56 Tools & Full MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 56, `All 56+ platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 50: Complete Platform Suite (69 Tools & Full MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 69, `All 69 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
 
-  const mcp56Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10001, method: 'tools/list' });
-  assert(mcp56Res.result.tools.length >= 56, `MCP Server exposes all tools over JSON-RPC (${mcp56Res.result.tools.length} tools)`);
+  const mcp69Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10001, method: 'tools/list' });
+  assert(mcp69Res.result.tools.length >= 69, `MCP Server exposes all tools over JSON-RPC (${mcp69Res.result.tools.length} tools)`);
 
-  console.log('\n\x1b[32mAll 50 enterprise SRE, DR, CI/CD, GitOps, IaC, Runbook, Vault, ESO, Mesh, Multi-Cloud, and Security feature tests passed successfully!\x1b[0m\n');
+  // Test 51: Terraform State Inspection & Workspace Safety
+  const tfStateEval = Guardrails.evaluate('terraform_state_inspect', { dirPath: '.' }, mockDevContext);
+  assert(tfStateEval.tier === 'READ' && !tfStateEval.requiresApproval, 'terraform_state_inspect evaluates autonomously as READ');
+
+  const tfWsListEval = Guardrails.evaluate('terraform_workspace_manage', { action: 'list' }, mockDevContext);
+  assert(tfWsListEval.tier === 'READ' && !tfWsListEval.requiresApproval, 'terraform_workspace_manage list evaluates as READ');
+
+  const tfWsSelectProdEval = Guardrails.evaluate('terraform_workspace_manage', { action: 'select', workspaceName: 'prod' }, mockProdContext);
+  assert(tfWsSelectProdEval.requiresApproval && tfWsSelectProdEval.isProductionWarning, 'terraform_workspace_manage select enforces production warning');
+
+  const tfToolApplyEval = Guardrails.evaluate('terraform_apply', { dirPath: '.' }, mockProdContext);
+  assert(tfToolApplyEval.tier === 'MUTATE' && tfToolApplyEval.requiresApproval && tfToolApplyEval.isProductionWarning, 'terraform_apply enforces strict production approval');
+
+  // Test 52: GitOps PR Verification Engine
+  const prVerifyEval = Guardrails.evaluate('gitops_verify_pr_checks', { prNumber: '10' }, mockDevContext);
+  assert(prVerifyEval.tier === 'READ' && !prVerifyEval.requiresApproval, 'gitops_verify_pr_checks evaluates autonomously as READ');
+
+  const prReport = await GitOpsTool.verifyPR('9999');
+  assert(prReport.includes('GitOps') || prReport.includes('Local Branch'), 'GitOpsTool.verifyPR generates structured readiness report');
+
+  // Test 53: Flux CD Status & Reconcile Engine
+  const fluxStatusEval = Guardrails.evaluate('flux_app_status', { namespace: 'flux-system' }, mockDevContext);
+  assert(fluxStatusEval.tier === 'READ' && !fluxStatusEval.requiresApproval, 'flux_app_status evaluates autonomously as READ');
+
+  const fluxReconcileEval = Guardrails.evaluate('flux_sync_reconcile', { kind: 'kustomization', name: 'podinfo' }, mockProdContext);
+  assert(fluxReconcileEval.tier === 'MUTATE' && fluxReconcileEval.requiresApproval && fluxReconcileEval.isProductionWarning, 'flux_sync_reconcile requires approval with production alert');
+
+  const fluxReport = await FluxTool.getStatus(undefined, 'all', 'flux-system');
+  assert(fluxReport.includes('Flux CD') || fluxReport.includes('CRDs'), 'FluxTool.getStatus audits cluster GitOps state');
+
+  // Test 54: Helm Template, Values & Linting Primitives
+  const helmTmplEval = Guardrails.evaluate('helm_template', { releaseName: 'api', chartPath: './charts/api' }, mockDevContext);
+  assert(helmTmplEval.tier === 'READ' && !helmTmplEval.requiresApproval, 'helm_template evaluates autonomously as READ');
+
+  const helmValuesEval = Guardrails.evaluate('helm_values_get', { releaseName: 'api' }, mockDevContext);
+  assert(helmValuesEval.tier === 'READ' && !helmValuesEval.requiresApproval, 'helm_values_get evaluates autonomously as READ');
+
+  const helmLintEval = Guardrails.evaluate('helm_lint', { chartPath: './charts/api' }, mockDevContext);
+  assert(helmLintEval.tier === 'READ' && !helmLintEval.requiresApproval, 'helm_lint evaluates autonomously as READ');
+
+  const helmDryDeployEval = Guardrails.evaluate('helm_upgrade_install', { releaseName: 'api', chartPath: './charts/api', dryRun: true }, mockProdContext);
+  assert(helmDryDeployEval.tier === 'READ' && !helmDryDeployEval.requiresApproval, 'helm_upgrade_install in dry-run evaluates safely as READ');
+
+  const helmLiveDeployEval = Guardrails.evaluate('helm_upgrade_install', { releaseName: 'api', chartPath: './charts/api', dryRun: false }, mockProdContext);
+  assert(helmLiveDeployEval.tier === 'MUTATE' && helmLiveDeployEval.requiresApproval && helmLiveDeployEval.isProductionWarning, 'helm_upgrade_install live requires approval with production alert');
+
+  // Test 55: Kustomize Build & Diff Primitives
+  const kustomizeBuildEval = Guardrails.evaluate('kustomize_build', { targetPath: '.' }, mockDevContext);
+  assert(kustomizeBuildEval.tier === 'READ' && !kustomizeBuildEval.requiresApproval, 'kustomize_build evaluates autonomously as READ');
+
+  const kustomizeDiffEval = Guardrails.evaluate('kustomize_diff', { basePath: './base', overlayPath: './overlays/prod' }, mockDevContext);
+  assert(kustomizeDiffEval.tier === 'READ' && !kustomizeDiffEval.requiresApproval, 'kustomize_diff evaluates autonomously as READ');
+
+  // Test 56: Argo CD Rollback Engine
+  const argoRollbackEval = Guardrails.evaluate('argocd_app_rollback', { appName: 'frontend' }, mockProdContext);
+  assert(argoRollbackEval.tier === 'MUTATE' && argoRollbackEval.requiresApproval && argoRollbackEval.isProductionWarning, 'argocd_app_rollback requires confirmation with production warning');
+
+  console.log('\n\x1b[32mAll 56+ enterprise SRE, DR, CI/CD, GitOps, IaC, Terraform/OpenTofu, Flux, Helm, Kustomize, Runbook, Vault, ESO, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

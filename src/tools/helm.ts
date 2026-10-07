@@ -144,4 +144,133 @@ export class HelmTool {
       return `Failed to execute Helm rollback: ${err.message}`;
     }
   }
+
+  /**
+   * Render Helm chart templates locally without cluster contact
+   */
+  static async template(
+    releaseName: string,
+    chartPath: string,
+    namespace: string = 'default',
+    valuesFile?: string,
+    setValues?: string,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const valFlag = valuesFile ? `-f "${valuesFile}"` : '';
+    const setFlag = setValues ? `--set "${setValues}"` : '';
+    const cmd = `helm template ${releaseName} ${chartPath} -n ${namespace} ${valFlag} ${setFlag} ${ctxFlag}`.trim();
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 30000 });
+      if (output.startsWith('Error executing command')) {
+        return `Failed to render Helm template: ${output}`;
+      }
+
+      // Count rendered resource manifests
+      const manifests = output.split(/^---$/m).filter((m) => m.trim().length > 0);
+      const summaryList: string[] = [];
+      for (const m of manifests) {
+        const kindMatch = m.match(/kind:\s*([a-zA-Z0-9]+)/);
+        const nameMatch = m.match(/metadata:\s*[\r\n]+\s*name:\s*([a-zA-Z0-9.-]+)/);
+        if (kindMatch && nameMatch) {
+          summaryList.push(`• \`${kindMatch[1]}/${nameMatch[1]}\``);
+        }
+      }
+
+      let report = `## Helm Template Render Report: \`${releaseName}\`\n`;
+      report += `**Chart:** \`${chartPath}\` • **Namespace:** \`${namespace}\`\n`;
+      report += `**Rendered Resources (${manifests.length} manifests):**\n${summaryList.slice(0, 15).join('\n')}\n`;
+      if (summaryList.length > 15) {
+        report += `\n*(...and ${summaryList.length - 15} more manifests)*\n`;
+      }
+      report += `\n### Manifest Output Preview:\n\`\`\`yaml\n${output.slice(0, 3500)}\n\`\`\``;
+      return report;
+    } catch (err: any) {
+      return `Failed to execute helm template: ${err.message}`;
+    }
+  }
+
+  /**
+   * Retrieve active user-supplied or computed values from a deployed Helm release
+   */
+  static async getValues(
+    releaseName: string,
+    namespace: string = 'default',
+    allValues: boolean = false,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const allFlag = allValues ? '--all' : '';
+    const cmd = `helm get values ${releaseName} -n ${namespace} ${allFlag} ${ctxFlag} -o yaml`.trim();
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 15000 });
+      if (output.startsWith('Error executing command')) {
+        return `Failed to get values for release "${releaseName}" in namespace "${namespace}":\n${output}`;
+      }
+
+      return (
+        `## Helm Release Values: \`${releaseName}\` (Namespace: \`${namespace}\`)\n` +
+        `**Mode:** ${allValues ? 'All Computed Values (--all)' : 'User-Supplied Overrides'}\n\n` +
+        `\`\`\`yaml\n${output || '(No custom values defined)'}\n\`\`\``
+      );
+    } catch (err: any) {
+      return `Error getting Helm values: ${err.message}`;
+    }
+  }
+
+  /**
+   * Run helm lint on a chart directory to audit syntax and templates
+   */
+  static async lint(chartPath: string, valuesFile?: string): Promise<string> {
+    const valFlag = valuesFile ? `-f "${valuesFile}"` : '';
+    const cmd = `helm lint ${chartPath} ${valFlag}`.trim();
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 20000 });
+      const passed = output.includes('0 chart(s) failed');
+
+      return (
+        `## Helm Chart Lint Audit: \`${chartPath}\`\n` +
+        `**Result:** ${passed ? '🟢 **PASSED (0 errors)**' : '🔴 **FAILED / WARNINGS DETECTED**'}\n\n` +
+        `\`\`\`\n${output}\n\`\`\``
+      );
+    } catch (err: any) {
+      return `Failed to lint Helm chart: ${err.message}`;
+    }
+  }
+
+  /**
+   * Upgrade or install a Helm release with dry-run support
+   */
+  static async upgradeInstall(
+    releaseName: string,
+    chartPath: string,
+    namespace: string = 'default',
+    valuesFile?: string,
+    dryRun: boolean = true,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const valFlag = valuesFile ? `-f "${valuesFile}"` : '';
+    const dryFlag = dryRun ? '--dry-run' : '';
+    const cmd = `helm upgrade --install ${releaseName} ${chartPath} -n ${namespace} ${valFlag} ${dryFlag} ${ctxFlag}`.trim();
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 45000 });
+      if (output.startsWith('Error executing command')) {
+        return `Helm upgrade/install failed: ${output}`;
+      }
+
+      return (
+        `## Helm Upgrade/Install: \`${releaseName}\`\n` +
+        `• **Namespace:** \`${namespace}\`\n` +
+        `• **Dry-Run Mode:** \`${dryRun ? 'YES (Simulated Preview)' : 'NO (Live Cluster Mutation)'}\`\n\n` +
+        `\`\`\`\n${output.slice(0, 3000)}\n\`\`\``
+      );
+    } catch (err: any) {
+      return `Error in Helm upgrade/install: ${err.message}`;
+    }
+  }
 }

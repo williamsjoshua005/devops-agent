@@ -126,7 +126,17 @@ export class Guardrails {
       toolName === 'vault_secret_inspect' ||
       toolName === 'sealed_secrets_check' ||
       toolName === 'external_secrets_check' ||
-      toolName === 'service_mesh_diagnose'
+      toolName === 'service_mesh_diagnose' ||
+      toolName === 'terraform_state_inspect' ||
+      toolName === 'gitops_verify_pr_checks' ||
+      toolName === 'flux_app_status' ||
+      toolName === 'helm_template' ||
+      toolName === 'helm_values_get' ||
+      toolName === 'helm_lint' ||
+      toolName === 'kustomize_build' ||
+      toolName === 'kustomize_diff' ||
+      (toolName === 'terraform_workspace_manage' && (!args.action || args.action === 'list' || args.action === 'show')) ||
+      (toolName === 'helm_upgrade_install' && args.dryRun !== false)
     ) {
       return {
         tier: 'READ',
@@ -305,6 +315,72 @@ export class Guardrails {
         reason: isProd
           ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Executing automated runbook mutates live infrastructure.'
           : 'Executing automated SRE runbook steps mutates cluster workloads. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'terraform_apply') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Terraform Apply: Apply infrastructure changes in "${args.dirPath || '.'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cloud infrastructure is in PRODUCTION. Applying Terraform changes requires human confirmation.'
+          : 'Applying Terraform plan mutates live cloud infrastructure. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'terraform_workspace_manage' && (args.action === 'select' || args.action === 'new')) {
+      const requiresApproval = isProd || !isIntermediateOrSenior;
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Terraform Workspace: Switch/create workspace "${args.workspaceName}" in "${args.dirPath || '.'}"`,
+        reason: isProd
+          ? 'WARNING: Operating in PRODUCTION environment. Changing Terraform state workspace requires operator confirmation.'
+          : 'Switching active Terraform workspace.',
+        requiresApproval,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'argocd_app_rollback') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Argo CD Rollback: Rollback application "${args.appName}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Rolling back Argo CD application mutates cluster workloads.'
+          : 'Rolling back Argo CD application mutates cluster workloads according to historical commit. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'flux_sync_reconcile') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Flux CD Reconcile: Trigger sync for ${args.kind || 'resource'}/"${args.name}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Flux CD reconciliation triggers immediate GitOps cluster convergence.'
+          : 'Triggering Flux CD reconciliation modifies live cluster workloads. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'helm_upgrade_install' && args.dryRun === false) {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Helm Release Deploy: Live install/upgrade "${args.releaseName}" in namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Installing or upgrading Helm release mutates live workloads.'
+          : 'Installing or upgrading Helm release alters cluster workloads and requires human confirmation.',
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,

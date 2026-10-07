@@ -28,6 +28,8 @@ import { AdmissionPolicyTool } from './admission_policy.js';
 import { RunbookTool } from './runbook.js';
 import { VaultSecretTool } from './vault_secret.js';
 import { ServiceMeshTool } from './service_mesh.js';
+import { FluxTool } from './flux.js';
+import { KustomizeTool } from './kustomize.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -1256,6 +1258,314 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'terraform_state_inspect',
+    description:
+      'Inspect Terraform/OpenTofu state resources, view state resource details, or diagnose distributed state locks.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dirPath: {
+          type: 'string',
+          description: 'Working directory containing Terraform configuration (defaults to ".").',
+        },
+        resourceAddress: {
+          type: 'string',
+          description: 'Optional resource address to show details (e.g. "aws_s3_bucket.data"). Omit to list all state resources.',
+        },
+      },
+    },
+  },
+  {
+    name: 'terraform_workspace_manage',
+    description:
+      'Manage Terraform/OpenTofu workspaces (list, show active, select, or create a new workspace).',
+    parameters: {
+      type: 'object',
+      properties: {
+        dirPath: {
+          type: 'string',
+          description: 'Working directory containing Terraform configuration (defaults to ".").',
+        },
+        action: {
+          type: 'string',
+          enum: ['list', 'show', 'select', 'new'],
+          description: 'Workspace action: "list", "show", "select", or "new" (defaults to "list").',
+        },
+        workspaceName: {
+          type: 'string',
+          description: 'Workspace name (required when selecting or creating a workspace).',
+        },
+      },
+    },
+  },
+  {
+    name: 'terraform_apply',
+    description:
+      'Apply a Terraform or OpenTofu plan to modify cloud infrastructure. (Requires operator approval).',
+    parameters: {
+      type: 'object',
+      properties: {
+        dirPath: {
+          type: 'string',
+          description: 'Working directory containing Terraform configuration (defaults to ".").',
+        },
+        planFile: {
+          type: 'string',
+          description: 'Optional path to pre-generated plan file.',
+        },
+      },
+    },
+  },
+  {
+    name: 'gitops_verify_pr_checks',
+    description:
+      'Inspect Pull Request CI status, required checks, review approvals, and mergeability before GitOps deployment.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prNumber: {
+          type: 'string',
+          description: 'Pull Request number to verify (omit to check current branch PR).',
+        },
+        repo: {
+          type: 'string',
+          description: 'Optional GitHub repository ("owner/repo").',
+        },
+      },
+    },
+  },
+  {
+    name: 'argocd_app_rollback',
+    description:
+      'Rollback an Argo CD application to a previous deployment revision. (Requires operator approval).',
+    parameters: {
+      type: 'object',
+      properties: {
+        appName: {
+          type: 'string',
+          description: 'Argo CD application name to rollback.',
+        },
+        revisionId: {
+          type: 'number',
+          description: 'Optional target revision ID or history ID.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Argo CD namespace (defaults to "argocd").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['appName'],
+    },
+  },
+  {
+    name: 'flux_app_status',
+    description:
+      'Query Flux CD synchronization status for Kustomizations, HelmReleases, and GitRepositories across the cluster.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Optional resource name to inspect.',
+        },
+        kind: {
+          type: 'string',
+          enum: ['all', 'kustomization', 'helmrelease', 'gitrepository'],
+          description: 'Flux resource kind filter (defaults to "all").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Flux controller namespace (defaults to "flux-system").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'flux_sync_reconcile',
+    description:
+      'Trigger an immediate reconciliation on a Flux CD Kustomization, HelmRelease, or GitRepository. (Requires operator confirmation).',
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['kustomization', 'helmrelease', 'gitrepository'],
+          description: 'Flux resource kind to reconcile.',
+        },
+        name: {
+          type: 'string',
+          description: 'Flux resource name to reconcile.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Flux controller namespace (defaults to "flux-system").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['kind', 'name'],
+    },
+  },
+  {
+    name: 'helm_template',
+    description:
+      'Render Helm chart templates locally without cluster contact to inspect rendered YAML manifests.',
+    parameters: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name of the Helm release.',
+        },
+        chartPath: {
+          type: 'string',
+          description: 'Path or repository reference for the chart (e.g. "./charts/api").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        valuesFile: {
+          type: 'string',
+          description: 'Optional path to custom values YAML file (e.g. "values-staging.yaml").',
+        },
+        setValues: {
+          type: 'string',
+          description: 'Optional comma-separated key=value overrides (e.g. "replicaCount=3,image.tag=v2.1").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['releaseName', 'chartPath'],
+    },
+  },
+  {
+    name: 'helm_values_get',
+    description:
+      'Retrieve active user-supplied or computed values from a deployed Helm release.',
+    parameters: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name of the deployed Helm release.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        allValues: {
+          type: 'boolean',
+          description: 'Whether to dump all computed values including defaults (defaults to false for user overrides only).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['releaseName'],
+    },
+  },
+  {
+    name: 'helm_lint',
+    description:
+      'Run helm lint on a local chart directory to audit syntax, template variables, and best practices.',
+    parameters: {
+      type: 'object',
+      properties: {
+        chartPath: {
+          type: 'string',
+          description: 'Path to the local Helm chart directory.',
+        },
+        valuesFile: {
+          type: 'string',
+          description: 'Optional path to custom values YAML file.',
+        },
+      },
+      required: ['chartPath'],
+    },
+  },
+  {
+    name: 'helm_upgrade_install',
+    description:
+      'Install or upgrade a Helm release with dry-run support. (Live mode requires operator confirmation).',
+    parameters: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name of the Helm release.',
+        },
+        chartPath: {
+          type: 'string',
+          description: 'Path or repository reference for the chart.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        valuesFile: {
+          type: 'string',
+          description: 'Optional path to custom values YAML file.',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Whether to run in dry-run simulation mode (defaults to true for safety preview).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['releaseName', 'chartPath'],
+    },
+  },
+  {
+    name: 'kustomize_build',
+    description:
+      'Render Kustomize manifests from an overlay or base directory into complete Kubernetes YAML.',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetPath: {
+          type: 'string',
+          description: 'Path to directory containing kustomization.yaml (e.g. "overlays/production"). Defaults to ".".',
+        },
+      },
+    },
+  },
+  {
+    name: 'kustomize_diff',
+    description:
+      'Compare two Kustomize targets (e.g. base vs overlay or dev vs prod) and output a colorable visual diff.',
+    parameters: {
+      type: 'object',
+      properties: {
+        basePath: {
+          type: 'string',
+          description: 'Path to base directory containing kustomization.yaml.',
+        },
+        overlayPath: {
+          type: 'string',
+          description: 'Path to target overlay directory containing kustomization.yaml.',
+        },
+      },
+      required: ['basePath', 'overlayPath'],
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -1455,7 +1765,48 @@ export async function executeTool(name: string, args: Record<string, any>, conte
         context: targetCtx,
       });
     }
+    case 'terraform_state_inspect':
+      return await TerraformTool.inspectState(args.dirPath, args.resourceAddress);
+    case 'terraform_workspace_manage':
+      return await TerraformTool.manageWorkspace(args.dirPath, args.action, args.workspaceName);
+    case 'terraform_apply':
+      return await TerraformTool.apply(args.dirPath, args.planFile);
+    case 'gitops_verify_pr_checks':
+      return await GitOpsTool.verifyPR(args.prNumber, args.repo);
+    case 'argocd_app_rollback': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ArgoCdTool.rollbackApp(args.appName, args.revisionId, args.namespace, targetCtx);
+    }
+    case 'flux_app_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await FluxTool.getStatus(args.name, args.kind, args.namespace, targetCtx);
+    }
+    case 'flux_sync_reconcile': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await FluxTool.reconcile(args.kind, args.name, args.namespace, targetCtx);
+    }
+    case 'helm_template': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await HelmTool.template(args.releaseName, args.chartPath, args.namespace, args.valuesFile, args.setValues, targetCtx);
+    }
+    case 'helm_values_get': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await HelmTool.getValues(args.releaseName, args.namespace, args.allValues, targetCtx);
+    }
+    case 'helm_lint':
+      return await HelmTool.lint(args.chartPath, args.valuesFile);
+    case 'helm_upgrade_install': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await HelmTool.upgradeInstall(args.releaseName, args.chartPath, args.namespace, args.valuesFile, args.dryRun, targetCtx);
+    }
+    case 'kustomize_build':
+      return await KustomizeTool.build(args.targetPath);
+    case 'kustomize_diff':
+      return await KustomizeTool.diff(args.basePath, args.overlayPath);
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
   }
 }
+
+export { FluxTool } from './flux.js';
+export { KustomizeTool } from './kustomize.js';

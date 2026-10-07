@@ -17,6 +17,11 @@ import { K8sTool } from '../tools/k8s.js';
 import { AwsTool } from '../tools/aws.js';
 import { GcpTool } from '../tools/gcp.js';
 import { AzureTool } from '../tools/azure.js';
+import { TerraformTool } from '../tools/terraform.js';
+import { ArgoCdTool } from '../tools/argocd.js';
+import { FluxTool } from '../tools/flux.js';
+import { HelmTool } from '../tools/helm.js';
+import { KustomizeTool } from '../tools/kustomize.js';
 
 export interface AgentRunOptions {
   task: string;
@@ -203,6 +208,24 @@ ${runbooks}
       const out = await PostmortemTool.searchKnowledgeBase(q);
       return await recordDirect('knowledge_base_search', out);
     }
+    if (trimmed === '/flux' || trimmed.startsWith('/flux ')) {
+      const parts = trimmed.split(/\s+/);
+      const out = await FluxTool.getStatus(parts[1]);
+      return await recordDirect('flux_app_status', out);
+    }
+    if (trimmed === '/argocd' || trimmed.startsWith('/argocd ')) {
+      const parts = trimmed.split(/\s+/);
+      const out = await ArgoCdTool.getAppStatus(parts[1]);
+      return await recordDirect('argocd_app_status', out);
+    }
+    if (trimmed === '/terraform' || trimmed === '/tf') {
+      const out = await TerraformTool.plan();
+      return await recordDirect('terraform_plan', out);
+    }
+    if (trimmed === '/kustomize') {
+      const out = await KustomizeTool.build();
+      return await recordDirect('kustomize_build', out);
+    }
     if (trimmed === '/role' || trimmed.startsWith('/role ')) {
       const parts = trimmed.split(/\s+/);
       const newRole = parts[1]?.toLowerCase();
@@ -301,6 +324,26 @@ ${runbooks}
       const out = await AzureTool.listResources();
       return await recordDirect('azure_resource_list', out);
     }
+    if (lower.includes('flux') && (lower.includes('status') || lower.includes('apps') || lower.includes('gitops'))) {
+      const out = await FluxTool.getStatus();
+      return await recordDirect('flux_app_status', out);
+    }
+    if (lower.includes('argocd') && (lower.includes('status') || lower.includes('apps') || lower.includes('gitops'))) {
+      const out = await ArgoCdTool.getAppStatus();
+      return await recordDirect('argocd_app_status', out);
+    }
+    if (lower.includes('terraform') && (lower.includes('plan') || lower.includes('tofu plan'))) {
+      const out = await TerraformTool.plan();
+      return await recordDirect('terraform_plan', out);
+    }
+    if (lower.includes('terraform') && lower.includes('drift')) {
+      const out = await TerraformTool.detectDrift();
+      return await recordDirect('terraform_drift_detect', out);
+    }
+    if (lower.includes('kustomize') && (lower.includes('build') || lower.includes('render'))) {
+      const out = await KustomizeTool.build();
+      return await recordDirect('kustomize_build', out);
+    }
 
     // 3. If LLM is not configured (or key is dummy), provide actionable guidance
     if (!this.llm.isConfigured()) {
@@ -326,12 +369,16 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
 3. Save and re-run your task!
 
 ### Direct Diagnostic Commands Available Now (No API Key Required):
+• \`/flux\` — Audit Flux CD Kustomizations and HelmReleases
+• \`/argocd\` — Audit Argo CD GitOps Application sync & health
+• \`/terraform\` — Run Terraform/OpenTofu plan & check drift
+• \`/kustomize\` — Build & preview Kustomize manifests
 • \`/certs\` — Scan cluster for expiring TLS certificates
 • \`/finops\` — Audit unattached PVCs and idle LoadBalancers
 • \`/security\` — Scan Kubernetes YAML & Dockerfiles for vulnerabilities
 • \`/topology\` — Generate service-to-service dependency graph
 • \`/runbooks\` — View built-in SRE diagnostic runbooks
-• \`/tools\` — List all 23 platform engineering tools`;
+• \`/tools\` — List all ${TOOL_DEFINITIONS.length} platform engineering tools`;
     }
 
     return null;

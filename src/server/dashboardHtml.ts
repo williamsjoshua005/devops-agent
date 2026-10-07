@@ -721,6 +721,11 @@ export function getDashboardHtml(context: any): string {
               <span class="chip" onclick="quickTask('List all configured Kubernetes contexts and clusters')">☸️ List Clusters</span>
               <span class="chip" onclick="quickTask('List all pods and deployments in the default namespace')">☸️ K8s Workloads</span>
               <span class="chip chip-accent" onclick="quickTask('Run a complete multi-cloud FinOps audit for idle resources')">💰 FinOps Waste Scan</span>
+              <span class="chip" onclick="quickTask('/terraform')">🏗️ Terraform Plan</span>
+              <span class="chip" onclick="quickTask('/argocd')">🔄 Argo CD Sync</span>
+              <span class="chip" onclick="quickTask('/flux')">⚡ Flux CD Apps</span>
+              <span class="chip" onclick="quickTask('helm_template for default chart')">📦 Helm Template</span>
+              <span class="chip" onclick="quickTask('/kustomize')">🧩 Kustomize Build</span>
               <span class="chip" onclick="quickTask('List all AWS EC2 instances and EKS status')">☁️ AWS Resources</span>
               <span class="chip" onclick="quickTask('List all GCP compute instances and GKE status')">☁️ GCP Resources</span>
               <span class="chip" onclick="quickTask('Inspect Azure resources and AKS cluster health')">☁️ Azure & AKS</span>

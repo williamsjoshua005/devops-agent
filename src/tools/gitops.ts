@@ -45,4 +45,68 @@ export class GitOpsTool {
       return `Error in GitOps workflow: ${err.message}`;
     }
   }
+
+  /**
+   * Inspect Pull Request CI status, required checks, and mergeability before GitOps deployment
+   */
+  static async verifyPR(prNumber?: number | string, repo?: string): Promise<string> {
+    const repoFlag = repo ? `-R "${repo}"` : '';
+    const prTarget = prNumber ? String(prNumber) : '';
+    const cmd = `gh pr view ${prTarget} ${repoFlag} --json number,title,state,mergeable,statusCheckRollup,reviews,url,headRefName`.trim();
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 15000 });
+
+      if (output.startsWith('Error executing command') || !output.trim().startsWith('{')) {
+        // Fallback: check git branch status directly
+        const branch = (await ShellTool.run('git branch --show-current')).trim();
+        const unpushed = (await ShellTool.run('git log @{u}..HEAD --oneline 2>/dev/null || true')).trim();
+        return (
+          `## GitOps Pull Request Verification\n` +
+          `**Local Branch:** \`${branch}\`\n` +
+          `**Unpushed Commits:** \`${unpushed ? unpushed.split('\n').length : 0}\`\n\n` +
+          `*(GitHub CLI \`gh\` not authenticated or no open PR detected for current branch. Run \`gh auth login\` to query live PR check status)*`
+        );
+      }
+
+      const pr = JSON.parse(output);
+      const checks = pr.statusCheckRollup || [];
+      const passing = checks.filter((c: any) => c.status === 'COMPLETED' && (c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL'));
+      const failing = checks.filter((c: any) => c.conclusion === 'FAILURE' || c.conclusion === 'TIMED_OUT');
+      const pending = checks.filter((c: any) => c.status === 'IN_PROGRESS' || c.status === 'QUEUED');
+
+      const isMergeable = pr.mergeable === 'MERGEABLE';
+      const isAllPassing = failing.length === 0 && pending.length === 0 && checks.length > 0;
+
+      let statusBadge = '🟢 **READY FOR GITOPS SYNC**';
+      if (failing.length > 0) {
+        statusBadge = '🔴 **BLOCKED: CI CHECKS FAILING**';
+      } else if (pending.length > 0) {
+        statusBadge = '🟡 **PENDING: CI CHECKS RUNNING**';
+      } else if (!isMergeable) {
+        statusBadge = '⚠️ **CONFLICTING: MERGE CONFLICTS DETECTED**';
+      }
+
+      let report = `## GitOps PR Verification: #${pr.number} — ${pr.title}\n`;
+      report += `**URL:** ${pr.url || '-'}\n`;
+      report += `**Head Branch:** \`${pr.headRefName || '-'}\` • **State:** \`${pr.state}\`\n`;
+      report += `**Mergeable Status:** \`${pr.mergeable}\`\n\n`;
+      report += `### CI Verification Verdict:\n${statusBadge}\n\n`;
+      report += `• 🟢 **Passing Checks:** \`${passing.length}\`\n`;
+      report += `• 🟡 **Pending Checks:** \`${pending.length}\`\n`;
+      report += `• 🔴 **Failing Checks:** \`${failing.length}\`\n\n`;
+
+      if (failing.length > 0) {
+        report += `### ❌ Failing CI Checks:\n`;
+        for (const f of failing) {
+          report += `  - **${f.name || f.context}**: ${f.detailsUrl || f.targetUrl || 'Check failed'}\n`;
+        }
+        report += `\n*Do NOT merge or trigger GitOps deployment until failing CI checks are resolved!*\n`;
+      }
+
+      return report;
+    } catch (err: any) {
+      return `Failed to verify PR status: ${err.message}`;
+    }
+  }
 }

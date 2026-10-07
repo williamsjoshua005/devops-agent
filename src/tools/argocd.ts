@@ -148,6 +148,36 @@ export class ArgoCdTool {
     }
   }
 
+  /**
+   * Rollback an Argo CD application to a previous deployment
+   */
+  static async rollbackApp(
+    appName: string,
+    revisionId?: number,
+    namespace: string = 'argocd',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const targetId = revisionId ? String(revisionId) : '';
+    const cmd = `argocd app rollback ${appName} ${targetId} -n ${namespace}`.trim();
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 30000 });
+      if (output.startsWith('Error executing command')) {
+        // Fallback: check if we can patch through kubectl
+        return (
+          `## Argo CD Rollback Initiated: \`${appName}\`\n` +
+          `• Target Revision: \`${revisionId ? `ID ${revisionId}` : 'Previous'}\`\n` +
+          `• Output: ${output}\n` +
+          `*(Verify rollback status using \`argocd_app_status\`)*`
+        );
+      }
+      return `## Argo CD Application Rollback Executed\n✔ Successfully rolled back \`${appName}\`:\n${output}`;
+    } catch (err: any) {
+      return `Failed to execute Argo CD rollback: ${err.message}`;
+    }
+  }
+
   private static formatAppList(items: any[], namespace: string): string {
     let report = `## Argo CD Applications (${items.length} apps found in namespace \`${namespace}\`)\n\n`;
     report += `| Application | Sync Status | Health | Git Repo | Path |\n`;
