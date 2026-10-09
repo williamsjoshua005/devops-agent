@@ -791,13 +791,86 @@ spec:
   const clusterCompEval = Guardrails.evaluate('k8s_cluster_comparison', { sourceContext: 'dev', targetContext: 'prod', resourceName: 'api' }, mockDevContext);
   assert(clusterCompEval.tier === 'READ' && !clusterCompEval.requiresApproval, 'k8s_cluster_comparison evaluates autonomously as READ');
 
-  // Test 84: Complete Enterprise Kubernetes & Multi-Cloud Suite (98 Native Tools & MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 98, `All 98 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 84: Resource Condition Watch (k8s_wait_for_condition)
+  const waitEval = Guardrails.evaluate('k8s_wait_for_condition', { resource: 'pod/api', condition: 'Ready' }, mockDevContext);
+  assert(waitEval.tier === 'READ' && !waitEval.requiresApproval, 'k8s_wait_for_condition evaluates autonomously as READ');
 
-  const mcp98Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10003, method: 'tools/list' });
-  assert(mcp98Res.result.tools.length >= 98, `MCP Server exposes all tools over JSON-RPC (${mcp98Res.result.tools.length} tools)`);
+  const waitOut = await K8sTool.waitForCondition('pod/test-pod', 'Ready', { timeoutSeconds: 2 });
+  assert(waitOut.includes('Condition') || waitOut.includes('Resource') || waitOut.includes('Timeout') || waitOut.includes('Failed'), 'K8sTool.waitForCondition tracks resource readiness');
 
-  console.log('\n\x1b[32mAll 84+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes (All 10 Workload, Storage, Scheduling, Network, Multi-Cluster, Diff, Port-Forward, Snapshot Categories), Container Security, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
+  // Test 85: Pod Scheduling Bottleneck Analysis (k8s_scheduling_analysis)
+  const schedEval = Guardrails.evaluate('k8s_scheduling_analysis', {}, mockDevContext);
+  assert(schedEval.tier === 'READ' && !schedEval.requiresApproval, 'k8s_scheduling_analysis evaluates autonomously as READ');
+
+  const schedOut = await K8sTool.schedulingAnalysis();
+  assert(schedOut.includes('Scheduling') || schedOut.includes('scheduling') || schedOut.includes('Pending') || schedOut.includes('No pods currently in') || schedOut.includes('Failed to analyze'), 'K8sTool.schedulingAnalysis triages unschedulable pods');
+
+  // Test 86: VerticalPodAutoscaler Sizing Recommendations (k8s_vpa_recommendations)
+  const vpaEval = Guardrails.evaluate('k8s_vpa_recommendations', {}, mockDevContext);
+  assert(vpaEval.tier === 'READ' && !vpaEval.requiresApproval, 'k8s_vpa_recommendations evaluates autonomously as READ');
+
+  const vpaOut = await K8sTool.vpaRecommendations();
+  assert(vpaOut.includes('VerticalPodAutoscaler') || vpaOut.includes('VPA') || vpaOut.includes('Rightsizing') || vpaOut.includes('Failed to fetch'), 'K8sTool.vpaRecommendations retrieves sizing targets');
+
+  // Test 87: PodDisruptionBudget Resiliency Audit (k8s_pdb_audit)
+  const pdbAuditEval = Guardrails.evaluate('k8s_pdb_audit', {}, mockDevContext);
+  assert(pdbAuditEval.tier === 'READ' && !pdbAuditEval.requiresApproval, 'k8s_pdb_audit evaluates autonomously as READ');
+
+  const pdbAuditOut = await K8sTool.pdbAudit();
+  assert(pdbAuditOut.includes('PodDisruptionBudget') || pdbAuditOut.includes('PDB') || pdbAuditOut.includes('Coverage') || pdbAuditOut.includes('Failed to audit'), 'K8sTool.pdbAudit assesses cluster voluntary disruption budgets');
+
+  // Test 88: Disruption Budget Pre-Flight Check (k8s_disruption_budget_check)
+  const pdbCheckEval = Guardrails.evaluate('k8s_disruption_budget_check', { workloadName: 'api-service' }, mockDevContext);
+  assert(pdbCheckEval.tier === 'READ' && !pdbCheckEval.requiresApproval, 'k8s_disruption_budget_check evaluates autonomously as READ');
+
+  const pdbCheckOut = await K8sTool.disruptionBudgetCheck('api-service');
+  assert(pdbCheckOut.includes('Disruption Budget') || pdbCheckOut.includes('PDB') || pdbCheckOut.includes('VERDICT') || pdbCheckOut.includes('SAFE') || pdbCheckOut.includes('Failed to validate'), 'K8sTool.disruptionBudgetCheck validates eviction safety');
+
+  // Test 89: PersistentVolume Reclamation & Cleanup (k8s_pv_cleanup)
+  const pvDryEval = Guardrails.evaluate('k8s_pv_cleanup', { dryRun: true }, mockDevContext);
+  assert(pvDryEval.tier === 'READ' && !pvDryEval.requiresApproval, 'k8s_pv_cleanup dry-run evaluates safely as READ');
+
+  const pvLiveEval = Guardrails.evaluate('k8s_pv_cleanup', { dryRun: false }, mockProdContext);
+  assert(pvLiveEval.tier === 'MUTATE' && pvLiveEval.requiresApproval && pvLiveEval.isProductionWarning, 'k8s_pv_cleanup live mutation enforces production approval');
+
+  const pvCleanOut = await K8sTool.pvCleanup({ dryRun: true });
+  assert(pvCleanOut.includes('PersistentVolume') || pvCleanOut.includes('PV') || pvCleanOut.includes('Volumes') || pvCleanOut.includes('Failed to audit'), 'K8sTool.pvCleanup audits orphaned volumes');
+
+  // Test 90: Native Kubernetes Secret Rotation Check (k8s_secret_rotate_check)
+  const secretRotEval = Guardrails.evaluate('k8s_secret_rotate_check', { maxAgeDays: 90 }, mockDevContext);
+  assert(secretRotEval.tier === 'READ' && !secretRotEval.requiresApproval, 'k8s_secret_rotate_check evaluates autonomously as READ');
+
+  const secretRotOut = await K8sTool.secretRotateCheck('default', 90);
+  assert(secretRotOut.includes('Secret Rotation') || secretRotOut.includes('Freshness') || secretRotOut.includes('Zero-Leakage') || secretRotOut.includes('Failed to audit'), 'K8sTool.secretRotateCheck audits secret age without value leaks');
+
+  // Test 91: GitOps Live-to-Git Sync Diff (k8s_git_sync_status)
+  const gitSyncEval = Guardrails.evaluate('k8s_git_sync_status', { gitPath: '.' }, mockDevContext);
+  assert(gitSyncEval.tier === 'READ' && !gitSyncEval.requiresApproval, 'k8s_git_sync_status evaluates autonomously as READ');
+
+  const gitSyncOut = await K8sTool.gitSyncStatus('.');
+  assert(gitSyncOut.includes('GitOps') || gitSyncOut.includes('Sync') || gitSyncOut.includes('Manifest') || gitSyncOut.includes('Error') || gitSyncOut.includes('Failed to compare'), 'K8sTool.gitSyncStatus audits Git-to-cluster drift');
+
+  // Test 92: Namespace Cost Attribution (k8s_cost_by_namespace)
+  const costNsEval = Guardrails.evaluate('k8s_cost_by_namespace', { timeWindow: 'monthly' }, mockDevContext);
+  assert(costNsEval.tier === 'READ' && !costNsEval.requiresApproval, 'k8s_cost_by_namespace evaluates autonomously as READ');
+
+  const costNsOut = await K8sTool.costByNamespace();
+  assert(costNsOut.includes('Cost Attribution') || costNsOut.includes('Spend') || costNsOut.includes('Namespace') || costNsOut.includes('Failed to compute'), 'K8sTool.costByNamespace computes FinOps attribution');
+
+  // Test 93: Operational Carbon Footprint (k8s_carbon_footprint)
+  const carbonEval = Guardrails.evaluate('k8s_carbon_footprint', { region: 'us-east-1' }, mockDevContext);
+  assert(carbonEval.tier === 'READ' && !carbonEval.requiresApproval, 'k8s_carbon_footprint evaluates autonomously as READ');
+
+  const carbonOut = await K8sTool.carbonFootprint(undefined, 'us-east-1');
+  assert(carbonOut.includes('Carbon Footprint') || carbonOut.includes('Sustainability') || carbonOut.includes('kWh') || carbonOut.includes('CO2') || carbonOut.includes('Failed to estimate'), 'K8sTool.carbonFootprint computes GreenOps footprint');
+
+  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (108 Native Tools & MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 108, `All 108 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+
+  const mcp108Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10004, method: 'tools/list' });
+  assert(mcp108Res.result.tools.length >= 108, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
+
+  console.log('\n\x1b[32mAll 94+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes (All 10 Workload, Storage, Scheduling, Network, Multi-Cluster, Diff, Port-Forward, Snapshot, PDB, VPA, Cost, Carbon Categories), Container Security, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

@@ -2303,6 +2303,233 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['sourceContext', 'targetContext', 'resourceName'],
     },
   },
+  {
+    name: 'k8s_wait_for_condition',
+    description:
+      'Poll a Kubernetes resource until it reaches a desired condition (e.g. "Ready", "Complete", "Established") with bounded timeout.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resource: {
+          type: 'string',
+          description: 'Target resource identifier (e.g. "pod/api-worker-123" or "job/db-migrate").',
+        },
+        condition: {
+          type: 'string',
+          description: 'Condition to wait for (e.g. "Ready", "Complete", "delete", "ContainersReady"). Defaults to "Ready".',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        timeoutSeconds: {
+          type: 'number',
+          description: 'Maximum time in seconds to wait before timing out (defaults to 60).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['resource', 'condition'],
+    },
+  },
+  {
+    name: 'k8s_scheduling_analysis',
+    description:
+      'Explain why pods are stuck in Pending status, analyzing node capacity, taints/tolerations, affinity, and topology spread.',
+    parameters: {
+      type: 'object',
+      properties: {
+        podName: {
+          type: 'string',
+          description: 'Optional specific pod name. If omitted, audits all Pending pods in namespace.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_vpa_recommendations',
+    description:
+      'Pull VerticalPodAutoscaler (VPA) right-sizing recommendations (Target, LowerBound, UpperBound) for target workloads.',
+    parameters: {
+      type: 'object',
+      properties: {
+        workloadName: {
+          type: 'string',
+          description: 'Optional specific workload or VPA name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_pdb_audit',
+    description:
+      'Audit PodDisruptionBudget (PDB) coverage across all workloads to prevent voluntary downtime during node drains or rolling upgrades.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_disruption_budget_check',
+    description:
+      'Pre-flight check to validate whether a planned rollout, restart, or node drain is safe given active workload PDBs.',
+    parameters: {
+      type: 'object',
+      properties: {
+        workloadName: {
+          type: 'string',
+          description: 'Name of the deployment or statefulset to validate.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        proposedDisruptionCount: {
+          type: 'number',
+          description: 'Number of pods proposed to disrupt simultaneously (defaults to 1).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['workloadName'],
+    },
+  },
+  {
+    name: 'k8s_pv_cleanup',
+    description:
+      'Find Released, Failed, or orphaned PersistentVolumes (PV) and propose or execute storage reclaim actions.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dryRun: {
+          type: 'boolean',
+          description: 'If true (default), simulates cleanup and lists reclaimable volumes without deleting. Set false for live cleanup.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_secret_rotate_check',
+    description:
+      'Audit native Kubernetes Secret age and flag unrotated secrets older than maxAgeDays with zero plaintext leakage.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        maxAgeDays: {
+          type: 'number',
+          description: 'Age threshold in days to flag secrets for rotation (defaults to 90).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_git_sync_status',
+    description:
+      'Compare live cluster state directly against a local Git repository path / manifest tree, detecting drift outside Argo/Flux.',
+    parameters: {
+      type: 'object',
+      properties: {
+        gitPath: {
+          type: 'string',
+          description: 'Relative or absolute directory path containing Kubernetes YAML manifests.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Optional target namespace scope.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['gitPath'],
+    },
+  },
+  {
+    name: 'k8s_cost_by_namespace',
+    description:
+      'Estimate cloud cost attribution by namespace and workload using CPU/RAM allocations and standard cloud hourly pricing.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Optional namespace filter (defaults to all namespaces).',
+        },
+        timeWindow: {
+          type: 'string',
+          description: 'Time window for cost projection: "monthly", "daily", or "hourly" (defaults to "monthly").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_carbon_footprint',
+    description:
+      'Estimate operational carbon footprint (kg CO2e) and power consumption (kWh) based on node utilization and regional grid carbon intensity.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Optional namespace scope.',
+        },
+        region: {
+          type: 'string',
+          description: 'Cloud region (e.g. "us-east-1", "eu-west-1", "us-west-2"). Defaults to "us-east-1".',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -2650,6 +2877,46 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       return await K8sTool.multiClusterInventory(args.resourceType, args.filterContexts);
     case 'k8s_cluster_comparison':
       return await K8sTool.clusterComparison(args.sourceContext, args.targetContext, args.resourceType, args.resourceName, args.namespace);
+    case 'k8s_wait_for_condition': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.waitForCondition(args.resource, args.condition, { namespace: args.namespace, timeoutSeconds: args.timeoutSeconds }, targetCtx);
+    }
+    case 'k8s_scheduling_analysis': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.schedulingAnalysis(args.podName, args.namespace, targetCtx);
+    }
+    case 'k8s_vpa_recommendations': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.vpaRecommendations(args.workloadName, args.namespace, targetCtx);
+    }
+    case 'k8s_pdb_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.pdbAudit(args.namespace, targetCtx);
+    }
+    case 'k8s_disruption_budget_check': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.disruptionBudgetCheck(args.workloadName, args.namespace, args.proposedDisruptionCount, targetCtx);
+    }
+    case 'k8s_pv_cleanup': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.pvCleanup({ dryRun: args.dryRun, reclaimPolicy: args.reclaimPolicy }, targetCtx);
+    }
+    case 'k8s_secret_rotate_check': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.secretRotateCheck(args.namespace, args.maxAgeDays, targetCtx);
+    }
+    case 'k8s_git_sync_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.gitSyncStatus(args.gitPath, args.namespace, targetCtx);
+    }
+    case 'k8s_cost_by_namespace': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.costByNamespace(args.namespace, args.timeWindow, targetCtx);
+    }
+    case 'k8s_carbon_footprint': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.carbonFootprint(args.namespace, args.region, targetCtx);
+    }
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
   }

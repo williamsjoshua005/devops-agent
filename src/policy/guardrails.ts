@@ -153,6 +153,16 @@ export class Guardrails {
       toolName === 'k8s_ingress_check' ||
       toolName === 'k8s_multi_cluster_inventory' ||
       toolName === 'k8s_cluster_comparison' ||
+      toolName === 'k8s_wait_for_condition' ||
+      toolName === 'k8s_scheduling_analysis' ||
+      toolName === 'k8s_vpa_recommendations' ||
+      toolName === 'k8s_pdb_audit' ||
+      toolName === 'k8s_disruption_budget_check' ||
+      toolName === 'k8s_secret_rotate_check' ||
+      toolName === 'k8s_git_sync_status' ||
+      toolName === 'k8s_cost_by_namespace' ||
+      toolName === 'k8s_carbon_footprint' ||
+      (toolName === 'k8s_pv_cleanup' && args.dryRun !== false) ||
       (toolName === 'k8s_node_drain' && args.dryRun === true) ||
       (toolName === 'k8s_apply_manifest' && args.dryRun !== false && args.dryRun !== 'none') ||
       (toolName === 'terraform_workspace_manage' && (!args.action || args.action === 'list' || args.action === 'show')) ||
@@ -607,6 +617,19 @@ export class Guardrails {
         reason: isProd
           ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Triggering volume snapshots consumes storage I/O and cloud snapshot quotas.'
           : 'Triggering CSI VolumeSnapshot creates persistent storage snapshot resources. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_pv_cleanup' && (args.dryRun === false || args.dryRun === 'false')) {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Delete / Reclaim Released PersistentVolumes in cluster`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Deleting PersistentVolumes permanently removes storage resources and associated cloud disks.'
+          : 'Reclaiming PersistentVolumes deletes storage resources. Operator confirmation required.',
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,

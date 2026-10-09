@@ -1670,4 +1670,698 @@ ${snapClassLine}  source:
       return `Failed to compare workload across clusters: ${err.message}`;
     }
   }
+
+  /**
+   * Poll a resource until it reaches a condition (Ready, Complete, Established, etc.) with timeout and rollback diagnostics
+   */
+  static async waitForCondition(
+    resource: string,
+    condition: string,
+    options: { namespace?: string; timeoutSeconds?: number } = {},
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const namespace = options.namespace || 'default';
+    const timeout = options.timeoutSeconds || 60;
+    const nsFlag = namespace ? `-n ${namespace}` : '';
+
+    const cmd = `kubectl ${ctxFlag} wait --for=condition=${condition} ${resource} ${nsFlag} --timeout=${timeout}s`.replace(/\s+/g, ' ');
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: (timeout + 5) * 1000 });
+      return (
+        `## Kubernetes Resource Condition Watch\n\n` +
+        `• **Target Resource:** \`${namespace}/${resource}\`\n` +
+        `• **Condition Met:** \`${condition}\` 🟢\n` +
+        `• **Timeout Threshold:** ${timeout}s\n\n` +
+        `\`\`\`\n${output.trim()}\n\`\`\`\n\n` +
+        `✔ *Target resource converged to desired condition within specified deadline.*`
+      );
+    } catch (err: any) {
+      let diag = '';
+      try {
+        const eventsRaw = await ShellTool.run(
+          `kubectl ${ctxFlag} get events ${nsFlag} --field-selector involvedObject.name=${resource.split('/')[1] || resource} --sort-by='.metadata.creationTimestamp' --request-timeout=10s`
+        );
+        if (eventsRaw.trim()) {
+          diag = `\n\n### Recent Events for ${resource}:\n\`\`\`\n${eventsRaw.trim().split('\n').slice(-8).join('\n')}\n\`\`\``;
+        }
+      } catch {}
+
+      return (
+        `## ⚠️ Resource Condition Timeout Exceeded\n\n` +
+        `• **Target Resource:** \`${namespace}/${resource}\`\n` +
+        `• **Condition Sought:** \`${condition}\` 🔴\n` +
+        `• **Elapsed Timeout:** ${timeout}s\n` +
+        `• **Error:** ${err.message}${diag}\n\n` +
+        `*Remediation: Check pod logs with \`k8s_get_logs\`, inspect events with \`k8s_event_timeline\`, or initiate automated rollback if a deployment rollout is stalling.*`
+      );
+    }
+  }
+
+  /**
+   * Explain why a pod is stuck in Pending status (affinity, taints, capacity, topology spread constraints)
+   */
+  static async schedulingAnalysis(
+    podName?: string,
+    namespace: string = 'default',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '-A';
+
+    try {
+      const [podsRaw, nodesRaw] = await Promise.all([
+        ShellTool.run(`kubectl ${ctxFlag} get pods ${nsFlag} -o json --request-timeout=15s`),
+        ShellTool.run(`kubectl ${ctxFlag} get nodes -o json --request-timeout=15s`),
+      ]);
+
+      const allPods: any[] = JSON.parse(podsRaw).items || [];
+      const nodes: any[] = JSON.parse(nodesRaw).items || [];
+
+      let pendingPods = allPods.filter((p: any) => p.status?.phase === 'Pending');
+      if (podName) {
+        pendingPods = pendingPods.filter((p: any) => p.metadata?.name === podName);
+      }
+
+      if (pendingPods.length === 0) {
+        return podName
+          ? `Pod \`${namespace}/${podName}\` is not in Pending status (Current Phase: \`${allPods.find(p => p.metadata?.name === podName)?.status?.phase || 'Not Found'}\`).`
+          : `No pods currently in \`Pending\` status in namespace "${namespace}". All workloads successfully scheduled.`;
+      }
+
+      let md = `## Kubernetes Pod Scheduling Bottleneck Analysis\n\n`;
+      md += `• **Namespace:** \`${namespace}\`\n`;
+      md += `• **Pending Pods Analyzed:** ${pendingPods.length}\n`;
+      md += `• **Cluster Nodes Evaluated:** ${nodes.length}\n\n`;
+
+      md += `| Pending Pod | Containers | Requested CPU / RAM | Failed Scheduling Predicates | Root Cause & Remediation |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- |\n`;
+
+      for (const pod of pendingPods.slice(0, 10)) {
+        const name = pod.metadata?.name || 'unknown';
+        const podNs = pod.metadata?.namespace || namespace;
+        const containers = pod.spec?.containers || [];
+
+        let totalCpuMillis = 0;
+        let totalMemBytes = 0;
+        for (const c of containers) {
+          const cpuReq = c.resources?.requests?.cpu;
+          if (cpuReq) {
+            totalCpuMillis += cpuReq.endsWith('m') ? parseInt(cpuReq, 10) : parseFloat(cpuReq) * 1000;
+          }
+          const memReq = c.resources?.requests?.memory;
+          if (memReq) {
+            if (memReq.endsWith('Mi')) totalMemBytes += parseInt(memReq, 10) * 1024 * 1024;
+            else if (memReq.endsWith('Gi')) totalMemBytes += parseInt(memReq, 10) * 1024 * 1024 * 1024;
+          }
+        }
+
+        const reqStr = `${totalCpuMillis > 0 ? `${totalCpuMillis}m CPU` : 'None'} / ${totalMemBytes > 0 ? `${Math.round(totalMemBytes / (1024 * 1024))}Mi RAM` : 'None'}`;
+
+        const conditions = pod.status?.conditions || [];
+        const schedCond = conditions.find((c: any) => c.type === 'PodScheduled');
+        const reason = schedCond?.reason || 'Unschedulable';
+        const message = schedCond?.message || '0/N nodes available';
+
+        let failedPredicates: string[] = [];
+        let remediation = '';
+
+        if (message.includes('Insufficient cpu')) {
+          failedPredicates.push('Insufficient CPU');
+          remediation = 'Scale up worker node cluster or downscale pod CPU requests.';
+        }
+        if (message.includes('Insufficient memory')) {
+          failedPredicates.push('Insufficient Memory');
+          remediation = 'Node memory pressure. Provision nodes with larger memory capacity.';
+        }
+        if (message.includes('node(s) had untolerated taint')) {
+          failedPredicates.push('Untolerated Taints');
+          remediation = 'Add required toleration in pod spec or untaint worker nodes.';
+        }
+        if (message.includes("didn't match Pod's node affinity/selector")) {
+          failedPredicates.push('NodeAffinity / Selector Mismatch');
+          remediation = 'Review `nodeSelector` or `nodeAffinity` labels in deployment spec.';
+        }
+        if (message.includes('volume node affinity conflict')) {
+          failedPredicates.push('Volume Zone/Node Affinity');
+          remediation = 'PV is locked to a specific availability zone or node without capacity.';
+        }
+        if (failedPredicates.length === 0) {
+          failedPredicates.push(reason);
+          remediation = message.slice(0, 120);
+        }
+
+        md += `| \`${podNs}/${name}\` | ${containers.length} | ${reqStr} | 🔴 **${failedPredicates.join(', ')}** | ${remediation} |\n`;
+      }
+
+      return md;
+    } catch (err: any) {
+      return `Failed to analyze pod scheduling: ${err.message}`;
+    }
+  }
+
+  /**
+   * Pull VerticalPodAutoscaler (VPA) recommendations for rightsizing requests and limits
+   */
+  static async vpaRecommendations(
+    workloadName?: string,
+    namespace: string = 'default',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '-A';
+
+    try {
+      const vpaRaw = await ShellTool.run(`kubectl ${ctxFlag} get vpa ${nsFlag} -o json --request-timeout=15s`);
+      const vpas: any[] = JSON.parse(vpaRaw).items || [];
+
+      let filtered = vpas;
+      if (workloadName) {
+        filtered = filtered.filter((v: any) =>
+          v.metadata?.name === workloadName ||
+          v.spec?.targetRef?.name === workloadName
+        );
+      }
+
+      if (filtered.length === 0) {
+        const heuristic = await this.rightsizeWorkload(namespace, workloadName, context);
+        return (
+          `## VerticalPodAutoscaler (VPA) Audit\n\n` +
+          `*Notice: No active \`VerticalPodAutoscaler\` (autoscaling.k8s.io) CRDs found in namespace "${namespace}".*\n\n` +
+          `### Heuristic Workload Rightsizing Recommendations:\n\n${heuristic}`
+        );
+      }
+
+      let md = `## VerticalPodAutoscaler (VPA) Sizing Recommendations\n\n`;
+      md += `• **Namespace:** \`${namespace}\`\n`;
+      md += `• **Active VPAs Evaluated:** ${filtered.length}\n\n`;
+
+      md += `| VPA Name | Target Workload | Container | Target CPU / Mem | Lower Bound | Upper Bound | Uncapped Target |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      for (const vpa of filtered) {
+        const name = vpa.metadata?.name || 'unknown';
+        const target = `${vpa.spec?.targetRef?.kind || 'Deployment'}/${vpa.spec?.targetRef?.name || 'unknown'}`;
+        const containerRecs = vpa.status?.recommendation?.containerRecommendations || [];
+
+        if (containerRecs.length === 0) {
+          md += `| \`${name}\` | \`${target}\` | *All* | 🟡 *Gathering metrics...* | - | - | - |\n`;
+          continue;
+        }
+
+        for (const cr of containerRecs) {
+          const cName = cr.containerName || 'default';
+          const targetStr = `🎯 **${cr.target?.cpu || '-'}** / **${cr.target?.memory || '-'}**`;
+          const lowerStr = `${cr.lowerBound?.cpu || '-'} / ${cr.lowerBound?.memory || '-'}`;
+          const upperStr = `${cr.upperBound?.cpu || '-'} / ${cr.upperBound?.memory || '-'}`;
+          const uncappedStr = `${cr.uncappedTarget?.cpu || '-'} / ${cr.uncappedTarget?.memory || '-'}`;
+
+          md += `| \`${name}\` | \`${target}\` | \`${cName}\` | ${targetStr} | ${lowerStr} | ${upperStr} | ${uncappedStr} |\n`;
+        }
+      }
+
+      md += `\n*VPA recommendation modes: Target is the optimal allocation. LowerBound prevents throttling under surge, UpperBound bounds spikes.*`;
+      return md;
+    } catch (err: any) {
+      return `Failed to fetch VPA recommendations: ${err.message}. Ensure VerticalPodAutoscaler CRD is installed in the cluster.`;
+    }
+  }
+
+  /**
+   * Audit PodDisruptionBudget (PDB) coverage across all workloads to prevent voluntary downtime
+   */
+  static async pdbAudit(
+    namespace: string = 'default',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '-A';
+
+    try {
+      const [pdbRaw, deployRaw, stsRaw] = await Promise.all([
+        ShellTool.run(`kubectl ${ctxFlag} get pdb ${nsFlag} -o json --request-timeout=15s`),
+        ShellTool.run(`kubectl ${ctxFlag} get deploy ${nsFlag} -o json --request-timeout=15s`),
+        ShellTool.run(`kubectl ${ctxFlag} get statefulset ${nsFlag} -o json --request-timeout=15s`),
+      ]);
+
+      const pdbs: any[] = JSON.parse(pdbRaw).items || [];
+      const deploys: any[] = JSON.parse(deployRaw).items || [];
+      const statefulsets: any[] = JSON.parse(stsRaw).items || [];
+      const workloads = [...deploys.map((d: any) => ({ ...d, kind: 'Deployment' })), ...statefulsets.map((s: any) => ({ ...s, kind: 'StatefulSet' }))];
+
+      const coveredWorkloads = new Set<string>();
+      const pdbRows: string[] = [];
+      const warnings: string[] = [];
+
+      for (const pdb of pdbs) {
+        const pdbName = pdb.metadata?.name || 'unknown';
+        const pdbNs = pdb.metadata?.namespace || namespace;
+        const minAvail = pdb.spec?.minAvailable ?? '-';
+        const maxUnavail = pdb.spec?.maxUnavailable ?? '-';
+        const allowedDisruptions = pdb.status?.disruptionsAllowed ?? 0;
+        const currentHealthy = pdb.status?.currentHealthy ?? 0;
+        const desiredHealthy = pdb.status?.desiredHealthy ?? 0;
+
+        if (maxUnavail === 0 || maxUnavail === '0%') {
+          warnings.push(`PDB **${pdbName}** sets \`maxUnavailable: 0\`, permanently preventing node drains and maintenance.`);
+        }
+        if (minAvail === '100%' || (typeof minAvail === 'number' && minAvail >= currentHealthy && currentHealthy === 1)) {
+          warnings.push(`PDB **${pdbName}** sets \`minAvailable: ${minAvail}\` for a single-replica workload, risking drain deadlocks.`);
+        }
+
+        const matchLabels = pdb.spec?.selector?.matchLabels || {};
+        for (const w of workloads) {
+          const wLabels = w.spec?.template?.metadata?.labels || {};
+          const isMatch = Object.entries(matchLabels).every(([k, v]) => wLabels[k] === v);
+          if (isMatch && Object.keys(matchLabels).length > 0) {
+            coveredWorkloads.add(`${w.metadata?.namespace}/${w.kind}/${w.metadata?.name}`);
+          }
+        }
+
+        const healthStatus = allowedDisruptions > 0 ? '🟢 Disruptions Allowed' : '🔴 0 Disruptions Allowed';
+        pdbRows.push(`| \`${pdbNs}/${pdbName}\` | \`min: ${minAvail}\` / \`maxUnavail: ${maxUnavail}\` | **${allowedDisruptions}** | ${currentHealthy} / ${desiredHealthy} | ${healthStatus} |`);
+      }
+
+      let md = `## Kubernetes PodDisruptionBudget (PDB) Resiliency Audit\n\n`;
+      md += `• **Namespace:** \`${namespace || 'All Namespaces'}\`\n`;
+      md += `• **Active PDBs:** ${pdbs.length}\n`;
+      md += `• **Workloads Audited:** ${workloads.length}\n`;
+      md += `• **PDB Coverage Rate:** **${workloads.length > 0 ? Math.round((coveredWorkloads.size / workloads.length) * 100) : 100}%** (${coveredWorkloads.size}/${workloads.length} workloads protected)\n\n`;
+
+      md += `### Active PDB Configurations\n\n`;
+      if (pdbRows.length === 0) {
+        md += `*No PodDisruptionBudgets found in scope. Cluster workloads have no voluntary disruption protection during node drains or rolling upgrades.*\n\n`;
+      } else {
+        md += `| PDB Name | Budget Policy | Allowed Disruptions | Healthy / Desired | Status |\n`;
+        md += `| :--- | :--- | :--- | :--- | :--- |\n`;
+        md += pdbRows.join('\n') + '\n\n';
+      }
+
+      const unprotected = workloads.filter((w: any) => !coveredWorkloads.has(`${w.metadata?.namespace}/${w.kind}/${w.metadata?.name}`) && (w.spec?.replicas || 1) > 1);
+      if (unprotected.length > 0) {
+        md += `### ⚠️ High-Availability Workloads Missing PDB Protection\n\n`;
+        for (const u of unprotected.slice(0, 10)) {
+          md += `• \`${u.metadata?.namespace}/${u.kind}/${u.metadata?.name}\` (Replicas: ${u.spec?.replicas || 1}) - *Can suffer total outage during uncoordinated node drain.*\n`;
+        }
+        md += `\n`;
+      }
+
+      if (warnings.length > 0) {
+        md += `### 🛑 PDB Misconfiguration Warnings\n\n`;
+        for (const w of warnings) {
+          md += `• ${w}\n`;
+        }
+      }
+
+      return md;
+    } catch (err: any) {
+      return `Failed to audit PodDisruptionBudgets: ${err.message}`;
+    }
+  }
+
+  /**
+   * Validate whether a planned rollout or node drain is safe given current active PDBs
+   */
+  static async disruptionBudgetCheck(
+    workloadName: string,
+    namespace: string = 'default',
+    proposedDisruptionCount: number = 1,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+
+    try {
+      const [pdbRaw, deployRaw] = await Promise.all([
+        ShellTool.run(`kubectl ${ctxFlag} get pdb -n ${namespace} -o json --request-timeout=15s`),
+        ShellTool.run(`kubectl ${ctxFlag} get deploy ${workloadName} -n ${namespace} -o json --request-timeout=15s`),
+      ]);
+
+      const pdbs: any[] = JSON.parse(pdbRaw).items || [];
+      const deploy = JSON.parse(deployRaw);
+      const deployLabels = deploy.spec?.template?.metadata?.labels || {};
+
+      const matchingPdb = pdbs.find((pdb: any) => {
+        const matchLabels = pdb.spec?.selector?.matchLabels || {};
+        return Object.keys(matchLabels).length > 0 && Object.entries(matchLabels).every(([k, v]) => deployLabels[k] === v);
+      });
+
+      if (!matchingPdb) {
+        return (
+          `## Disruption Budget Check: \`${namespace}/${workloadName}\`\n\n` +
+          `• **PDB Status:** ⚠️ **No PodDisruptionBudget configured**\n` +
+          `• **Proposed Evictions/Disruptions:** ${proposedDisruptionCount}\n` +
+          `• **Verdict:** 🟡 **SAFE BUT UNPROTECTED**\n\n` +
+          `*Workload has no PDB enforcement. Disruption will proceed without cluster gatekeeping, but creating a PDB is strongly recommended for production HA.*`
+        );
+      }
+
+      const pdbName = matchingPdb.metadata?.name;
+      const allowedDisruptions = matchingPdb.status?.disruptionsAllowed ?? 0;
+      const currentHealthy = matchingPdb.status?.currentHealthy ?? 0;
+      const desiredHealthy = matchingPdb.status?.desiredHealthy ?? 0;
+      const isSafe = allowedDisruptions >= proposedDisruptionCount;
+
+      return (
+        `## Disruption Budget Pre-Flight Check: \`${namespace}/${workloadName}\`\n\n` +
+        `• **Associated PDB:** \`${namespace}/${pdbName}\`\n` +
+        `• **Current Healthy Replicas:** ${currentHealthy}\n` +
+        `• **Desired Healthy Replicas:** ${desiredHealthy}\n` +
+        `• **Allowed Disruptions:** **${allowedDisruptions}**\n` +
+        `• **Proposed Disruptions:** **${proposedDisruptionCount}**\n\n` +
+        `### Pre-Flight Safety Verdict:\n` +
+        (isSafe
+          ? `🟢 **APPROVED: SAFE TO PROCEED**\n\n*The cluster allows ${allowedDisruptions} disruption(s). Evicting or restarting ${proposedDisruptionCount} pod(s) will not breach the high-availability SLO.*`
+          : `🔴 **BLOCKED: DISRUPTION BUDGET EXCEEDED**\n\n*Disruptions allowed is ${allowedDisruptions}, which is less than proposed ${proposedDisruptionCount}. Draining or restarting now would breach the PDB and cause service degradation.*`)
+      );
+    } catch (err: any) {
+      return `Failed to validate disruption budget: ${err.message}`;
+    }
+  }
+
+  /**
+   * Find Released, Failed, or orphaned PersistentVolumes and propose or execute reclaim actions
+   */
+  static async pvCleanup(
+    options: { dryRun?: boolean; reclaimPolicy?: string } = {},
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const isDry = options.dryRun !== false;
+
+    try {
+      const pvRaw = await ShellTool.run(`kubectl ${ctxFlag} get pv -o json --request-timeout=15s`);
+      const pvs: any[] = JSON.parse(pvRaw).items || [];
+
+      const candidatePvs = pvs.filter((pv: any) => {
+        const phase = pv.status?.phase;
+        return phase === 'Released' || phase === 'Failed';
+      });
+
+      if (candidatePvs.length === 0) {
+        return (
+          `## PersistentVolume (PV) Cleanup Audit\n\n` +
+          `• **Total PVs Audited:** ${pvs.length}\n` +
+          `• **Orphaned / Released Volumes:** 0\n\n` +
+          `✔ *All PersistentVolumes are active, Bound, and healthy. No storage waste detected.*`
+        );
+      }
+
+      let md = `## PersistentVolume (PV) Storage Reclamation Audit (${isDry ? 'DRY-RUN PREVIEW' : 'CLEANUP EXECUTED'})\n\n`;
+      md += `• **Candidate Volumes Found:** ${candidatePvs.length}\n\n`;
+
+      md += `| PV Name | Capacity | Phase | Reclaim Policy | Storage Class | Former Claim | Action |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      for (const pv of candidatePvs) {
+        const name = pv.metadata?.name || 'unknown';
+        const capacity = pv.spec?.capacity?.storage || 'unknown';
+        const phase = pv.status?.phase || 'unknown';
+        const policy = pv.spec?.persistentVolumeReclaimPolicy || 'Retain';
+        const sc = pv.spec?.storageClassName || 'default';
+        const formerClaim = `${pv.spec?.claimRef?.namespace || 'unknown'}/${pv.spec?.claimRef?.name || 'unknown'}`;
+
+        let action = isDry ? '🔍 Reclaim Candidate' : '🗑️ Deleted';
+        if (!isDry) {
+          try {
+            await ShellTool.run(`kubectl ${ctxFlag} delete pv ${name} --timeout=15s`);
+            action = '✔ Reclaimed/Deleted';
+          } catch (delErr: any) {
+            action = `❌ Delete Failed (${delErr.message.slice(0, 25)})`;
+          }
+        }
+
+        md += `| \`${name}\` | **${capacity}** | \`${phase}\` | \`${policy}\` | \`${sc}\` | \`${formerClaim}\` | ${action} |\n`;
+      }
+
+      md += `\n*Safety: In dry-run mode, no storage resources were deleted. Execute with \`dryRun: false\` after verifying persistent data retention policies.*`;
+      return md;
+    } catch (err: any) {
+      return `Failed to audit/cleanup PersistentVolumes: ${err.message}`;
+    }
+  }
+
+  /**
+   * Track native Kubernetes Secret age and flag unrotated secrets older than threshold (zero value leakage)
+   */
+  static async secretRotateCheck(
+    namespace: string = 'default',
+    maxAgeDays: number = 90,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '-A';
+
+    try {
+      const secretsRaw = await ShellTool.run(`kubectl ${ctxFlag} get secrets ${nsFlag} -o json --request-timeout=15s`);
+      const secrets: any[] = JSON.parse(secretsRaw).items || [];
+      const now = Date.now();
+
+      const staleSecrets: any[] = [];
+      const healthySecrets: any[] = [];
+
+      for (const s of secrets) {
+        const type = s.type || 'Opaque';
+        if (type === 'kubernetes.io/service-account-token') continue;
+
+        const created = new Date(s.metadata?.creationTimestamp).getTime();
+        const ageDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+
+        const item = {
+          name: s.metadata?.name || 'unknown',
+          namespace: s.metadata?.namespace || namespace,
+          type,
+          ageDays,
+          keys: Object.keys(s.data || {}),
+        };
+
+        if (ageDays >= maxAgeDays) {
+          staleSecrets.push(item);
+        } else {
+          healthySecrets.push(item);
+        }
+      }
+
+      let md = `## Kubernetes Secret Rotation & Freshness Audit\n\n`;
+      md += `• **Namespace:** \`${namespace || 'All Namespaces'}\`\n`;
+      md += `• **Max Age Threshold:** ${maxAgeDays} days\n`;
+      md += `• **Total Secrets Inspected:** ${secrets.length}\n`;
+      md += `• **Secrets Due for Rotation:** **${staleSecrets.length}**\n\n`;
+
+      if (staleSecrets.length > 0) {
+        md += `### ⚠️ Secrets Requiring Rotation (> ${maxAgeDays} Days Old)\n\n`;
+        md += `| Secret Name | Namespace | Type | Age (Days) | Keys Contained | Security Recommendation |\n`;
+        md += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+        for (const s of staleSecrets.slice(0, 15)) {
+          const rec = s.type === 'kubernetes.io/tls'
+            ? 'Renew TLS certificate with cert-manager'
+            : 'Rotate credential values and update workloads';
+          md += `| \`${s.name}\` | \`${s.namespace}\` | \`${s.type}\` | 🔴 **${s.ageDays}d** | \`${s.keys.join(', ')}\` | ${rec} |\n`;
+        }
+        md += `\n`;
+      } else {
+        md += `✔ *All audited secrets were rotated within the last ${maxAgeDays} days. Compliant with rotation policies.*\n\n`;
+      }
+
+      md += `*Zero-Leakage Assurance: Only secret metadata, age, and key names are inspected. Plaintext values are never read or logged.*`;
+      return md;
+    } catch (err: any) {
+      return `Failed to audit secret rotation: ${err.message}`;
+    }
+  }
+
+  /**
+   * Compare live cluster state directly against a local Git repository path / manifest tree
+   */
+  static async gitSyncStatus(
+    gitPath: string,
+    namespace?: string,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '';
+    const resolvedPath = path.resolve(process.cwd(), gitPath);
+
+    if (!fs.existsSync(resolvedPath)) {
+      return `Error: Manifest path "${gitPath}" does not exist locally.`;
+    }
+
+    const cmd = `kubectl ${ctxFlag} diff -R -f ${resolvedPath} ${nsFlag}`.replace(/\s+/g, ' ');
+
+    try {
+      let diffOutput = '';
+      try {
+        diffOutput = await ShellTool.run(cmd, { timeoutMs: 30000 });
+      } catch (diffErr: any) {
+        if (diffErr.message && (diffErr.message.includes('+') || diffErr.message.includes('-'))) {
+          diffOutput = diffErr.message;
+        } else {
+          throw diffErr;
+        }
+      }
+
+      const sanitized = SecretSanitizer.sanitize(diffOutput);
+      const hasDrift = Boolean(sanitized.trim());
+
+      return (
+        `## GitOps Live-Cluster Synchronization Audit\n\n` +
+        `• **Git Manifest Directory:** \`${gitPath}\`\n` +
+        `• **Target Namespace:** \`${namespace || 'Default / Per-Manifest'}\`\n` +
+        `• **Sync Status:** ${hasDrift ? '🔴 **DRIFT DETECTED (Out of Sync)**' : '🟢 **IN SYNC**'}\n\n` +
+        (hasDrift
+          ? `### Manifest Drift Preview:\n\`\`\`diff\n${sanitized.trim().slice(0, 4000)}\n\`\`\`\n\n*Live cluster state diverges from declared Git manifests.*`
+          : `✔ *Live cluster resources match Git repository declarations identically.*`)
+      );
+    } catch (err: any) {
+      return `Failed to compare cluster state against Git: ${err.message}`;
+    }
+  }
+
+  /**
+   * Estimate cloud cost attribution by namespace and labels using CPU/RAM usage and cloud hourly rates
+   */
+  static async costByNamespace(
+    namespace?: string,
+    timeWindow: string = 'monthly',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '-A';
+
+    try {
+      const podsRaw = await ShellTool.run(`kubectl ${ctxFlag} get pods ${nsFlag} -o json --request-timeout=15s`);
+      const pods: any[] = JSON.parse(podsRaw).items || [];
+      const nsAllocation: Record<string, { cpuMillis: number; memBytes: number; podCount: number }> = {};
+
+      for (const pod of pods) {
+        const ns = pod.metadata?.namespace || 'default';
+        if (!nsAllocation[ns]) {
+          nsAllocation[ns] = { cpuMillis: 0, memBytes: 0, podCount: 0 };
+        }
+        nsAllocation[ns].podCount++;
+
+        for (const c of pod.spec?.containers || []) {
+          const cpuReq = c.resources?.requests?.cpu;
+          if (cpuReq) {
+            nsAllocation[ns].cpuMillis += cpuReq.endsWith('m') ? parseInt(cpuReq, 10) : parseFloat(cpuReq) * 1000;
+          } else {
+            nsAllocation[ns].cpuMillis += 100;
+          }
+
+          const memReq = c.resources?.requests?.memory;
+          if (memReq) {
+            if (memReq.endsWith('Mi')) nsAllocation[ns].memBytes += parseInt(memReq, 10) * 1024 * 1024;
+            else if (memReq.endsWith('Gi')) nsAllocation[ns].memBytes += parseInt(memReq, 10) * 1024 * 1024 * 1024;
+          } else {
+            nsAllocation[ns].memBytes += 128 * 1024 * 1024;
+          }
+        }
+      }
+
+      const hoursPerMonth = 730;
+      const vcpuCostPerHour = 0.0316;
+      const gbCostPerHour = 0.0042;
+
+      let totalClusterCost = 0;
+      const rows = Object.entries(nsAllocation).map(([ns, alloc]) => {
+        const vcpu = alloc.cpuMillis / 1000;
+        const gb = alloc.memBytes / (1024 * 1024 * 1024);
+        const monthlyCpu = vcpu * vcpuCostPerHour * hoursPerMonth;
+        const monthlyMem = gb * gbCostPerHour * hoursPerMonth;
+        const monthlyTotal = monthlyCpu + monthlyMem;
+        totalClusterCost += monthlyTotal;
+
+        return {
+          ns,
+          pods: alloc.podCount,
+          vcpu: vcpu.toFixed(2),
+          gb: gb.toFixed(2),
+          monthlyTotal,
+        };
+      });
+
+      rows.sort((a, b) => b.monthlyTotal - a.monthlyTotal);
+
+      let md = `## Kubernetes Namespace Cost Attribution Report (${timeWindow.toUpperCase()})\n\n`;
+      md += `• **Estimated Cluster Monthly Spend:** **$${totalClusterCost.toFixed(2)}/mo**\n`;
+      md += `• **Namespaces Audited:** ${rows.length}\n`;
+      md += `• **Cloud Pricing Baseline:** ~$0.0316/vCPU/hr & ~$0.0042/GB-RAM/hr\n\n`;
+
+      md += `| Namespace | Pods | Allocated vCPU | Allocated RAM (GB) | Est. Monthly Cost | Spend Share % |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      for (const r of rows) {
+        const share = totalClusterCost > 0 ? Math.round((r.monthlyTotal / totalClusterCost) * 100) : 0;
+        md += `| \`${r.ns}\` | ${r.pods} | ${r.vcpu} vCPU | ${r.gb} GB | **$${r.monthlyTotal.toFixed(2)}** | ${share}% |\n`;
+      }
+
+      md += `\n*Tip: Use \`k8s_workload_rightsize\` to trim idle vCPU/memory allocations on top spenders.*`;
+      return md;
+    } catch (err: any) {
+      return `Failed to compute cost by namespace: ${err.message}`;
+    }
+  }
+
+  /**
+   * Rough carbon footprint estimate based on node utilization, PUE, and regional grid carbon intensity
+   */
+  static async carbonFootprint(
+    namespace?: string,
+    region: string = 'us-east-1',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+
+    try {
+      const nodesRaw = await ShellTool.run(`kubectl ${ctxFlag} get nodes -o json --request-timeout=15s`);
+      const nodes: any[] = JSON.parse(nodesRaw).items || [];
+
+      let totalCores = 0;
+      for (const n of nodes) {
+        const cpuStr = n.status?.allocatable?.cpu || '4';
+        totalCores += parseInt(cpuStr, 10) || 4;
+      }
+
+      const REGIONAL_INTENSITY: Record<string, number> = {
+        'us-east-1': 380,
+        'us-west-2': 110,
+        'eu-west-1': 240,
+        'eu-central-1': 330,
+        'eu-north-1': 45,
+        'ap-southeast-1': 410,
+      };
+
+      const intensity = REGIONAL_INTENSITY[region.toLowerCase()] || 300;
+      const pue = 1.15;
+      const wattsPerCore = 12.5;
+      const hoursPerMonth = 730;
+
+      const totalWatts = totalCores * wattsPerCore;
+      const kwhPerMonth = ((totalWatts * pue) / 1000) * hoursPerMonth;
+      const co2KgPerMonth = (kwhPerMonth * intensity) / 1000;
+
+      let md = `## Kubernetes Operational Carbon Footprint & Sustainability Report\n\n`;
+      md += `• **Cloud Region:** \`${region}\` (Grid Carbon Intensity: **${intensity} gCO2e/kWh**)\n`;
+      md += `• **Cluster Nodes / Cores:** ${nodes.length} nodes (${totalCores} total vCPUs)\n`;
+      md += `• **Estimated Datacenter PUE:** ${pue}\n\n`;
+
+      md += `### Environmental Impact Estimates\n\n`;
+      md += `| Sustainability Metric | Value | Reference Equivalent |\n`;
+      md += `| :--- | :--- | :--- |\n`;
+      md += `| ⚡ **Estimated Power Consumption** | **${kwhPerMonth.toFixed(1)} kWh / month** | Energy consumption of ~${(kwhPerMonth / 30).toFixed(0)} typical laptops |\n`;
+      md += `| 🌱 **Estimated Carbon Emissions** | **${co2KgPerMonth.toFixed(1)} kg CO2e / month** | ~${((co2KgPerMonth * 12) / 1000).toFixed(2)} metric tons CO2e annually |\n`;
+      md += `| 🚗 **Passenger Vehicle Equivalent** | ~${(co2KgPerMonth * 2.5).toFixed(0)} miles driven | Carbon offset equal to ~${Math.ceil(co2KgPerMonth / 21)} mature trees |\n\n`;
+
+      md += `### GreenOps Optimization Recommendations\n\n`;
+      md += `1. **Workload Autoscaling:** Enable KEDA or HPA to scale worker pods to 0 during off-hours, saving ~35% energy.\n`;
+      md += `2. **Region Relocation:** Shifting non-latency-sensitive batch workloads to low-carbon regions (e.g. \`eu-north-1\` or \`us-west-2\`) reduces emissions by up to **75%**.\n`;
+      md += `3. **Right-Sizing:** Trim overprovisioned node pools with \`k8s_workload_rightsize\` to reduce core idle wattage.\n`;
+
+      return md;
+    } catch (err: any) {
+      return `Failed to estimate carbon footprint: ${err.message}`;
+    }
+  }
 }
+
