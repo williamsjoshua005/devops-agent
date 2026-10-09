@@ -135,6 +135,12 @@ export class Guardrails {
       toolName === 'helm_lint' ||
       toolName === 'kustomize_build' ||
       toolName === 'kustomize_diff' ||
+      toolName === 'k8s_event_timeline' ||
+      toolName === 'k8s_workload_rightsize' ||
+      toolName === 'k8s_hpa_audit' ||
+      toolName === 'k8s_network_policy_audit' ||
+      toolName === 'container_image_scan' ||
+      (toolName === 'k8s_node_drain' && args.dryRun === true) ||
       (toolName === 'terraform_workspace_manage' && (!args.action || args.action === 'list' || args.action === 'show')) ||
       (toolName === 'helm_upgrade_install' && args.dryRun !== false)
     ) {
@@ -382,6 +388,62 @@ export class Guardrails {
           ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Installing or upgrading Helm release mutates live workloads.'
           : 'Installing or upgrading Helm release alters cluster workloads and requires human confirmation.',
         requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_node_cordon') {
+      const requiresApproval = isProd || !isIntermediateOrSenior;
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Cordon Kubernetes Node "${args.nodeName}" (Mark unschedulable)`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Cordoning a node halts pod scheduling.'
+          : isIntermediateOrSenior
+          ? 'Intermediate DevOps autonomy: Non-production node cordon executed autonomously.'
+          : 'Cordoning a node prevents new workloads from scheduling. Operator approval required.',
+        requiresApproval,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_node_uncordon') {
+      const requiresApproval = isProd || !isIntermediateOrSenior;
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Uncordon Kubernetes Node "${args.nodeName}" (Mark schedulable)`,
+        reason: isProd
+          ? 'WARNING: Target cluster is PRODUCTION. Restoring node scheduling requires operator confirmation.'
+          : 'Restoring node pod scheduling capacity.',
+        requiresApproval,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_node_drain') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Drain Kubernetes Node "${args.nodeName}" (Evict workloads)`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Draining a node evicts live workloads and can breach HA capacity. Mandatory operator confirmation.'
+          : 'Draining a node evicts running pods to other nodes. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_ephemeral_debug') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Attach ephemeral diagnostic container to "${args.targetPod}" in namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'WARNING: Target cluster is PRODUCTION. Attaching diagnostic container to live pod requires operator confirmation.'
+          : 'Attaching ephemeral diagnostic container to live pod.',
+        requiresApproval: isProd,
         isBlocked: false,
         isProductionWarning: isProd,
       };

@@ -144,7 +144,7 @@ async function main() {
   console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
   console.log(`\x1b[1mAudit Logging:\x1b[0m       .audit/audit.jsonl (Active)`);
-  console.log('\x1b[90mCommands: /role, /runbooks, /tools, /clusters, /context <name>, /audit, /kb, /security, /certs, /finops, /aws, /gcp, /mcp, /teams, /exit\x1b[0m\n');
+  console.log('\x1b[90mCommands: /role, /runbooks, /tools, /clusters, /context <name>, /timeline, /rightsize, /hpa, /netpol, /scan <img\>, /audit, /kb, /security, /finops, /mcp, /exit\x1b[0m\n');
 
   // Check if --server flag passed
   const args = process.argv.slice(2);

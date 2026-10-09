@@ -22,6 +22,8 @@ import { ArgoCdTool } from '../tools/argocd.js';
 import { FluxTool } from '../tools/flux.js';
 import { HelmTool } from '../tools/helm.js';
 import { KustomizeTool } from '../tools/kustomize.js';
+import { ContainerSecurityTool } from '../tools/container_security.js';
+import { ShellTool } from '../tools/shell.js';
 
 export interface AgentRunOptions {
   task: string;
@@ -226,6 +228,38 @@ ${runbooks}
       const out = await KustomizeTool.build();
       return await recordDirect('kustomize_build', out);
     }
+    if (trimmed === '/timeline' || trimmed.startsWith('/timeline ') || trimmed === '/events') {
+      const parts = trimmed.split(/\s+/);
+      const ns = parts[1];
+      const out = await K8sTool.getEventTimeline(ns);
+      return await recordDirect('k8s_event_timeline', out);
+    }
+    if (trimmed === '/rightsize' || trimmed.startsWith('/rightsize ')) {
+      const parts = trimmed.split(/\s+/);
+      const workload = parts[1];
+      const ns = parts[2] || 'default';
+      const out = await K8sTool.rightsizeWorkload(workload, ns);
+      return await recordDirect('k8s_workload_rightsize', out);
+    }
+    if (trimmed === '/hpa' || trimmed.startsWith('/hpa ')) {
+      const parts = trimmed.split(/\s+/);
+      const name = parts[1];
+      const ns = parts[2];
+      const out = await K8sTool.auditHPA(name, ns);
+      return await recordDirect('k8s_hpa_audit', out);
+    }
+    if (trimmed === '/netpol' || trimmed.startsWith('/netpol ') || trimmed === '/networkpolicy') {
+      const parts = trimmed.split(/\s+/);
+      const ns = parts[1] || 'default';
+      const out = await K8sTool.auditNetworkPolicy(ns);
+      return await recordDirect('k8s_network_policy_audit', out);
+    }
+    if (trimmed.startsWith('/scan') || trimmed.startsWith('/scan-image')) {
+      const parts = trimmed.split(/\s+/);
+      const img = parts[1] || 'nginx:latest';
+      const out = await ContainerSecurityTool.scanImage(img);
+      return await recordDirect('container_image_scan', out);
+    }
     if (trimmed === '/role' || trimmed.startsWith('/role ')) {
       const parts = trimmed.split(/\s+/);
       const newRole = parts[1]?.toLowerCase();
@@ -250,6 +284,41 @@ ${runbooks}
     }
 
     // 2. Direct intent matches (works in offline or online mode)
+    if (
+      lower.includes('docker installed') ||
+      lower.includes('is docker') ||
+      lower.includes('check docker') ||
+      lower === 'docker --version'
+    ) {
+      const isInstalled = this.context.installedTools.includes('docker');
+      let details = '';
+      if (isInstalled) {
+        try {
+          const v = await ShellTool.run('docker --version', { timeoutMs: 5000 });
+          details = v.trim();
+        } catch {
+          details = 'Docker binary detected in PATH.';
+        }
+      }
+      const response = isInstalled
+        ? `✔ **Docker is INSTALLED and operational**\n\n• **Version:** \`${details}\`\n• **Detected CLI Tools:** ${this.context.installedTools.map((t) => `\`${t}\``).join(', ')}\n• **Container Engine:** Ready for local container workloads, Kubernetes node diagnostics, and Dockerfile security linting.`
+        : `❌ **Docker is NOT installed** or not found in system PATH.\n\nTo install Docker on your machine:\n• macOS: \`brew install --cask docker\`\n• Linux: \`curl -fsSL https://get.docker.com | sh\``;
+      return await recordDirect('shell_exec', response);
+    }
+
+    if (
+      lower.includes('tools installed') ||
+      lower.includes('what tools are installed') ||
+      lower.includes('which tools are installed') ||
+      lower.includes('installed tools')
+    ) {
+      const response =
+        `### Detected System Tools (${this.context.installedTools.length} tools available in PATH):\n\n` +
+        this.context.installedTools.map((t) => `• 🟢 **${t}**: Installed and detected in system PATH`).join('\n') +
+        `\n\n*Active Kubernetes Context: \`${this.context.kubeContext || 'none'}\` • Role Autonomy: \`${(this.context.roleLevel || 'intermediate').toUpperCase()}\`*`;
+      return await recordDirect('shell_exec', response);
+    }
+
     if (lower.includes('expir') && (lower.includes('tls') || lower.includes('cert'))) {
       const out = await CertExpiryTool.check({});
       return await recordDirect('cert_expiry_check', out);
@@ -343,6 +412,28 @@ ${runbooks}
     if (lower.includes('kustomize') && (lower.includes('build') || lower.includes('render'))) {
       const out = await KustomizeTool.build();
       return await recordDirect('kustomize_build', out);
+    }
+    if (lower.includes('event timeline') || lower.includes('incident timeline') || (lower.includes('cluster events') && !lower.includes('how'))) {
+      const out = await K8sTool.getEventTimeline();
+      return await recordDirect('k8s_event_timeline', out);
+    }
+    if (lower.includes('rightsize') || lower.includes('rightsizing') || (lower.includes('resource') && (lower.includes('waste') || lower.includes('recommendation')))) {
+      const out = await K8sTool.rightsizeWorkload();
+      return await recordDirect('k8s_workload_rightsize', out);
+    }
+    if (lower.includes('hpa audit') || lower.includes('autoscaler health') || (lower.includes('hpa') && lower.includes('status'))) {
+      const out = await K8sTool.auditHPA();
+      return await recordDirect('k8s_hpa_audit', out);
+    }
+    if (lower.includes('network policy') || lower.includes('network policies') || lower.includes('microsegmentation')) {
+      const out = await K8sTool.auditNetworkPolicy();
+      return await recordDirect('k8s_network_policy_audit', out);
+    }
+    if (lower.includes('scan image') || lower.includes('image scan') || lower.includes('image vulnerability') || lower.includes('cve scan')) {
+      const imgMatch = trimmed.match(/(?:scan\s+image|image\s+scan|scan)\s+([a-zA-Z0-9_./:-]+)/i);
+      const img = imgMatch ? imgMatch[1] : 'nginx:latest';
+      const out = await ContainerSecurityTool.scanImage(img);
+      return await recordDirect('container_image_scan', out);
     }
 
     // 3. If LLM is not configured (or key is dummy), provide actionable guidance

@@ -30,6 +30,7 @@ import { VaultSecretTool } from './vault_secret.js';
 import { ServiceMeshTool } from './service_mesh.js';
 import { FluxTool } from './flux.js';
 import { KustomizeTool } from './kustomize.js';
+import { ContainerSecurityTool } from './container_security.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -1566,6 +1567,237 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['basePath', 'overlayPath'],
     },
   },
+  {
+    name: 'k8s_event_timeline',
+    description:
+      'Correlate and aggregate Kubernetes Warning and Normal events across pods, nodes, and namespaces into a root-cause incident timeline.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace. If omitted, queries across all namespaces (-A).',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of recent events to display (defaults to 30).',
+        },
+        warningOnly: {
+          type: 'boolean',
+          description: 'Whether to restrict events to Warning type (defaults to true for incident triage).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_workload_rightsize',
+    description:
+      'Audit workload CPU and memory requests and limits against live usage, detecting OOM risks, CPU throttling, and overprovisioned idle cost.',
+    parameters: {
+      type: 'object',
+      properties: {
+        workloadName: {
+          type: 'string',
+          description: 'Optional target workload name or pod label selector.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_hpa_audit',
+    description:
+      'Audit HorizontalPodAutoscalers (HPA) for min/max replica saturation bottlenecks, flapping, and missing or unknown metrics.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Optional specific HPA name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace. If omitted, audits across all namespaces (-A).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_node_cordon',
+    description:
+      'Mark a Kubernetes node as unschedulable (SchedulingDisabled) to prevent new pods from landing on it before maintenance.',
+    parameters: {
+      type: 'object',
+      properties: {
+        nodeName: {
+          type: 'string',
+          description: 'Name of the Kubernetes node to cordon.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['nodeName'],
+    },
+  },
+  {
+    name: 'k8s_node_uncordon',
+    description:
+      'Mark an unschedulable Kubernetes node as schedulable again after maintenance or recovery.',
+    parameters: {
+      type: 'object',
+      properties: {
+        nodeName: {
+          type: 'string',
+          description: 'Name of the Kubernetes node to uncordon.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['nodeName'],
+    },
+  },
+  {
+    name: 'k8s_node_drain',
+    description:
+      'Safely drain a Kubernetes node with pre-flight PodDisruptionBudget (PDB) verification, ignoring DaemonSets and protecting stateful workloads.',
+    parameters: {
+      type: 'object',
+      properties: {
+        nodeName: {
+          type: 'string',
+          description: 'Name of the node to drain.',
+        },
+        ignoreDaemonSets: {
+          type: 'boolean',
+          description: 'Ignore DaemonSet-managed pods (defaults to true).',
+        },
+        deleteEmptyDirData: {
+          type: 'boolean',
+          description: 'Continue even if pods use emptyDir volumes (defaults to true).',
+        },
+        gracePeriodSeconds: {
+          type: 'number',
+          description: 'Period of time in seconds given to each pod to terminate gracefully (defaults to 60).',
+        },
+        timeoutSeconds: {
+          type: 'number',
+          description: 'The length of time to wait before giving up (defaults to 300).',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Whether to simulate eviction without actually evicting pods (defaults to false).',
+        },
+        force: {
+          type: 'boolean',
+          description: 'Force eviction even if pods are unmanaged by a controller (defaults to false).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['nodeName'],
+    },
+  },
+  {
+    name: 'k8s_ephemeral_debug',
+    description:
+      'Attach a modern ephemeral diagnostic container directly to a live pod sharing its PID and network namespace without terminating or modifying the workload.',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetPod: {
+          type: 'string',
+          description: 'Name of the target pod to debug.',
+        },
+        containerName: {
+          type: 'string',
+          description: 'Optional container name to share process namespace with.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        image: {
+          type: 'string',
+          description: 'Diagnostic container image (defaults to "nicolaka/netshoot:latest").',
+        },
+        command: {
+          type: 'string',
+          description: 'Command to execute inside the ephemeral container (defaults to "netstat -tuln && ps aux").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['targetPod'],
+    },
+  },
+  {
+    name: 'container_image_scan',
+    description:
+      'Scan a container image for security vulnerabilities and CVEs using Trivy, Grype, or heuristic inspection.',
+    parameters: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          description: 'Container image reference (e.g. "nginx:latest", "redis:6.0", "repo/app:v1.2.3").',
+        },
+        severityThreshold: {
+          type: 'string',
+          description: 'Minimum severity threshold to report: "CRITICAL", "HIGH", "MEDIUM", or "LOW" (defaults to "HIGH").',
+        },
+        format: {
+          type: 'string',
+          description: 'Output format: "summary" (markdown) or "json" (defaults to "summary").',
+        },
+      },
+      required: ['image'],
+    },
+  },
+  {
+    name: 'k8s_network_policy_audit',
+    description:
+      'Audit Kubernetes NetworkPolicies and evaluate Zero-Trust microsegmentation isolation, detecting unprotected pods vulnerable to lateral movement.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        podSelector: {
+          type: 'string',
+          description: 'Optional pod label selector to audit specific workloads.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -1803,6 +2035,40 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       return await KustomizeTool.build(args.targetPath);
     case 'kustomize_diff':
       return await KustomizeTool.diff(args.basePath, args.overlayPath);
+    case 'k8s_event_timeline': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.getEventTimeline(args.namespace, args.limit, args.warningOnly, targetCtx);
+    }
+    case 'k8s_workload_rightsize': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.rightsizeWorkload(args.workloadName, args.namespace, targetCtx);
+    }
+    case 'k8s_hpa_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.auditHPA(args.name, args.namespace, targetCtx);
+    }
+    case 'k8s_node_cordon': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.cordonNode(args.nodeName, targetCtx);
+    }
+    case 'k8s_node_uncordon': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.uncordonNode(args.nodeName, targetCtx);
+    }
+    case 'k8s_node_drain': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.drainNode(args.nodeName, args, targetCtx);
+    }
+    case 'k8s_ephemeral_debug': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.ephemeralDebug(args.targetPod, args, targetCtx);
+    }
+    case 'container_image_scan':
+      return await ContainerSecurityTool.scanImage(args.image, args.severityThreshold, args.format);
+    case 'k8s_network_policy_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.auditNetworkPolicy(args.namespace, args.podSelector, targetCtx);
+    }
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
   }
@@ -1810,3 +2076,4 @@ export async function executeTool(name: string, args: Record<string, any>, conte
 
 export { FluxTool } from './flux.js';
 export { KustomizeTool } from './kustomize.js';
+export { ContainerSecurityTool } from './container_security.js';

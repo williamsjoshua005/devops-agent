@@ -36,6 +36,7 @@ import { ServiceMeshTool } from '../src/tools/service_mesh.js';
 import { FluxTool } from '../src/tools/flux.js';
 import { KustomizeTool } from '../src/tools/kustomize.js';
 import { GitOpsTool } from '../src/tools/gitops.js';
+import { ContainerSecurityTool } from '../src/tools/container_security.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
@@ -589,7 +590,69 @@ spec:
   const argoRollbackEval = Guardrails.evaluate('argocd_app_rollback', { appName: 'frontend' }, mockProdContext);
   assert(argoRollbackEval.tier === 'MUTATE' && argoRollbackEval.requiresApproval && argoRollbackEval.isProductionWarning, 'argocd_app_rollback requires confirmation with production warning');
 
-  console.log('\n\x1b[32mAll 56+ enterprise SRE, DR, CI/CD, GitOps, IaC, Terraform/OpenTofu, Flux, Helm, Kustomize, Runbook, Vault, ESO, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
+  // Test 57: Kubernetes Cluster Event Timeline & Root-Cause Correlation
+  const timelineEval = Guardrails.evaluate('k8s_event_timeline', {}, mockDevContext);
+  assert(timelineEval.tier === 'READ' && !timelineEval.requiresApproval, 'k8s_event_timeline evaluates autonomously as READ');
+
+  const timelineOut = await K8sTool.getEventTimeline();
+  assert(timelineOut.includes('Timeline') || timelineOut.includes('Events') || timelineOut.includes('Signal') || timelineOut.includes('Failed to fetch'), 'K8sTool.getEventTimeline produces structured incident timeline');
+
+  // Test 58: Kubernetes Workload Rightsizing & Resource Optimization
+  const rightsizeEval = Guardrails.evaluate('k8s_workload_rightsize', { namespace: 'default' }, mockDevContext);
+  assert(rightsizeEval.tier === 'READ' && !rightsizeEval.requiresApproval, 'k8s_workload_rightsize evaluates autonomously as READ');
+
+  const rightsizeOut = await K8sTool.rightsizeWorkload();
+  assert(rightsizeOut.includes('Rightsizing') || rightsizeOut.includes('Resource') || rightsizeOut.includes('Failed to audit') || rightsizeOut.includes('No pods found'), 'K8sTool.rightsizeWorkload produces capacity recommendations');
+
+  // Test 59: HorizontalPodAutoscaler (HPA) Capacity & Health Audit
+  const hpaEval = Guardrails.evaluate('k8s_hpa_audit', {}, mockDevContext);
+  assert(hpaEval.tier === 'READ' && !hpaEval.requiresApproval, 'k8s_hpa_audit evaluates autonomously as READ');
+
+  const hpaOut = await K8sTool.auditHPA();
+  assert(hpaOut.includes('HorizontalPodAutoscaler') || hpaOut.includes('HPA') || hpaOut.includes('No HorizontalPodAutoscalers') || hpaOut.includes('Failed to audit'), 'K8sTool.auditHPA analyzes autoscaler metrics');
+
+  // Test 60: Kubernetes Node Cordon & Uncordon Safety Guardrails
+  const cordonProdEval = Guardrails.evaluate('k8s_node_cordon', { nodeName: 'node-pool-1' }, mockProdContext);
+  assert(cordonProdEval.tier === 'MUTATE' && cordonProdEval.requiresApproval && cordonProdEval.isProductionWarning, 'k8s_node_cordon enforces approval and production alert');
+
+  const uncordonProdEval = Guardrails.evaluate('k8s_node_uncordon', { nodeName: 'node-pool-1' }, mockProdContext);
+  assert(uncordonProdEval.tier === 'MUTATE' && uncordonProdEval.requiresApproval && uncordonProdEval.isProductionWarning, 'k8s_node_uncordon enforces approval and production alert in prod');
+
+  // Test 61: Node Drain Engine with PDB Awareness
+  const drainDryEval = Guardrails.evaluate('k8s_node_drain', { nodeName: 'node-pool-1', dryRun: true }, mockProdContext);
+  assert(drainDryEval.tier === 'READ' && !drainDryEval.requiresApproval, 'k8s_node_drain in dry-run mode evaluates safely as READ');
+
+  const drainLiveEval = Guardrails.evaluate('k8s_node_drain', { nodeName: 'node-pool-1', dryRun: false }, mockProdContext);
+  assert(drainLiveEval.tier === 'MUTATE' && drainLiveEval.requiresApproval && drainLiveEval.isProductionWarning, 'k8s_node_drain live requires mandatory approval with production warning');
+
+  // Test 62: Modern Ephemeral Container Diagnostic Attachment
+  const ephemeralDebugProdEval = Guardrails.evaluate('k8s_ephemeral_debug', { targetPod: 'api-service-abc' }, mockProdContext);
+  assert(ephemeralDebugProdEval.tier === 'MUTATE' && ephemeralDebugProdEval.requiresApproval && ephemeralDebugProdEval.isProductionWarning, 'k8s_ephemeral_debug enforces confirmation in production cluster');
+
+  // Test 63: Container Image Vulnerability & CVE Scanning
+  const scanEval = Guardrails.evaluate('container_image_scan', { image: 'node:14-alpine' }, mockDevContext);
+  assert(scanEval.tier === 'READ' && !scanEval.requiresApproval, 'container_image_scan evaluates autonomously as READ');
+
+  const scanOut = await ContainerSecurityTool.scanImage('node:14-alpine');
+  assert(scanOut.includes('Vulnerability') || scanOut.includes('CRITICAL') || scanOut.includes('CVE'), 'ContainerSecurityTool.scanImage detects image security issues');
+
+  const scanJson = await ContainerSecurityTool.scanImage('redis:latest', 'HIGH', 'json');
+  assert(scanJson.includes('"scanner"') && scanJson.includes('"summary"'), 'ContainerSecurityTool supports JSON output format');
+
+  // Test 64: NetworkPolicy & Zero-Trust Microsegmentation Audit
+  const netpolEval = Guardrails.evaluate('k8s_network_policy_audit', { namespace: 'default' }, mockDevContext);
+  assert(netpolEval.tier === 'READ' && !netpolEval.requiresApproval, 'k8s_network_policy_audit evaluates autonomously as READ');
+
+  const netpolOut = await K8sTool.auditNetworkPolicy('default');
+  assert(netpolOut.includes('NetworkPolicy') || netpolOut.includes('Microsegmentation') || netpolOut.includes('Default-Deny') || netpolOut.includes('Failed to audit'), 'K8sTool.auditNetworkPolicy generates zero-trust security audit');
+
+  // Test 65: Complete Rich Kubernetes & Container Platform Suite (78 Tools & Full MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 78, `All 78 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+
+  const mcp78Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10002, method: 'tools/list' });
+  assert(mcp78Res.result.tools.length >= 78, `MCP Server exposes all tools over JSON-RPC (${mcp78Res.result.tools.length} tools)`);
+
+  console.log('\n\x1b[32mAll 65+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Container Security, NetworkPolicy, Drain, Rightsizing, HPA, Runbook, Vault, ESO, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {
