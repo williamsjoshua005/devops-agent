@@ -260,6 +260,31 @@ ${runbooks}
       const out = await ContainerSecurityTool.scanImage(img);
       return await recordDirect('container_image_scan', out);
     }
+    if (trimmed === '/nodes' || trimmed.startsWith('/nodes ')) {
+      const parts = trimmed.split(/\s+/);
+      const out = await K8sTool.nodeStatus(parts[1]);
+      return await recordDirect('k8s_node_status', out);
+    }
+    if (trimmed === '/pvcs' || trimmed.startsWith('/pvcs ')) {
+      const parts = trimmed.split(/\s+/);
+      const out = await K8sTool.pvcAnalysis(parts[1]);
+      return await recordDirect('k8s_pvc_analysis', out);
+    }
+    if (trimmed === '/cronjobs' || trimmed.startsWith('/cronjobs ')) {
+      const parts = trimmed.split(/\s+/);
+      const out = await K8sTool.cronJobStatus(parts[1]);
+      return await recordDirect('k8s_cronjob_status', out);
+    }
+    if (trimmed === '/endpoints' || trimmed.startsWith('/endpoints ')) {
+      const parts = trimmed.split(/\s+/);
+      const out = await K8sTool.serviceEndpoints(parts[1], parts[2] || 'default');
+      return await recordDirect('k8s_service_endpoints', out);
+    }
+    if (trimmed === '/dns' || trimmed.startsWith('/dns ')) {
+      const parts = trimmed.split(/\s+/);
+      const out = await K8sTool.dnsDiagnose(parts[1]);
+      return await recordDirect('k8s_dns_diagnose', out);
+    }
     if (trimmed === '/role' || trimmed.startsWith('/role ')) {
       const parts = trimmed.split(/\s+/);
       const newRole = parts[1]?.toLowerCase();
@@ -434,6 +459,26 @@ ${runbooks}
       const img = imgMatch ? imgMatch[1] : 'nginx:latest';
       const out = await ContainerSecurityTool.scanImage(img);
       return await recordDirect('container_image_scan', out);
+    }
+    if (lower.includes('service endpoint') || lower.includes('service endpoints') || lower.includes('endpoint routing')) {
+      const out = await K8sTool.serviceEndpoints();
+      return await recordDirect('k8s_service_endpoints', out);
+    }
+    if (lower.includes('cluster dns') || lower.includes('coredns') || lower.includes('dns diagnose')) {
+      const out = await K8sTool.dnsDiagnose();
+      return await recordDirect('k8s_dns_diagnose', out);
+    }
+    if (lower.includes('cronjob') || lower.includes('cronjobs') || lower.includes('cron schedule')) {
+      const out = await K8sTool.cronJobStatus();
+      return await recordDirect('k8s_cronjob_status', out);
+    }
+    if (lower.includes('node capacity') || lower.includes('node status') || lower.includes('node allocatable') || lower === 'check nodes') {
+      const out = await K8sTool.nodeStatus();
+      return await recordDirect('k8s_node_status', out);
+    }
+    if (lower.includes('pvc analysis') || lower.includes('pvc status') || lower.includes('storage claims')) {
+      const out = await K8sTool.pvcAnalysis();
+      return await recordDirect('k8s_pvc_analysis', out);
     }
 
     // 3. If LLM is not configured (or key is dummy), provide actionable guidance

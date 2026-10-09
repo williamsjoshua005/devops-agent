@@ -1,4 +1,7 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { ShellTool } from './shell.js';
+import { SecretSanitizer } from '../policy/sanitizer.js';
 
 export interface EventTimelineItem {
   timestamp: string;
@@ -625,6 +628,496 @@ spec:
       return md;
     } catch (err: any) {
       return `Failed to audit NetworkPolicies: ${err.message}.`;
+    }
+  }
+
+  /**
+   * Execute commands inside a running pod container with bounded timeout and secret sanitization
+   */
+  static async execCommand(
+    podName: string,
+    command: string,
+    namespace: string = 'default',
+    container?: string,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const containerFlag = container ? `-c ${container}` : '';
+    const escapedCmd = command.replace(/"/g, '\\"');
+    const cmd = `kubectl ${ctxFlag} exec ${podName} -n ${namespace} ${containerFlag} -- sh -c "${escapedCmd}"`.replace(/\s+/g, ' ');
+
+    try {
+      const raw = await ShellTool.run(cmd, { timeoutMs: 25000 });
+      const sanitized = SecretSanitizer.sanitize(raw);
+      return (
+        `## Kubernetes Pod Execution Output (\`${namespace}/${podName}\`)\n` +
+        `• **Target Pod:** \`${namespace}/${podName}\`${container ? ` (Container: \`${container}\`)` : ''}\n` +
+        `• **Command Executed:** \`${command}\`\n\n` +
+        `\`\`\`\n${sanitized.trim() || '(No output produced)'}\n\`\`\``
+      );
+    } catch (err: any) {
+      return `Failed to execute command inside pod "${namespace}/${podName}": ${err.message}`;
+    }
+  }
+
+  /**
+   * Show unified diff between live cluster state and a local or inline manifest
+   */
+  static async diffResource(
+    options: {
+      manifestPath?: string;
+      manifestContent?: string;
+      namespace?: string;
+    },
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = options.namespace ? `-n ${options.namespace}` : '';
+    let targetFile = options.manifestPath;
+    let tempCreated = false;
+
+    if (!targetFile && options.manifestContent) {
+      const tmpDir = path.resolve(process.cwd(), '.audit');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      targetFile = path.join(tmpDir, `tmp-diff-${Date.now().toString(36)}.yaml`);
+      fs.writeFileSync(targetFile, options.manifestContent, 'utf-8');
+      tempCreated = true;
+    }
+
+    if (!targetFile) {
+      return 'Error: Either "manifestPath" or "manifestContent" must be provided for diff.';
+    }
+
+    const cmd = `kubectl ${ctxFlag} diff -f ${targetFile} ${nsFlag}`.replace(/\s+/g, ' ');
+
+    try {
+      let diffOutput = '';
+      try {
+        diffOutput = await ShellTool.run(cmd, { timeoutMs: 20000 });
+      } catch (diffErr: any) {
+        // kubectl diff returns exit code 1 when differences exist
+        if (diffErr.message && (diffErr.message.includes('+') || diffErr.message.includes('-'))) {
+          diffOutput = diffErr.message;
+        } else {
+          throw diffErr;
+        }
+      }
+
+      const sanitized = SecretSanitizer.sanitize(diffOutput);
+      return (
+        `## Kubernetes Resource Diff (${options.manifestPath || 'Inline Manifest'})\n\n` +
+        (sanitized.trim()
+          ? `\`\`\`diff\n${sanitized.trim()}\n\`\`\``
+          : `*No drift detected. Live cluster state matches manifest specification perfectly.*`)
+      );
+    } catch (err: any) {
+      return `Failed to diff resource: ${err.message}`;
+    } finally {
+      if (tempCreated && targetFile && fs.existsSync(targetFile)) {
+        try { fs.unlinkSync(targetFile); } catch {}
+      }
+    }
+  }
+
+  /**
+   * Apply a Kubernetes manifest with dry-run support (server, client, or live)
+   */
+  static async applyManifest(
+    options: {
+      manifestPath?: string;
+      manifestContent?: string;
+      dryRun?: string | boolean;
+      namespace?: string;
+    },
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = options.namespace ? `-n ${options.namespace}` : '';
+    const dryRunMode = options.dryRun === false || options.dryRun === 'none'
+      ? ''
+      : options.dryRun === 'client'
+      ? '--dry-run=client'
+      : '--dry-run=server';
+
+    let targetFile = options.manifestPath;
+    let tempCreated = false;
+
+    if (!targetFile && options.manifestContent) {
+      const tmpDir = path.resolve(process.cwd(), '.audit');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      targetFile = path.join(tmpDir, `tmp-apply-${Date.now().toString(36)}.yaml`);
+      fs.writeFileSync(targetFile, options.manifestContent, 'utf-8');
+      tempCreated = true;
+    }
+
+    if (!targetFile) {
+      return 'Error: Either "manifestPath" or "manifestContent" must be provided.';
+    }
+
+    const cmd = `kubectl ${ctxFlag} apply -f ${targetFile} ${dryRunMode} ${nsFlag}`.replace(/\s+/g, ' ');
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 30000 });
+      const isDry = Boolean(dryRunMode);
+      return (
+        `## Kubernetes Manifest Apply (${isDry ? `DRY-RUN: ${dryRunMode.replace('--dry-run=', '').toUpperCase()}` : 'LIVE MUTATION EXECUTED'})\n\n` +
+        `• **Target Manifest:** \`${options.manifestPath || 'Inline YAML Manifest'}\`\n` +
+        `• **Mode:** ${isDry ? `Simulation (\`${dryRunMode}\`)` : '🟢 Production Convergence'}\n\n` +
+        `\`\`\`\n${output.trim()}\n\`\`\`\n\n` +
+        (isDry
+          ? `*Dry-run complete. No cluster state was mutated.*`
+          : `✔ *Live manifest applied successfully.*`)
+      );
+    } catch (err: any) {
+      return `Failed to apply manifest: ${err.message}`;
+    } finally {
+      if (tempCreated && targetFile && fs.existsSync(targetFile)) {
+        try { fs.unlinkSync(targetFile); } catch {}
+      }
+    }
+  }
+
+  /**
+   * Delete a Kubernetes resource safely
+   */
+  static async deleteResource(
+    resourceKind: string,
+    resourceName: string,
+    namespace?: string,
+    options: {
+      gracePeriodSeconds?: number;
+      cascade?: boolean;
+    } = {},
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '';
+    const graceFlag = options.gracePeriodSeconds !== undefined ? `--grace-period=${options.gracePeriodSeconds}` : '';
+    const cascadeFlag = options.cascade === false ? '--cascade=orphan' : '';
+
+    const cmd = `kubectl ${ctxFlag} delete ${resourceKind} ${resourceName} ${nsFlag} ${graceFlag} ${cascadeFlag}`.replace(/\s+/g, ' ');
+
+    try {
+      const output = await ShellTool.run(cmd, { timeoutMs: 30000 });
+      return (
+        `## Kubernetes Resource Deleted\n\n` +
+        `• **Resource:** \`${resourceKind}/${resourceName}\`\n` +
+        `• **Namespace:** \`${namespace || 'default'}\`\n\n` +
+        `\`\`\`\n${output.trim()}\n\`\`\`\n\n` +
+        `✔ *Resource successfully deleted.*`
+      );
+    } catch (err: any) {
+      return `Failed to delete resource "${resourceKind}/${resourceName}": ${err.message}`;
+    }
+  }
+
+  /**
+   * Diagnose Kubernetes Service selectors and check healthy Endpoints
+   */
+  static async serviceEndpoints(
+    serviceName?: string,
+    namespace: string = 'default',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const svcFilter = serviceName ? serviceName : '';
+
+    try {
+      const [svcRaw, epRaw] = await Promise.all([
+        ShellTool.run(`kubectl ${ctxFlag} get svc ${svcFilter} -n ${namespace} -o json --request-timeout=15s`),
+        ShellTool.run(`kubectl ${ctxFlag} get endpoints ${svcFilter} -n ${namespace} -o json --request-timeout=15s`),
+      ]);
+
+      const svcs = JSON.parse(svcRaw);
+      const svcItems: any[] = svcs.items || (svcs.kind === 'Service' ? [svcs] : []);
+      const eps = JSON.parse(epRaw);
+      const epItems: any[] = eps.items || (eps.kind === 'Endpoints' ? [eps] : []);
+
+      if (svcItems.length === 0) {
+        return `No services found in namespace "${namespace}" matching "${serviceName || 'all'}".`;
+      }
+
+      let md = `## Kubernetes Service & Endpoint Routing Diagnosis\n\n`;
+      md += `• **Namespace:** \`${namespace}\`\n`;
+      md += `• **Services Audited:** ${svcItems.length}\n\n`;
+
+      md += `| Service | Type | ClusterIP | Ports | Selector | Active Endpoints | Routing Health |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      const warnings: string[] = [];
+
+      for (const svc of svcItems) {
+        const name = svc.metadata?.name || 'unknown';
+        const type = svc.spec?.type || 'ClusterIP';
+        const clusterIP = svc.spec?.clusterIP || 'None';
+        const ports = (svc.spec?.ports || []).map((p: any) => `${p.port}:${p.targetPort || p.port}/${p.protocol || 'TCP'}`).join(', ');
+        const selector = JSON.stringify(svc.spec?.selector || {});
+
+        const ep = epItems.find((e: any) => e.metadata?.name === name);
+        const subsets = ep?.subsets || [];
+        let readyCount = 0;
+        let notReadyCount = 0;
+
+        for (const sub of subsets) {
+          readyCount += sub.addresses?.length || 0;
+          notReadyCount += sub.notReadyAddresses?.length || 0;
+        }
+
+        let health = '🟢 Healthy';
+        if (selector !== '{}' && readyCount === 0) {
+          health = '🔴 0 Endpoints (Traffic Dropped)';
+          warnings.push(`**${name}** has 0 ready endpoints! Inbound requests will fail. Verify pod readiness probes and label selector match: \`${selector}\`.`);
+        } else if (notReadyCount > 0) {
+          health = `🟡 ${notReadyCount} NotReady`;
+          warnings.push(`**${name}** has ${notReadyCount} unready backend pods.`);
+        }
+
+        md += `| \`${name}\` | \`${type}\` | \`${clusterIP}\` | \`${ports || '-'}\` | \`${selector}\` | **${readyCount} ready** (${notReadyCount} unready) | ${health} |\n`;
+      }
+
+      if (warnings.length > 0) {
+        md += `\n### Critical Endpoint Routing Alerts\n\n`;
+        for (const w of warnings) {
+          md += `• ${w}\n`;
+        }
+      }
+
+      return md;
+    } catch (err: any) {
+      return `Failed to diagnose service endpoints: ${err.message}`;
+    }
+  }
+
+  /**
+   * CoreDNS and in-cluster DNS resolution diagnostics
+   */
+  static async dnsDiagnose(
+    targetHost: string = 'kubernetes.default.svc.cluster.local',
+    namespace: string = 'default',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+
+    try {
+      const coreDnsRaw = await ShellTool.run(`kubectl ${ctxFlag} get pods -n kube-system -l k8s-app=kube-dns -o json --request-timeout=15s`);
+      const coreDns = JSON.parse(coreDnsRaw);
+      const dnsPods: any[] = coreDns.items || [];
+
+      let corednsIp = 'Unknown';
+      try {
+        const dnsSvc = await ShellTool.run(`kubectl ${ctxFlag} get svc -n kube-system -l k8s-app=kube-dns -o jsonpath='{.items[0].spec.clusterIP}'`);
+        corednsIp = dnsSvc.replace(/'/g, '').trim() || 'Unknown';
+      } catch {}
+
+      const readyPods = dnsPods.filter((p: any) => p.status?.phase === 'Running' && p.status?.containerStatuses?.every((c: any) => c.ready));
+
+      let md = `## In-Cluster Kubernetes DNS Health & Diagnostics\n\n`;
+      md += `• **Target Query:** \`${targetHost}\`\n`;
+      md += `• **CoreDNS Service ClusterIP:** \`${corednsIp}\`\n`;
+      md += `• **CoreDNS Pods Available:** **${readyPods.length} / ${dnsPods.length} Ready**\n\n`;
+
+      md += `### CoreDNS Infrastructure Status\n\n`;
+      md += `| Pod | Node | Status | Restarts | Diagnosis |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- |\n`;
+
+      for (const p of dnsPods) {
+        const pName = p.metadata?.name || 'unknown';
+        const node = p.spec?.nodeName || 'unknown';
+        const phase = p.status?.phase || 'Unknown';
+        const restarts = p.status?.containerStatuses?.[0]?.restartCount || 0;
+        const diag = phase === 'Running' && restarts === 0 ? '🟢 Normal' : restarts > 5 ? '⚠️ Restarting' : '🔴 Unhealthy';
+        md += `| \`${pName}\` | \`${node}\` | \`${phase}\` | ${restarts} | ${diag} |\n`;
+      }
+
+      if (readyPods.length === 0 && dnsPods.length > 0) {
+        md += `\n> [!CAUTION]\n> **CoreDNS is down!** No ready CoreDNS replicas found in \`kube-system\`. All intra-cluster service discovery and external DNS lookups will time out.\n\n`;
+      } else {
+        md += `\n✔ *CoreDNS infrastructure is operational and serving cluster.local queries.*\n\n`;
+      }
+
+      return md;
+    } catch (err: any) {
+      return `Failed to diagnose cluster DNS: ${err.message}`;
+    }
+  }
+
+  /**
+   * Audit CronJob batch schedules, missed executions, and active runs
+   */
+  static async cronJobStatus(
+    name?: string,
+    namespace?: string,
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '-A';
+    const target = name ? `${name} ${nsFlag}` : nsFlag;
+
+    try {
+      const raw = await ShellTool.run(`kubectl ${ctxFlag} get cronjobs ${target} -o json --request-timeout=15s`);
+      const parsed = JSON.parse(raw);
+      const items: any[] = parsed.items || (parsed.kind === 'CronJob' ? [parsed] : []);
+
+      if (items.length === 0) {
+        return `No CronJobs found in scope (${namespace ? `namespace "${namespace}"` : 'all namespaces'}).`;
+      }
+
+      let md = `## Kubernetes CronJob & Batch Schedules Status\n\n`;
+      md += `• **Audited CronJobs:** ${items.length}\n`;
+      md += `• **Scope:** ${namespace ? `Namespace \`${namespace}\`` : 'Cluster-wide (`-A`)'}\n\n`;
+
+      md += `| CronJob | Namespace | Schedule | Suspended | Active Jobs | Last Schedule | Last Successful |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      for (const cj of items) {
+        const cjName = cj.metadata?.name || 'unknown';
+        const cjNs = cj.metadata?.namespace || 'default';
+        const sched = cj.spec?.schedule || '* * * * *';
+        const suspend = cj.spec?.suspend ? '⏸️ Yes' : '▶️ Active';
+        const activeCount = cj.status?.active?.length || 0;
+        const lastSched = cj.status?.lastScheduleTime ? cj.status.lastScheduleTime.replace('T', ' ').replace('Z', '') : 'Never';
+        const lastSuccess = cj.status?.lastSuccessfulTime ? cj.status.lastSuccessfulTime.replace('T', ' ').replace('Z', '') : '-';
+
+        md += `| \`${cjName}\` | \`${cjNs}\` | \`${sched}\` | ${suspend} | **${activeCount}** | \`${lastSched}\` | \`${lastSuccess}\` |\n`;
+      }
+
+      return md;
+    } catch (err: any) {
+      return `Failed to fetch CronJob status: ${err.message}`;
+    }
+  }
+
+  /**
+   * Manually trigger a CronJob execution as a one-off Job
+   */
+  static async triggerCronJob(
+    cronJobName: string,
+    jobName?: string,
+    namespace: string = 'default',
+    context?: string
+  ): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const targetJobName = jobName || `${cronJobName}-manual-${Date.now().toString(36)}`;
+    const cmd = `kubectl ${ctxFlag} create job --from=cronjob/${cronJobName} ${targetJobName} -n ${namespace}`.replace(/\s+/g, ' ');
+
+    try {
+      const output = await ShellTool.run(cmd);
+      return (
+        `## Manual CronJob Execution Triggered\n\n` +
+        `• **Source CronJob:** \`${namespace}/${cronJobName}\`\n` +
+        `• **Spawned Job:** \`${namespace}/${targetJobName}\`\n\n` +
+        `\`\`\`\n${output.trim()}\n\`\`\`\n\n` +
+        `✔ *One-off job successfully scheduled. Track execution with:* \`kubectl logs job/${targetJobName} -n ${namespace}\``
+      );
+    } catch (err: any) {
+      return `Failed to trigger CronJob "${cronJobName}": ${err.message}`;
+    }
+  }
+
+  /**
+   * Detailed Kubernetes node capacity, allocatable resources, taints, and conditions
+   */
+  static async nodeStatus(nodeName?: string, context?: string): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const target = nodeName ? nodeName : '';
+
+    try {
+      const [nodesRaw, podsRaw] = await Promise.all([
+        ShellTool.run(`kubectl ${ctxFlag} get nodes ${target} -o json --request-timeout=15s`),
+        ShellTool.run(`kubectl ${ctxFlag} get pods -A -o json --request-timeout=15s`),
+      ]);
+
+      const nodesData = JSON.parse(nodesRaw);
+      const nodes: any[] = nodesData.items || (nodesData.kind === 'Node' ? [nodesData] : []);
+      const pods: any[] = JSON.parse(podsRaw).items || [];
+
+      if (nodes.length === 0) {
+        return `No nodes found in cluster.`;
+      }
+
+      let md = `## Kubernetes Node Capacity & Scheduling Status\n\n`;
+      md += `• **Audited Nodes:** ${nodes.length}\n\n`;
+      md += `| Node Name | Status | Roles | CPU Alloc / Cap | Mem Alloc / Cap | Scheduled Pods | Taints |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      for (const n of nodes) {
+        const name = n.metadata?.name || 'unknown';
+        const readyCond = n.status?.conditions?.find((c: any) => c.type === 'Ready');
+        const isReady = readyCond?.status === 'True';
+        const statusBadge = isReady ? '🟢 Ready' : '🔴 NotReady';
+        const roles = Object.keys(n.metadata?.labels || {})
+          .filter((k) => k.startsWith('node-role.kubernetes.io/'))
+          .map((k) => k.replace('node-role.kubernetes.io/', ''))
+          .join(', ') || 'worker';
+
+        const cpuCap = n.status?.capacity?.cpu || '-';
+        const cpuAlloc = n.status?.allocatable?.cpu || '-';
+        const memCap = n.status?.capacity?.memory || '-';
+        const memAlloc = n.status?.allocatable?.memory || '-';
+
+        const nodePods = pods.filter((p: any) => p.spec?.nodeName === name);
+        const taints = (n.spec?.taints || []).map((t: any) => `${t.key}=${t.value || ''}:${t.effect}`).join(', ') || 'None';
+
+        md += `| \`${name}\` | ${statusBadge} | \`${roles}\` | ${cpuAlloc} / ${cpuCap} | ${memAlloc} / ${memCap} | **${nodePods.length}** | ${taints} |\n`;
+      }
+
+      return md;
+    } catch (err: any) {
+      return `Failed to inspect node status: ${err.message}`;
+    }
+  }
+
+  /**
+   * Detailed PersistentVolumeClaim (PVC) status, volume binding, and storage class capacity
+   */
+  static async pvcAnalysis(namespace?: string, context?: string): Promise<string> {
+    const ctxFlag = this.getContextFlag(context);
+    const nsFlag = namespace ? `-n ${namespace}` : '-A';
+
+    try {
+      const raw = await ShellTool.run(`kubectl ${ctxFlag} get pvc ${nsFlag} -o json --request-timeout=15s`);
+      const parsed = JSON.parse(raw);
+      const items: any[] = parsed.items || [];
+
+      if (items.length === 0) {
+        return `No PersistentVolumeClaims found in scope (${namespace ? `namespace "${namespace}"` : 'all namespaces'}).`;
+      }
+
+      let md = `## Kubernetes PersistentVolumeClaim (PVC) Storage Analysis\n\n`;
+      md += `• **Scope:** ${namespace ? `Namespace \`${namespace}\`` : 'Cluster-wide (`-A`)'}\n`;
+      md += `• **Total PVCs:** ${items.length}\n\n`;
+      md += `| PVC Name | Namespace | Status | Volume | Capacity | StorageClass | Access Modes |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+      const warnings: string[] = [];
+
+      for (const pvc of items) {
+        const name = pvc.metadata?.name || 'unknown';
+        const ns = pvc.metadata?.namespace || 'default';
+        const phase = pvc.status?.phase || 'Unknown';
+        const phaseBadge = phase === 'Bound' ? '🟢 Bound' : phase === 'Pending' ? '🟡 Pending' : `🔴 ${phase}`;
+        const volume = pvc.spec?.volumeName || '-';
+        const cap = pvc.status?.capacity?.storage || pvc.spec?.resources?.requests?.storage || 'None';
+        const sc = pvc.spec?.storageClassName || 'default';
+        const modes = (pvc.spec?.accessModes || []).join(', ') || 'RWO';
+
+        if (phase === 'Pending') {
+          warnings.push(`PVC **${ns}/${name}** is stuck in \`Pending\` state. Verify CSI driver provisioning and StorageClass availability.`);
+        }
+
+        md += `| \`${name}\` | \`${ns}\` | ${phaseBadge} | \`${volume}\` | ${cap} | \`${sc}\` | ${modes} |\n`;
+      }
+
+      if (warnings.length > 0) {
+        md += `\n### Storage Allocation Warnings\n\n`;
+        for (const w of warnings) {
+          md += `• ${w}\n`;
+        }
+      }
+
+      return md;
+    } catch (err: any) {
+      return `Failed to analyze PVCs: ${err.message}`;
     }
   }
 }

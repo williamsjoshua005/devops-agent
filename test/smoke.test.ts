@@ -646,13 +646,85 @@ spec:
   const netpolOut = await K8sTool.auditNetworkPolicy('default');
   assert(netpolOut.includes('NetworkPolicy') || netpolOut.includes('Microsegmentation') || netpolOut.includes('Default-Deny') || netpolOut.includes('Failed to audit'), 'K8sTool.auditNetworkPolicy generates zero-trust security audit');
 
-  // Test 65: Complete Rich Kubernetes & Container Platform Suite (78 Tools & Full MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 78, `All 78 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 65: In-Pod Command Execution (k8s_exec) Guardrails & Subcommand Security
+  const execDevEval = Guardrails.evaluate('k8s_exec', { podName: 'api-pod', command: 'curl -s localhost:8080/health' }, intermediateDevContext);
+  assert(execDevEval.tier === 'MUTATE' && !execDevEval.requiresApproval, 'k8s_exec in dev with intermediate role executes autonomously');
 
-  const mcp78Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10002, method: 'tools/list' });
-  assert(mcp78Res.result.tools.length >= 78, `MCP Server exposes all tools over JSON-RPC (${mcp78Res.result.tools.length} tools)`);
+  const execJuniorEval = Guardrails.evaluate('k8s_exec', { podName: 'api-pod', command: 'curl -s localhost:8080/health' }, mockDevContext);
+  assert(execJuniorEval.tier === 'MUTATE' && execJuniorEval.requiresApproval, 'k8s_exec in dev with junior role requires approval');
 
-  console.log('\n\x1b[32mAll 65+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Container Security, NetworkPolicy, Drain, Rightsizing, HPA, Runbook, Vault, ESO, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
+  const execProdEval = Guardrails.evaluate('k8s_exec', { podName: 'api-pod', command: 'curl -s localhost:8080/health' }, mockProdContext);
+  assert(execProdEval.tier === 'MUTATE' && execProdEval.requiresApproval && execProdEval.isProductionWarning, 'k8s_exec in prod requires mandatory operator approval');
+
+  const execDangerousEval = Guardrails.evaluate('k8s_exec', { podName: 'api-pod', command: 'rm -rf /var/data/*' }, mockDevContext);
+  assert(execDangerousEval.tier === 'DANGEROUS' && execDangerousEval.isBlocked, 'k8s_exec with destructive command is strictly BLOCKED by Tier 3 policy');
+
+  // Test 66: Resource Diffing (k8s_diff_resource)
+  const diffEval = Guardrails.evaluate('k8s_diff_resource', { manifestPath: './deploy.yaml' }, mockDevContext);
+  assert(diffEval.tier === 'READ' && !diffEval.requiresApproval, 'k8s_diff_resource evaluates autonomously as READ');
+
+  const diffOut = await K8sTool.diffResource({ manifestContent: 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n' });
+  assert(diffOut.includes('Diff') || diffOut.includes('matches manifest') || diffOut.includes('Failed to diff'), 'K8sTool.diffResource generates unified diff preview');
+
+  // Test 67: Manifest Apply Safety (k8s_apply_manifest)
+  const applyDryEval = Guardrails.evaluate('k8s_apply_manifest', { manifestPath: './deploy.yaml', dryRun: 'server' }, mockProdContext);
+  assert(applyDryEval.tier === 'READ' && !applyDryEval.requiresApproval, 'k8s_apply_manifest with server dryRun evaluates safely as READ');
+
+  const applyLiveEval = Guardrails.evaluate('k8s_apply_manifest', { manifestPath: './deploy.yaml', dryRun: false }, mockProdContext);
+  assert(applyLiveEval.tier === 'MUTATE' && applyLiveEval.requiresApproval && applyLiveEval.isProductionWarning, 'k8s_apply_manifest live enforces mandatory operator confirmation in prod');
+
+  // Test 68: Scoped Deletion Safety (k8s_delete_resource)
+  const deletePodEval = Guardrails.evaluate('k8s_delete_resource', { resourceKind: 'pod', resourceName: 'stale-worker' }, mockDevContext);
+  assert(deletePodEval.tier === 'MUTATE' && deletePodEval.requiresApproval, 'k8s_delete_resource requires confirmation');
+
+  const deleteNsEval = Guardrails.evaluate('k8s_delete_resource', { resourceKind: 'namespace', resourceName: 'production' }, mockDevContext);
+  assert(deleteNsEval.tier === 'DANGEROUS' && deleteNsEval.isBlocked, 'k8s_delete_resource for namespace is strictly BLOCKED by policy');
+
+  const deleteNodeEval = Guardrails.evaluate('k8s_delete_resource', { resourceKind: 'node', resourceName: 'worker-node-1' }, mockDevContext);
+  assert(deleteNodeEval.tier === 'DANGEROUS' && deleteNodeEval.isBlocked, 'k8s_delete_resource for node is strictly BLOCKED by policy');
+
+  // Test 69: Service Endpoints & Routing Diagnosis (k8s_service_endpoints)
+  const epEval = Guardrails.evaluate('k8s_service_endpoints', { serviceName: 'payment-svc' }, mockDevContext);
+  assert(epEval.tier === 'READ' && !epEval.requiresApproval, 'k8s_service_endpoints evaluates autonomously as READ');
+
+  const epOut = await K8sTool.serviceEndpoints();
+  assert(epOut.includes('Endpoint') || epOut.includes('Service') || epOut.includes('Failed to diagnose'), 'K8sTool.serviceEndpoints analyzes service endpoint routing');
+
+  // Test 70: In-Cluster DNS Diagnostics (k8s_dns_diagnose)
+  const dnsEval = Guardrails.evaluate('k8s_dns_diagnose', {}, mockDevContext);
+  assert(dnsEval.tier === 'READ' && !dnsEval.requiresApproval, 'k8s_dns_diagnose evaluates autonomously as READ');
+
+  const dnsOut = await K8sTool.dnsDiagnose();
+  assert(dnsOut.includes('CoreDNS') || dnsOut.includes('DNS') || dnsOut.includes('Failed to diagnose'), 'K8sTool.dnsDiagnose audits CoreDNS health');
+
+  // Test 71: CronJob Status & Manual Triggering (k8s_cronjob_status & k8s_trigger_cronjob)
+  const cjStatusEval = Guardrails.evaluate('k8s_cronjob_status', {}, mockDevContext);
+  assert(cjStatusEval.tier === 'READ' && !cjStatusEval.requiresApproval, 'k8s_cronjob_status evaluates autonomously as READ');
+
+  const cjTriggerEval = Guardrails.evaluate('k8s_trigger_cronjob', { cronJobName: 'backup-task' }, mockProdContext);
+  assert(cjTriggerEval.tier === 'MUTATE' && cjTriggerEval.requiresApproval && cjTriggerEval.isProductionWarning, 'k8s_trigger_cronjob enforces approval with production alert');
+
+  // Test 72: Node Status & Capacity Inspection (k8s_node_status)
+  const nodeStatusEval = Guardrails.evaluate('k8s_node_status', {}, mockDevContext);
+  assert(nodeStatusEval.tier === 'READ' && !nodeStatusEval.requiresApproval, 'k8s_node_status evaluates autonomously as READ');
+
+  const nodeStatusOut = await K8sTool.nodeStatus();
+  assert(nodeStatusOut.includes('Node') || nodeStatusOut.includes('Capacity') || nodeStatusOut.includes('Alloc') || nodeStatusOut.includes('Failed to inspect'), 'K8sTool.nodeStatus inspects node allocatable capacity');
+
+  // Test 73: PVC Storage Analysis (k8s_pvc_analysis)
+  const pvcEval = Guardrails.evaluate('k8s_pvc_analysis', {}, mockDevContext);
+  assert(pvcEval.tier === 'READ' && !pvcEval.requiresApproval, 'k8s_pvc_analysis evaluates autonomously as READ');
+
+  const pvcOut = await K8sTool.pvcAnalysis();
+  assert(pvcOut.includes('PersistentVolumeClaim') || pvcOut.includes('PVC') || pvcOut.includes('Storage') || pvcOut.includes('Failed to analyze'), 'K8sTool.pvcAnalysis audits persistent storage');
+
+  // Test 74: Complete Enterprise Kubernetes & Multi-Cloud Suite (88 Native Tools & MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 88, `All 88 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+
+  const mcp88Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10003, method: 'tools/list' });
+  assert(mcp88Res.result.tools.length >= 88, `MCP Server exposes all tools over JSON-RPC (${mcp88Res.result.tools.length} tools)`);
+
+  console.log('\n\x1b[32mAll 74+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes (Exec, Diff, Apply, Delete, DNS, Endpoints, CronJobs, Nodes, PVCs), Container Security, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

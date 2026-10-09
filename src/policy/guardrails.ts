@@ -140,7 +140,14 @@ export class Guardrails {
       toolName === 'k8s_hpa_audit' ||
       toolName === 'k8s_network_policy_audit' ||
       toolName === 'container_image_scan' ||
+      toolName === 'k8s_diff_resource' ||
+      toolName === 'k8s_service_endpoints' ||
+      toolName === 'k8s_dns_diagnose' ||
+      toolName === 'k8s_cronjob_status' ||
+      toolName === 'k8s_node_status' ||
+      toolName === 'k8s_pvc_analysis' ||
       (toolName === 'k8s_node_drain' && args.dryRun === true) ||
+      (toolName === 'k8s_apply_manifest' && args.dryRun !== false && args.dryRun !== 'none') ||
       (toolName === 'terraform_workspace_manage' && (!args.action || args.action === 'list' || args.action === 'show')) ||
       (toolName === 'helm_upgrade_install' && args.dryRun !== false)
     ) {
@@ -444,6 +451,87 @@ export class Guardrails {
           ? 'WARNING: Target cluster is PRODUCTION. Attaching diagnostic container to live pod requires operator confirmation.'
           : 'Attaching ephemeral diagnostic container to live pod.',
         requiresApproval: isProd,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_exec') {
+      const command = (args.command || '').trim();
+      for (const pattern of DANGEROUS_PATTERNS) {
+        if (pattern.test(command)) {
+          return {
+            tier: 'DANGEROUS',
+            actionSummary: `BLOCKED in-pod execution: "${command}" on pod "${args.podName}"`,
+            reason: 'Matches high-risk/destructive policy pattern. In-pod execution permanently blocked.',
+            requiresApproval: false,
+            isBlocked: true,
+            isProductionWarning: isProd,
+          };
+        }
+      }
+
+      const requiresApproval = isProd || !isIntermediateOrSenior;
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Execute in-pod command: "${command}" on "${args.namespace || 'default'}/${args.podName}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Executing commands inside production pods requires explicit operator confirmation.'
+          : isIntermediateOrSenior
+          ? 'Intermediate DevOps autonomy: Non-production container diagnostic command executed autonomously.'
+          : 'Executing commands inside containers requires operator confirmation.',
+        requiresApproval,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_apply_manifest' && (args.dryRun === false || args.dryRun === 'none')) {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Live Manifest Apply: "${args.manifestPath || 'Inline Manifest'}" in namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Applying live manifests mutates cluster workloads. Mandatory operator approval.'
+          : 'Applying live manifests mutates cluster resources. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_delete_resource') {
+      const kind = (args.resourceKind || '').toLowerCase();
+      if (kind === 'namespace' || kind === 'ns' || kind === 'node' || kind === 'nodes') {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED deletion of cluster-critical resource: ${args.resourceKind}/${args.resourceName}`,
+          reason: 'Deleting namespaces or cluster nodes is permanently forbidden across all roles by safety policy.',
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Delete resource: ${args.resourceKind}/${args.resourceName} in namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? `CRITICAL WARNING: Target cluster is PRODUCTION. Deleting ${args.resourceKind} "${args.resourceName}" requires operator approval.`
+          : `Deleting cluster resource ${args.resourceKind}/${args.resourceName} requires operator confirmation.`,
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_trigger_cronjob') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Trigger manual batch Job from CronJob: "${args.cronJobName}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Triggering manual batch jobs consumes cluster worker node capacity.'
+          : 'Triggering one-off batch job from CronJob requires operator confirmation.',
+        requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,
       };

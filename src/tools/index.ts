@@ -1798,6 +1798,253 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'k8s_exec',
+    description:
+      'Execute commands inside a running pod container with bounded timeout, non-interactive execution, and automatic credential sanitization.',
+    parameters: {
+      type: 'object',
+      properties: {
+        podName: {
+          type: 'string',
+          description: 'Name of the target pod.',
+        },
+        command: {
+          type: 'string',
+          description: 'Shell command string to execute inside the container (e.g. "curl localhost:8080/healthz").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        container: {
+          type: 'string',
+          description: 'Optional specific container name inside multi-container pods.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['podName', 'command'],
+    },
+  },
+  {
+    name: 'k8s_diff_resource',
+    description:
+      'Show unified diff between live cluster state and a local file or inline YAML manifest without mutating cluster state.',
+    parameters: {
+      type: 'object',
+      properties: {
+        manifestPath: {
+          type: 'string',
+          description: 'Path to local Kubernetes manifest file.',
+        },
+        manifestContent: {
+          type: 'string',
+          description: 'Inline YAML manifest content.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Optional target namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_apply_manifest',
+    description:
+      'Apply a Kubernetes manifest with dry-run support (server, client, or live apply). Live apply enforces operator approval.',
+    parameters: {
+      type: 'object',
+      properties: {
+        manifestPath: {
+          type: 'string',
+          description: 'Path to local Kubernetes manifest file.',
+        },
+        manifestContent: {
+          type: 'string',
+          description: 'Inline YAML manifest content.',
+        },
+        dryRun: {
+          type: 'string',
+          description: 'Dry-run mode: "server" (default preview), "client", or "none" / false for live mutation.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Optional target namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_delete_resource',
+    description:
+      'Delete a scoped Kubernetes resource safely with confirmation and protected namespace guards.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resourceKind: {
+          type: 'string',
+          description: 'Resource type (e.g. "pod", "deployment", "service", "configmap"). System namespaces and nodes are blocked.',
+        },
+        resourceName: {
+          type: 'string',
+          description: 'Name of the resource to delete.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace where resource resides (defaults to "default").',
+        },
+        gracePeriodSeconds: {
+          type: 'number',
+          description: 'Optional termination grace period in seconds.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['resourceKind', 'resourceName'],
+    },
+  },
+  {
+    name: 'k8s_service_endpoints',
+    description:
+      'Diagnose Kubernetes Service selectors and verify active healthy Endpoints, detecting 0-endpoint routing drops.',
+    parameters: {
+      type: 'object',
+      properties: {
+        serviceName: {
+          type: 'string',
+          description: 'Optional specific service name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace to audit (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_dns_diagnose',
+    description:
+      'Run deep in-cluster DNS diagnostics, auditing CoreDNS infrastructure health and cluster.local service resolution.',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetHost: {
+          type: 'string',
+          description: 'Hostname to test resolution for (defaults to "kubernetes.default.svc.cluster.local").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace scope (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_cronjob_status',
+    description:
+      'Audit Kubernetes CronJob batch schedules, active runs, missed executions, and completion history.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Optional specific CronJob name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to all namespaces if omitted).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_trigger_cronjob',
+    description:
+      'Manually trigger a CronJob execution as a one-off batch Job with bounded deadline seconds.',
+    parameters: {
+      type: 'object',
+      properties: {
+        cronJobName: {
+          type: 'string',
+          description: 'Name of the CronJob to trigger.',
+        },
+        jobName: {
+          type: 'string',
+          description: 'Optional custom name for the spawned Job.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['cronJobName'],
+    },
+  },
+  {
+    name: 'k8s_node_status',
+    description:
+      'Inspect detailed Kubernetes node capacity, allocatable CPU/RAM, conditions, scheduled pod density, and taints.',
+    parameters: {
+      type: 'object',
+      properties: {
+        nodeName: {
+          type: 'string',
+          description: 'Optional specific node name.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_pvc_analysis',
+    description:
+      'Audit PersistentVolumeClaims (PVC), storage classes, volume binding status, and detect pending storage provisioning.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to all namespaces if omitted).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -2068,6 +2315,46 @@ export async function executeTool(name: string, args: Record<string, any>, conte
     case 'k8s_network_policy_audit': {
       const targetCtx = args.context || context?.kubeContext;
       return await K8sTool.auditNetworkPolicy(args.namespace, args.podSelector, targetCtx);
+    }
+    case 'k8s_exec': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.execCommand(args.podName, args.command, args.namespace, args.container, targetCtx);
+    }
+    case 'k8s_diff_resource': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.diffResource(args, targetCtx);
+    }
+    case 'k8s_apply_manifest': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.applyManifest(args, targetCtx);
+    }
+    case 'k8s_delete_resource': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.deleteResource(args.resourceKind, args.resourceName, args.namespace, args, targetCtx);
+    }
+    case 'k8s_service_endpoints': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.serviceEndpoints(args.serviceName, args.namespace, targetCtx);
+    }
+    case 'k8s_dns_diagnose': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.dnsDiagnose(args.targetHost, args.namespace, targetCtx);
+    }
+    case 'k8s_cronjob_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.cronJobStatus(args.name, args.namespace, targetCtx);
+    }
+    case 'k8s_trigger_cronjob': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.triggerCronJob(args.cronJobName, args.jobName, args.namespace, targetCtx);
+    }
+    case 'k8s_node_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.nodeStatus(args.nodeName, targetCtx);
+    }
+    case 'k8s_pvc_analysis': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.pvcAnalysis(args.namespace, targetCtx);
     }
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
