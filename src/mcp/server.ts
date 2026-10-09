@@ -17,6 +17,7 @@ export class DevOpsMcpServer {
     const azure = process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false';
     const gcp = process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false';
     const stick = process.env.STICK_TO_KUBECONFIG !== 'false';
+    const kubeconfig = process.env.KUBECONFIG;
     return {
       cwd: process.cwd(),
       installedTools: ['git', 'kubectl', 'helm', 'docker', 'az', 'aws', 'gcloud'],
@@ -24,6 +25,8 @@ export class DevOpsMcpServer {
       isProduction: isProd,
       cloudProviders: { aws, azure, gcp },
       stickToKubeConfig: stick,
+      kubeconfig: kubeconfig || undefined,
+      kubeConfigPath: kubeconfig || undefined,
     };
   }
 

@@ -135,12 +135,15 @@ export class AlertWebhookServer {
         };
         const stickToKubeConfig = ctx.stickToKubeConfig !== false;
         const availableTools = getAvailableToolDefinitions(ctx);
+        const kubeconfig = ctx.kubeconfig || K8sTool.getKubeconfig() || null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
             cloudProviders: cp,
             stickToKubeConfig,
             kubeContext: ctx.kubeContext || null,
+            kubeconfig,
+            kubeConfigPath: kubeconfig,
             availableToolsCount: availableTools.length,
             totalToolsCount: TOOL_DEFINITIONS.length,
           })
@@ -148,10 +151,10 @@ export class AlertWebhookServer {
         return;
       }
 
-      if (req.method === 'POST' && (url.pathname === '/api/config/providers' || url.pathname === '/api/providers')) {
+      if (req.method === 'POST' && (url.pathname === '/api/config/providers' || url.pathname === '/api/providers' || url.pathname === '/api/config/kubeconfig')) {
         let body = '';
         req.on('data', (chunk) => (body += chunk));
-        req.on('end', () => {
+        req.on('end', async () => {
           try {
             const data = JSON.parse(body || '{}');
             if (data.aws !== undefined) {
@@ -166,14 +169,22 @@ export class AlertWebhookServer {
             if (data.stickToKubeConfig !== undefined) {
               this.harness.setStickToKubeConfig(Boolean(data.stickToKubeConfig));
             }
+            if (data.kubeconfig !== undefined || data.kubeConfigPath !== undefined) {
+              const targetCfg = data.kubeconfig !== undefined ? data.kubeconfig : data.kubeConfigPath;
+              await this.harness.setKubeconfig(targetCfg ? String(targetCfg) : undefined);
+            }
             const updated = this.harness.getContext();
             const availableTools = getAvailableToolDefinitions(updated);
+            const activeKubeConfig = updated.kubeconfig || K8sTool.getKubeconfig() || null;
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(
               JSON.stringify({
                 success: true,
                 cloudProviders: updated.cloudProviders,
                 stickToKubeConfig: updated.stickToKubeConfig,
+                kubeconfig: activeKubeConfig,
+                kubeConfigPath: activeKubeConfig,
+                kubeContext: updated.kubeContext || null,
                 availableToolsCount: availableTools.length,
               })
             );

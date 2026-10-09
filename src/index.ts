@@ -18,7 +18,7 @@ import { CertExpiryTool } from './tools/certificates.js';
 import { FinOpsTool } from './tools/finops.js';
 import { AwsTool } from './tools/aws.js';
 import { GcpTool } from './tools/gcp.js';
-import { K8sTool } from './tools/k8s.js';
+import { K8sTool, resolveKubeConfigPath } from './tools/k8s.js';
 
 dotenv.config();
 
@@ -51,9 +51,30 @@ function detectTools(): string[] {
   return available;
 }
 
-function detectKubeContext(): string | undefined {
+function detectKubeConfig(): string | undefined {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('--kubeconfig=')) {
+      const val = arg.split('=')[1]?.trim();
+      if (val) return resolveKubeConfigPath(val);
+    }
+    if (arg === '--kubeconfig' && args[i + 1] && !args[i + 1].startsWith('-')) {
+      const val = args[i + 1].trim();
+      return resolveKubeConfigPath(val);
+    }
+  }
+  if (process.env.KUBECONFIG) {
+    return resolveKubeConfigPath(process.env.KUBECONFIG.trim());
+  }
+  return undefined;
+}
+
+function detectKubeContext(kubeconfig?: string): string | undefined {
   try {
-    const ctx = execSync('kubectl config current-context 2>/dev/null', { encoding: 'utf-8' }).trim();
+    const cfgFlag = kubeconfig ? `--kubeconfig="${kubeconfig}"` : '';
+    const cmd = `kubectl ${cfgFlag} config current-context 2>/dev/null`.trim();
+    const ctx = execSync(cmd, { encoding: 'utf-8' }).trim();
     return ctx || undefined;
   } catch {
     return undefined;
@@ -123,8 +144,12 @@ function detectStickToKubeConfig(): boolean {
 }
 
 async function main() {
+  const kubeconfig = detectKubeConfig();
+  if (kubeconfig) {
+    K8sTool.setKubeconfig(kubeconfig);
+  }
   const installedTools = detectTools();
-  const kubeContext = detectKubeContext();
+  const kubeContext = detectKubeContext(kubeconfig);
   const { environment, isProduction } = detectEnvironment(kubeContext);
   const cloudProviders = detectCloudProviders();
   const stickToKubeConfig = detectStickToKubeConfig();
@@ -147,6 +172,8 @@ async function main() {
   const context: AgentContext = {
     cwd: process.cwd(),
     kubeContext,
+    kubeconfig,
+    kubeConfigPath: kubeconfig,
     installedTools,
     environment,
     isProduction,
@@ -181,11 +208,12 @@ async function main() {
   console.log(`\x1b[1mEnvironment:\x1b[0m         ${envBadge}`);
   console.log(`\x1b[1mModel Provider:\x1b[0m      ${llmConfig.provider} (${llmConfig.model})`);
   console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
+  console.log(`\x1b[1mKubernetes Config:\x1b[0m   ${kubeconfig ? `\x1b[36m${kubeconfig}\x1b[0m` : 'Default (~/.kube/config)'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
   console.log(`\x1b[1mCloud Providers:\x1b[0m     AWS: ${cloudProviders.aws ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'} | Azure: ${cloudProviders.azure ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'} | GCP: ${cloudProviders.gcp ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'}`);
   console.log(`\x1b[1mStick to Kubeconfig:\x1b[0m ${stickToKubeConfig ? '\x1b[32m✔ ACTIVE (Strict in-cluster grounding)\x1b[0m' : '\x1b[90m⚪ DISABLED\x1b[0m'}`);
   console.log(`\x1b[1mAudit Logging:\x1b[0m       .audit/audit.jsonl (Active)`);
-  console.log('\x1b[90mCommands: /role, /cloud, /k8s-only, /runbooks, /tools, /clusters, /context <name>, /timeline, /rightsize, /hpa, /netpol, /scan <img\>, /audit, /kb, /security, /finops, /mcp, /exit\x1b[0m\n');
+  console.log('\x1b[90mCommands: /role, /kubeconfig [path], /cloud, /k8s-only, /runbooks, /tools, /clusters, /context <name>, /timeline, /rightsize, /hpa, /netpol, /scan <img\>, /audit, /kb, /security, /finops, /mcp, /exit\x1b[0m\n');
 
   // Check if --server flag passed
   const args = process.argv.slice(2);

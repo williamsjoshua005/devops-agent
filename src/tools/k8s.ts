@@ -15,12 +15,56 @@ export interface EventTimelineItem {
   message: string;
 }
 
+/**
+ * Resolve a custom kubeconfig file path (e.g. "sb-config", "~/.kube/config", or absolute/relative path)
+ */
+export function resolveKubeConfigPath(rawPath?: string): string {
+  if (!rawPath) return '';
+  let expanded = rawPath.trim();
+  if (expanded.startsWith('~/')) {
+    expanded = path.join(process.env.HOME || '', expanded.slice(2));
+  }
+  if (fs.existsSync(expanded)) {
+    return path.resolve(expanded);
+  }
+  const inKubeDir = path.join(process.env.HOME || '', '.kube', rawPath.trim());
+  if (fs.existsSync(inKubeDir)) {
+    return inKubeDir;
+  }
+  return path.resolve(expanded);
+}
+
 export class K8sTool {
+  static activeKubeconfig?: string;
+
+  static setKubeconfig(kubeconfig?: string) {
+    if (kubeconfig) {
+      const resolved = resolveKubeConfigPath(kubeconfig);
+      this.activeKubeconfig = resolved;
+      process.env.KUBECONFIG = resolved;
+    } else {
+      this.activeKubeconfig = undefined;
+      delete process.env.KUBECONFIG;
+    }
+  }
+
+  static getKubeconfig(): string | undefined {
+    return this.activeKubeconfig || process.env.KUBECONFIG;
+  }
+
   /**
-   * Helper to format --context flag
+   * Helper to format --kubeconfig and --context flags
    */
-  private static getContextFlag(context?: string): string {
-    return context ? `--context=${context}` : '';
+  private static getContextFlag(context?: string, kubeconfig?: string): string {
+    const flags: string[] = [];
+    const cfg = kubeconfig ? resolveKubeConfigPath(kubeconfig) : (this.activeKubeconfig || process.env.KUBECONFIG);
+    if (cfg) {
+      flags.push(`--kubeconfig=${cfg}`);
+    }
+    if (context) {
+      flags.push(`--context=${context}`);
+    }
+    return flags.join(' ');
   }
 
   /**
@@ -90,21 +134,26 @@ export class K8sTool {
   /**
    * List all configured Kubernetes contexts
    */
-  static async listContexts(): Promise<{ current: string; contexts: string[] }> {
-    const raw = await ShellTool.run('kubectl config get-contexts -o name');
+  static async listContexts(kubeconfig?: string): Promise<{ current: string; contexts: string[] }> {
+    const cfgFlag = this.getContextFlag(undefined, kubeconfig);
+    const raw = await ShellTool.run(`kubectl ${cfgFlag} config get-contexts -o name`.replace(/\s+/g, ' '));
     let current = '';
     try {
-      current = (await ShellTool.run('kubectl config current-context')).trim();
+      const currentRaw = (await ShellTool.run(`kubectl ${cfgFlag} config current-context`.replace(/\s+/g, ' '))).trim();
+      if (!currentRaw.startsWith('Error executing command:') && !currentRaw.startsWith('error:')) {
+        current = currentRaw;
+      }
     } catch {}
-    const contexts = raw.split('\n').map((c) => c.trim()).filter(Boolean);
+    const contexts = (raw.startsWith('Error executing command:') ? '' : raw).split('\n').map((c) => c.trim()).filter(Boolean);
     return { current, contexts };
   }
 
   /**
    * Switch the active Kubernetes context
    */
-  static async switchContext(targetContext: string): Promise<string> {
-    return await ShellTool.run(`kubectl config use-context ${targetContext}`);
+  static async switchContext(targetContext: string, kubeconfig?: string): Promise<string> {
+    const cfgFlag = this.getContextFlag(undefined, kubeconfig);
+    return await ShellTool.run(`kubectl ${cfgFlag} config use-context ${targetContext}`.replace(/\s+/g, ' '));
   }
 
   /**

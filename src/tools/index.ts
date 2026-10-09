@@ -1,6 +1,6 @@
 import { ToolDefinition, AgentContext } from '../types.js';
 import { ShellTool } from './shell.js';
-import { K8sTool } from './k8s.js';
+import { K8sTool, resolveKubeConfigPath } from './k8s.js';
 import { AzureTool } from './azure.js';
 import { AwsTool } from './aws.js';
 import { GcpTool } from './gcp.js';
@@ -176,12 +176,32 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
-    name: 'k8s_list_contexts',
+    name: 'k8s_set_kubeconfig',
     description:
-      'List all configured Kubernetes cluster contexts from kubeconfig, indicating the currently active context.',
+      'Specify or switch which kubeconfig file to use for all Kubernetes operations (just like kubectl --kubeconfig=sb-config). Updates cluster targeting, active context, and environment safety guardrails.',
     parameters: {
       type: 'object',
-      properties: {},
+      properties: {
+        kubeconfig: {
+          type: 'string',
+          description: 'Path or name of the kubeconfig file (e.g. "sb-config", "~/.kube/sb-config", or "./kubeconfig.yaml").',
+        },
+      },
+      required: ['kubeconfig'],
+    },
+  },
+  {
+    name: 'k8s_list_contexts',
+    description:
+      'List all configured Kubernetes cluster contexts from the active or specified kubeconfig, indicating the currently active context.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kubeconfig: {
+          type: 'string',
+          description: 'Optional path to a custom kubeconfig file (e.g. "sb-config"). Defaults to active kubeconfig.',
+        },
+      },
     },
   },
   {
@@ -194,6 +214,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         contextName: {
           type: 'string',
           description: 'Name of the Kubernetes context to switch to (e.g., "prod", "staging", "aks-uat").',
+        },
+        kubeconfig: {
+          type: 'string',
+          description: 'Optional path to a custom kubeconfig file (e.g. "sb-config").',
         },
       },
       required: ['contextName'],
@@ -2595,14 +2619,59 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       const res = await RolloutWatcher.watchAndVerify(args.name, args.kind, args.namespace, args.timeoutSeconds, targetCtx);
       return `Rollout Watcher Result:\nSuccess: ${res.succeeded}\nMessage: ${res.message}\nAuto-RolledBack: ${res.rolledBack}`;
     }
+    case 'k8s_set_kubeconfig': {
+      const resolved = resolveKubeConfigPath(args.kubeconfig);
+      K8sTool.setKubeconfig(resolved);
+      if (context) {
+        context.kubeconfig = resolved;
+        context.kubeConfigPath = resolved;
+      }
+      const res = await K8sTool.listContexts(resolved);
+      if (context && res.current) {
+        context.kubeContext = res.current;
+        const raw = `${process.env.ENVIRONMENT || ''} ${res.current}`.toLowerCase();
+        if (raw.includes('prod') || raw.includes('production') || raw.includes('live') || raw.includes('dr')) {
+          context.environment = 'production';
+          context.isProduction = true;
+        } else if (raw.includes('stage') || raw.includes('staging') || raw.includes('uat')) {
+          context.environment = 'staging';
+          context.isProduction = false;
+        } else {
+          context.environment = 'development';
+          context.isProduction = false;
+        }
+      }
+      return (
+        `✔ **Kubeconfig successfully configured:** \`${resolved}\`\n` +
+        `• **Active Context:** \`${res.current || 'none'}\`\n` +
+        `• **Environment:** \`${context?.environment?.toUpperCase() || 'DEVELOPMENT'}\`\n` +
+        `• **Available Contexts in Kubeconfig:**\n` +
+        (res.contexts.length > 0
+          ? res.contexts.map((c) => (c === res.current ? `  - **${c}** (active)` : `  - ${c}`)).join('\n')
+          : '  *(None detected)*') +
+        `\n\nAll subsequent Kubernetes operations are now grounded to this kubeconfig.`
+      );
+    }
     case 'k8s_list_contexts': {
-      const res = await K8sTool.listContexts();
-      return `Current Kubernetes Context: ${res.current}\nAvailable Contexts:\n${res.contexts.map((c) => (c === res.current ? `* ${c} (active)` : `  ${c}`)).join('\n')}`;
+      const cfg = args.kubeconfig || context?.kubeconfig;
+      const res = await K8sTool.listContexts(cfg);
+      const activeCfg = cfg || K8sTool.getKubeconfig() || 'default (~/.kube/config)';
+      return (
+        `• **Kubeconfig File:** \`${activeCfg}\`\n` +
+        `• **Current Kubernetes Context:** \`${res.current || 'none'}\`\n` +
+        `• **Available Contexts:**\n` +
+        res.contexts.map((c) => (c === res.current ? `  * **${c}** (active)` : `  * ${c}`)).join('\n')
+      );
     }
     case 'k8s_switch_context': {
-      const out = await K8sTool.switchContext(args.contextName);
+      const cfg = args.kubeconfig || context?.kubeconfig;
+      const out = await K8sTool.switchContext(args.contextName, cfg);
       if (context) {
         context.kubeContext = args.contextName;
+        if (cfg) {
+          context.kubeconfig = cfg;
+          context.kubeConfigPath = cfg;
+        }
         const raw = `${process.env.ENVIRONMENT || ''} ${args.contextName}`.toLowerCase();
         if (raw.includes('prod') || raw.includes('production') || raw.includes('live') || raw.includes('dr')) {
           context.environment = 'production';

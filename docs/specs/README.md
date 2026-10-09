@@ -113,8 +113,8 @@ graph TD
         Audit[("Immutable Audit Trail (.audit/audit.jsonl)")]
     end
 
-    subgraph Platform_Tools ["108 Platform Tools (102 in K8s-Only Mode)"]
-        K8s["Kubernetes Operations (33 Specialized Tools)"]
+    subgraph Platform_Tools ["109 Platform Tools (103 in K8s-Only Mode)"]
+        K8s["Kubernetes Operations (34 Specialized Tools)"]
         IaC["Terraform & OpenTofu Operations"]
         GitOps["Argo CD & Flux v2 Engines"]
         Helm["Helm & Kustomize Packaging"]
@@ -139,7 +139,7 @@ graph TD
 ---
 
 ## 🧪 Verification & Test Suite
-Every feature specified above is backed by automated tests in [`test/smoke.test.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts) and [`test/cloud_provider.test.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/cloud_provider.test.ts):
+Every feature specified above is backed by automated tests in [`test/smoke.test.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts), [`test/kubeconfig.test.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/kubeconfig.test.ts), and [`test/cloud_provider.test.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/cloud_provider.test.ts):
 ```bash
 npm run build && npm test
 ```

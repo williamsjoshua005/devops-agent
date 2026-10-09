@@ -864,27 +864,27 @@ spec:
   const carbonOut = await K8sTool.carbonFootprint(undefined, 'us-east-1');
   assert(carbonOut.includes('Carbon Footprint') || carbonOut.includes('Sustainability') || carbonOut.includes('kWh') || carbonOut.includes('CO2') || carbonOut.includes('Failed to estimate'), 'K8sTool.carbonFootprint computes GreenOps footprint');
 
-  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (108 Native Tools & MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 108, `All 108 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (109 Native Tools & MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 109, `All 109 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
 
   const mcp108Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10004, method: 'tools/list' });
-  assert(mcp108Res.result.tools.length >= 108, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
+  assert(mcp108Res.result.tools.length >= 109, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
 
   // Test 95: Cloud Provider Dynamic Catalog Filtering (getAvailableToolDefinitions)
   const allTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: true } });
-  assert(allTools.length === 108, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
+  assert(allTools.length === 109, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
 
   const noAwsTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } });
-  assert(noAwsTools.length === 106 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (106 tools remaining)');
+  assert(noAwsTools.length === 107 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (107 tools remaining)');
 
   const noAzTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: false, gcp: true } });
-  assert(noAzTools.length === 106 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (106 tools remaining)');
+  assert(noAzTools.length === 107 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (107 tools remaining)');
 
   const noGcpTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: false } });
-  assert(noGcpTools.length === 106 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (106 tools remaining)');
+  assert(noGcpTools.length === 107 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (107 tools remaining)');
 
   const k8sOnlyTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: false, gcp: false } });
-  assert(k8sOnlyTools.length === 102, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 102 tools (${k8sOnlyTools.length} tools)`);
+  assert(k8sOnlyTools.length === 103, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 103 tools (${k8sOnlyTools.length} tools)`);
 
   // Test 96: Guardrails Enforcement for Disabled Cloud Provider Tools
   const awsDisabledCtx: AgentContext = { ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } };
@@ -958,10 +958,17 @@ spec:
     stickToKubeConfig: true,
   });
   const mcpFilteredRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10005, method: 'tools/list' });
-  assert(mcpFilteredRes.result.tools.length === 102, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 102 tools)`);
+  assert(mcpFilteredRes.result.tools.length === 103, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 103 tools)`);
   assert(!mcpFilteredRes.result.tools.some((t: any) => t.name.startsWith('aws_') || t.name.startsWith('az_') || t.name.startsWith('gcp_')), 'MCP Server tool list contains zero disabled cloud tools');
 
-  console.log('\n\x1b[32mAll 100+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle & Strict Kubeconfig Grounding feature tests passed successfully!\x1b[0m\n');
+  // Test 101: Custom Kubeconfig Targeting (k8s_set_kubeconfig & K8sTool.setKubeconfig)
+  const setKubeEval = Guardrails.evaluate('k8s_set_kubeconfig', { kubeconfig: 'sb-config' }, mockDevContext);
+  assert(setKubeEval.tier === 'MUTATE' && !setKubeEval.requiresApproval, 'k8s_set_kubeconfig evaluates safely in dev');
+
+  const prodKubeEval = Guardrails.evaluate('k8s_set_kubeconfig', { kubeconfig: 'prod-cluster.conf' }, mockProdContext);
+  assert(prodKubeEval.requiresApproval, 'k8s_set_kubeconfig with prod target enforces operator approval');
+
+  console.log('\n\x1b[32mAll 101 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Kubeconfig Targeting & Strict Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

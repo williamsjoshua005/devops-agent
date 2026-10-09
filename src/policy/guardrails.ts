@@ -269,6 +269,25 @@ export class Guardrails {
     }
 
     // 3. Mutating built-in tools
+    if (toolName === 'k8s_set_kubeconfig') {
+      const targetCfg = String(args.kubeconfig || '');
+      const isTargetProd =
+        targetCfg.toLowerCase().includes('prod') ||
+        targetCfg.toLowerCase().includes('dr') ||
+        targetCfg.toLowerCase().includes('live');
+
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Specify/switch active kubeconfig to "${targetCfg}"`,
+        reason: isTargetProd
+          ? 'WARNING: Target kubeconfig appears to reference PRODUCTION. Switching kubeconfig requires human confirmation.'
+          : 'Switching active Kubernetes kubeconfig file.',
+        requiresApproval: isTargetProd,
+        isBlocked: false,
+        isProductionWarning: isTargetProd,
+      };
+    }
+
     if (toolName === 'k8s_switch_context') {
       const targetCtx = String(args.contextName || '');
       const isTargetProd =

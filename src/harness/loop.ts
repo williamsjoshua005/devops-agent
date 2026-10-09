@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { Message, ToolCall, AgentContext, RoleLevel } from '../types.js';
 import { TOOL_DEFINITIONS, executeTool, getAvailableToolDefinitions } from '../tools/index.js';
@@ -13,7 +14,7 @@ import { SecurityLinterTool } from '../tools/security.js';
 import { TopologyTool } from '../tools/topology.js';
 import { PostmortemTool } from '../tools/postmortem.js';
 import { SecretSanitizer } from '../policy/sanitizer.js';
-import { K8sTool } from '../tools/k8s.js';
+import { K8sTool, resolveKubeConfigPath } from '../tools/k8s.js';
 import { AwsTool } from '../tools/aws.js';
 import { GcpTool } from '../tools/gcp.js';
 import { AzureTool } from '../tools/azure.js';
@@ -86,6 +87,48 @@ export class DevOpsAgentHarness {
     this.initSystemPrompt();
   }
 
+  async setKubeconfig(kubeconfigPath?: string): Promise<{
+    success: boolean;
+    kubeconfig?: string;
+    currentContext?: string;
+    contexts: string[];
+    error?: string;
+  }> {
+    if (!kubeconfigPath || kubeconfigPath === 'reset' || kubeconfigPath === 'default') {
+      K8sTool.setKubeconfig(undefined);
+      this.context.kubeconfig = undefined;
+      this.context.kubeConfigPath = undefined;
+      delete process.env.KUBECONFIG;
+      let current = '';
+      let contexts: string[] = [];
+      try {
+        const res = await K8sTool.listContexts();
+        current = res.current;
+        contexts = res.contexts;
+        if (current) this.updateKubeContext(current);
+      } catch {}
+      this.initSystemPrompt();
+      return { success: true, contexts, currentContext: current };
+    }
+
+    const resolved = resolveKubeConfigPath(kubeconfigPath);
+    K8sTool.setKubeconfig(resolved);
+    this.context.kubeconfig = resolved;
+    this.context.kubeConfigPath = resolved;
+
+    try {
+      const { current, contexts } = await K8sTool.listContexts(resolved);
+      if (current) {
+        this.updateKubeContext(current);
+      }
+      this.initSystemPrompt();
+      return { success: true, kubeconfig: resolved, currentContext: current, contexts };
+    } catch (err: any) {
+      this.initSystemPrompt();
+      return { success: false, kubeconfig: resolved, contexts: [], error: err.message };
+    }
+  }
+
   updateKubeContext(newContext: string) {
     this.context.kubeContext = newContext;
     const raw = `${process.env.ENVIRONMENT || ''} ${newContext}`.toLowerCase();
@@ -145,12 +188,13 @@ Your goal is to investigate, diagnose, and resolve infrastructure, Kubernetes, c
 - Current Working Directory: ${this.context.cwd}
 - Installed Tools: ${this.context.installedTools.join(', ')}
 ${this.context.kubeContext ? `- Active Kubernetes Context: ${this.context.kubeContext}` : ''}
+- Active Kubeconfig File: ${this.context.kubeconfig || K8sTool.getKubeconfig() || 'Default (~/.kube/config)'}
 - Cloud Providers: AWS: ${cp.aws ? '🟢 ENABLED' : '🔴 DISABLED'} | Azure: ${cp.azure ? '🟢 ENABLED' : '🔴 DISABLED'} | GCP: ${cp.gcp ? '🟢 ENABLED' : '🔴 DISABLED'}
 - Stick to Kubeconfig: ${stickStatus}
 ${envWarning}
 
 ### Kubernetes Task Grounding Guideline:
-When investigating Kubernetes-related tasks, ALWAYS stick strictly to the active Kubernetes context (\`${this.context.kubeContext || 'current kubeconfig'}\`) and use native Kubernetes tools (\`k8s_*\`, \`kubectl\`, \`helm_*\`, \`kustomize_*\`).
+When investigating Kubernetes-related tasks, ALWAYS stick strictly to the active Kubernetes kubeconfig (\`${this.context.kubeconfig || K8sTool.getKubeconfig() || 'default kubeconfig'}\`) and context (\`${this.context.kubeContext || 'current context'}\`), using native Kubernetes tools (\`k8s_*\`, \`kubectl\`, \`helm_*\`, \`kustomize_*\`).
 Do NOT invoke cloud provider CLIs or tools (AWS/EKS, Azure/AKS, GCP/GKE) for in-cluster diagnosis unless the cloud provider is enabled AND the user explicitly requests cloud-level infrastructure or cluster provisioning inspection.
 
 ### Operational Guidelines:
@@ -337,6 +381,56 @@ ${runbooks}
         `• \`/role senior\` - Architectural critiques, cross-cluster blast-radius assessment\n`
       );
     }
+    if (trimmed.startsWith('/kubeconfig')) {
+      const parts = trimmed.split(/\s+/);
+      const targetConfig = parts[1];
+
+      if (!targetConfig) {
+        const activeCfg = this.context.kubeconfig || K8sTool.getKubeconfig() || process.env.KUBECONFIG || 'Default (~/.kube/config)';
+        const exists = activeCfg !== 'Default (~/.kube/config)' ? fs.existsSync(activeCfg) : true;
+        let contextsList: string[] = [];
+        let currentCtx = this.context.kubeContext || '';
+        try {
+          const res = await K8sTool.listContexts(this.context.kubeconfig);
+          contextsList = res.contexts;
+          if (res.current) currentCtx = res.current;
+        } catch {}
+
+        return (
+          `### ☸️ Kubernetes Configuration (Kubeconfig)\n\n` +
+          `• **Active Kubeconfig File:** \`${activeCfg}\` (${exists ? '✔ Exists' : '✖ File not found'})\n` +
+          `• **Current Context:** \`${currentCtx || 'none'}\`\n` +
+          `• **Environment Level:** \`${this.context.environment.toUpperCase()}\`\n` +
+          `• **Available Contexts in Kubeconfig:**\n` +
+          (contextsList.length > 0
+            ? contextsList.map((c) => (c === currentCtx ? `  - **${c}** (active)` : `  - ${c}`)).join('\n')
+            : '  *(None detected)*') +
+          `\n\n**Usage:**\n` +
+          `• \`/kubeconfig <path>\` — Switch kubeconfig (e.g. \`/kubeconfig sb-config\` or \`/kubeconfig ~/.kube/sb-config\`)\n` +
+          `• \`/kubeconfig reset\` — Reset to default kubeconfig (~/.kube/config)\n` +
+          `• \`/context <name>\` — Switch active context within the current kubeconfig`
+        );
+      }
+
+      if (targetConfig.toLowerCase() === 'reset' || targetConfig.toLowerCase() === 'default') {
+        const res = await this.setKubeconfig(undefined);
+        return `✔ Reset to default kubeconfig (\`~/.kube/config\`). Current context: \`${res.currentContext || 'none'}\`.`;
+      }
+
+      const res = await this.setKubeconfig(targetConfig);
+      if (!res.success) {
+        return `✖ Failed to switch to kubeconfig \`${targetConfig}\`: ${res.error || 'Unknown error'}`;
+      }
+
+      return (
+        `✔ **Active Kubeconfig Switched:** \`${res.kubeconfig}\`\n` +
+        `• **Active Context:** \`${res.currentContext || 'none'}\`\n` +
+        `• **Environment Level:** \`${this.context.environment.toUpperCase()}\`\n` +
+        `• **Available Contexts:** ${res.contexts.join(', ') || 'none'}\n\n` +
+        `All subsequent \`kubectl\`, \`helm\`, and in-cluster operations are now grounded to this kubeconfig.`
+      );
+    }
+
     if (
       trimmed === '/cloud' ||
       trimmed === '/providers' ||
@@ -360,7 +454,8 @@ ${runbooks}
           `• **Azure:** 🔴 DISABLED\n` +
           `• **GCP:** 🔴 DISABLED\n` +
           `• **Stick to Kubeconfig:** 🟢 ACTIVE (Strict In-Cluster Grounding)\n` +
-          `• **Active Kube Context:** \`${ctx.kubeContext || 'current kubeconfig'}\`\n\n` +
+          `• **Active Kube Config:** \`${ctx.kubeconfig || 'default'}\`\n` +
+          `• **Active Kube Context:** \`${ctx.kubeContext || 'current'}\`\n\n` +
           `All cloud provider CLIs and tools are blocked. The agent will strictly execute diagnostics within the active Kubernetes cluster context.`
         );
       }
@@ -410,9 +505,10 @@ ${runbooks}
         `| **AWS** | ${cp.aws ? '🟢 ENABLED' : '🔴 DISABLED'} | \`aws_*\`, \`cloud_db_snapshot(aws)\` | EKS & AWS CLI guardrail |\n` +
         `| **Azure** | ${cp.azure ? '🟢 ENABLED' : '🔴 DISABLED'} | \`az_*\`, \`cloud_db_snapshot(azure)\` | AKS & Azure CLI guardrail |\n` +
         `| **GCP** | ${cp.gcp ? '🟢 ENABLED' : '🔴 DISABLED'} | \`gcp_*\`, \`cloud_db_snapshot(gcp)\` | GKE & gcloud CLI guardrail |\n` +
-        `| **Stick to Kubeconfig** | ${stick ? '🟢 ACTIVE' : '⚪ DISABLED'} | Native K8s tools only | Current: \`${this.context.kubeContext || 'current kubeconfig'}\` |\n\n` +
+        `| **Stick to Kubeconfig** | ${stick ? '🟢 ACTIVE' : '⚪ DISABLED'} | Native K8s tools only | Config: \`${this.context.kubeconfig || 'default'}\` | Context: \`${this.context.kubeContext || 'current'}\` |\n\n` +
         `• **Active Tool Catalog:** ${availableTools.length} / ${TOOL_DEFINITIONS.length} tools registered\n\n` +
         `**Management Commands:**\n` +
+        `• \`/kubeconfig <path>\` — Switch kubeconfig (e.g. \`/kubeconfig sb-config\`)\n` +
         `• \`/cloud aws <on|off>\` — Toggle AWS\n` +
         `• \`/cloud azure <on|off>\` — Toggle Azure\n` +
         `• \`/cloud gcp <on|off>\` — Toggle GCP\n` +

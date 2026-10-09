@@ -72,6 +72,8 @@ export interface CloudProviderConfig {
 export interface AgentContext {
   cwd: string;
   kubeContext?: string;
+  kubeconfig?: string;
+  kubeConfigPath?: string;
   activeNamespace?: string;
   installedTools: string[];
   environment: EnvironmentLevel;

@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/Tests-100%2B%20Passing-brightgreen.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts)
-[![Tools](https://img.shields.io/badge/Tools-108%20Native-orange.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts)
+[![Tools](https://img.shields.io/badge/Tools-109%20Native-orange.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts)
 
 An autonomous, task-driven, user-guided enterprise DevOps agent engine built on the **Pi & Claw harness architecture**. It provides an AI agent with access to day-to-day DevOps tooling (`kubectl`, `helm`, `kustomize`, `terraform`, `flux`, `argocd`, `docker`, `git`, cloud CLIs, filesystem, Prometheus, Loki) while enforcing strict 3-tier safety guardrails, visual diff previews, GitOps PR workflows, automated rollback watchers, multi-agent SRE peer reviews, multi-cloud isolation toggles, strict kubeconfig grounding, Model Context Protocol (MCP), and human-in-the-loop approvals.
 
@@ -23,10 +23,11 @@ An autonomous, task-driven, user-guided enterprise DevOps agent engine built on 
 
 3. **Cloud Provider Toggles & Strict Kubeconfig Grounding:**
    - Selectively enable or disable cloud providers (`AWS`, `Azure`, `GCP`) via configuration, CLI flags, REPL commands, or REST API.
-   - **Kubernetes-Only Mode (`--k8s-only`):** Disables all cloud providers, reducing the catalog from 108 down to 102 tools.
+   - **Kubernetes-Only Mode (`--k8s-only`):** Disables all cloud providers, reducing the catalog from 109 down to 103 tools.
+   - **Custom Kubeconfig Targeting (`--kubeconfig=sb-config`):** Specify custom kubeconfig files via CLI, environment (`KUBECONFIG`), slash command (`/kubeconfig <path>`), tool (`k8s_set_kubeconfig`), or Web Console, just like `kubectl --kubeconfig=sb-config`.
    - **Strict In-Cluster Grounding (`stickToKubeConfig`):** Guardrails strictly block cloud credentials wrappers (`aws eks update-kubeconfig`, `az aks get-credentials`, `gcloud container clusters get-credentials`), eliminating cluster drift.
 
-4. **Enterprise Kubernetes & Containers Toolset (33 Specialized Tools):**
+4. **Enterprise Kubernetes & Containers Toolset (34 Specialized Tools):**
    - Interactive debugging (`k8s_exec`, `k8s_port_forward`, `k8s_copy`), resource lifecycle & dry-run diffing (`k8s_diff_resource`, `k8s_apply_manifest`, `k8s_delete_resource`, `k8s_wait_for_condition`), scheduling triage (`k8s_node_status`, `k8s_node_cordon`, `k8s_node_uncordon`, `k8s_node_drain`, `k8s_scheduling_analysis`, `k8s_resource_quota_audit`), autoscaling audits (`k8s_hpa_audit`, `k8s_vpa_recommendations`, `k8s_pdb_audit`, `k8s_disruption_budget_check`), storage management (`k8s_pvc_analysis`, `k8s_pv_cleanup`, `k8s_volume_snapshot`), batch workloads (`k8s_job_status`, `k8s_cronjob_status`, `k8s_trigger_cronjob`), secrets auditing (`k8s_configmap_diff`, `k8s_secret_rotate_check`, `k8s_env_injection_audit`), networking (`k8s_network_policy_audit`, `k8s_ingress_check`, `k8s_service_endpoints`, `k8s_dns_diagnose`), multi-cluster fleet management (`k8s_multi_cluster_inventory`, `k8s_cluster_comparison`, `k8s_git_sync_status`), and FinOps/GreenOps (`k8s_cost_by_namespace`, `k8s_carbon_footprint`).
 
 5. **Declarative GitOps & Infrastructure as Code:**
@@ -112,21 +113,26 @@ The engine allows operators to enforce strict operational boundaries:
 
 | Method | Syntax | Effect |
 | :--- | :--- | :--- |
+| **Kubeconfig CLI Flag** | `--kubeconfig=<path>` | Targets specific kubeconfig file (e.g. `--kubeconfig=sb-config`) |
+| **Kubeconfig Env Var** | `KUBECONFIG=<path>` | Standard environment variable to set kubeconfig path |
+| **REPL Command** | `/kubeconfig` | Displays active kubeconfig file, existence, and available contexts |
+| **REPL Switch** | `/kubeconfig <path>` | Dynamically switches active kubeconfig file (e.g. `/kubeconfig sb-config`) |
+| **REPL Reset** | `/kubeconfig reset` | Resets to default `~/.kube/config` |
 | **CLI Flags** | `--no-aws`, `--no-azure`, `--no-gcp` | Disables specific cloud provider tools & CLI commands |
-| **K8s-Only Flag** | `--k8s-only` | Disables all cloud providers; reduces catalog to 102 tools |
+| **K8s-Only Flag** | `--k8s-only` | Disables all cloud providers; reduces catalog to 103 tools |
 | **Grounding Flag** | `--stick-to-kubeconfig` | Blocks credentials wrapper overrides (`aws eks ...`, `az aks ...`, `gcloud ...`) |
 | **REPL Command** | `/cloud` or `/providers` | Shows active cloud providers and grounding status |
 | **REPL Toggle** | `/cloud <aws\|azure\|gcp> <on\|off>` | Dynamically toggles specific cloud provider |
 | **REPL K8s-Only** | `/k8s-only` | Instantly switches agent into Kubernetes-only mode |
-| **REST API** | `GET /api/config/providers` | Queries active cloud providers and tool counts |
-| **REST API** | `POST /api/config/providers` | Updates `{ aws: false, stickToKubeConfig: true }` |
-| **Web Console** | Top Navbar Pill (`AWS • AZ • GCP`) | Dropdown menu with 1-click toggles and K8s-Only activation |
+| **REST API** | `GET /api/config/providers` | Queries active cloud providers, kubeconfig, and tool counts |
+| **REST API** | `POST /api/config/providers` | Updates `{ kubeconfig: "sb-config", stickToKubeConfig: true }` |
+| **Web Console** | Top Navbar Pill (`AWS • AZ • GCP`) | Dropdown menu with live kubeconfig file input and cloud toggles |
 
 ---
 
-## 🛠️ Registered DevOps Tools (108 Tools)
+## 🛠️ Registered DevOps Tools (109 Tools)
 
-When all cloud providers are enabled, the agent exposes **108 native tools**. In Kubernetes-Only mode (`--k8s-only`), the catalog dynamically scales to **102 tools**.
+When all cloud providers are enabled, the agent exposes **109 native tools**. In Kubernetes-Only mode (`--k8s-only`), the catalog dynamically scales to **103 tools**.
 
 ### 1. Interactive Workload Debugging & Sockets (4 Tools)
 | Tool | Action Tier | Description |
@@ -136,7 +142,7 @@ When all cloud providers are enabled, the agent exposes **108 native tools**. In
 | `k8s_copy` | Tier 2 Approval | Safely copy files to/from pods (`kubectl cp`). Path traversal and sensitive credentials blocked. |
 | `k8s_debug_pod` | Tier 2 Approval | Launch ephemeral diagnostic container attached to workload for socket and network debugging. |
 
-### 2. Core Kubernetes Operations & Workload Lifecycle (8 Tools)
+### 2. Core Kubernetes Operations & Workload Lifecycle (9 Tools)
 | Tool | Action Tier | Description |
 | :--- | :--- | :--- |
 | `k8s_get_resources` | Tier 1 (Read-Only) | Query pods, deployments, services, ingress, nodes, events across namespaces (`-A`). |
@@ -144,6 +150,7 @@ When all cloud providers are enabled, the agent exposes **108 native tools**. In
 | `k8s_get_logs` | Tier 1 (Read-Only) | Stream container stdout/stderr. Supports `--previous` (`-p`) for crashed containers. |
 | `k8s_rollout_restart` | Tier 2 Approval | Trigger rolling restart with automated Rollout Watcher and rollback protection. |
 | `k8s_watch_rollout` | Tier 1 (Safe Action) | Monitor rollout progression and verify workload stabilization. |
+| `k8s_set_kubeconfig` | Tier 1 (Dev) / Tier 2 (Prod) | Specify or switch which kubeconfig file to use (just like `kubectl --kubeconfig=sb-config`). |
 | `k8s_diff_resource` | Tier 1 (Read-Only) | Generate unified diff between live cluster state and a local YAML manifest or Git state. |
 | `k8s_apply_manifest` | Tier 1 (DryRun) / Tier 2 (Live) | Apply Kubernetes manifests with dry-run support (`server`, `client`, `none`). |
 | `k8s_delete_resource` | Tier 2 Approval | Safely delete resources with dependency checks. Critical infrastructure permanently protected. |
@@ -314,6 +321,8 @@ Run `npm run dev` to enter the interactive REPL. The engine provides intuitive s
 | Command | Description |
 | :--- | :--- |
 | `/role <junior\|intermediate\|senior>` | Switch active operator role and autonomy permissions |
+| `/kubeconfig [path]` | View active kubeconfig file or switch to custom path (e.g. `/kubeconfig sb-config`) |
+| `/kubeconfig reset` | Reset to default `~/.kube/config` |
 | `/cloud` or `/providers` | View cloud providers status and kubeconfig grounding |
 | `/cloud <aws\|azure\|gcp> <on\|off>` | Dynamically enable or disable a cloud provider |
 | `/k8s-only` | Instantly switch to Kubernetes-only mode (disables AWS, Azure, GCP) |
@@ -342,9 +351,9 @@ Start the engine in server mode (`npm run dev -- --server`) to enable the Web Co
 
 - **Mission Control Web Console:** `http://localhost:3456/dashboard`
 - **Health Check:** `GET http://localhost:3456/health`
-- **Cloud Provider Config:**
-  - `GET /api/config/providers` — Returns active providers, grounding status, and tool counts.
-  - `POST /api/config/providers` — Update provider settings dynamically (`{ "aws": false, "stickToKubeConfig": true }`).
+- **Cloud Provider & Kubeconfig Config:**
+  - `GET /api/config/providers` — Returns active providers, kubeconfig path, grounding status, and tool counts.
+  - `POST /api/config/providers` — Update provider settings or switch kubeconfig (`{ "kubeconfig": "sb-config", "stickToKubeConfig": true }`).
 - **Prometheus Alertmanager Webhook:** `POST /api/alerts/webhook`
 - **Immutable Audit Trail:** `GET /api/audit`
 - **Interactive Task Execution API:** `POST /api/tasks`
@@ -358,7 +367,10 @@ The engine is backed by a comprehensive automated test suite with **100+ passing
 # Build TypeScript
 npm run build
 
-# Run unit tests for Cloud Provider Toggles & Kubeconfig Grounding
+# Run unit tests for Custom Kubeconfig Specification
+npx tsx test/kubeconfig.test.ts
+
+# Run unit tests for Cloud Provider Toggles & Grounding
 npx tsx test/cloud_provider.test.ts
 
 # Run complete platform smoke test suite

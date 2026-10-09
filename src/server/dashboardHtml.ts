@@ -709,6 +709,20 @@ export function getDashboardHtml(context: any): string {
               <span id="stickBadge" class="badge ${stick ? 'badge-dev' : 'badge-prod'}">${stick ? 'ACTIVE' : 'OFF'}</span>
             </div>
           </div>
+          <div style="border-top: 1px solid var(--card-border); margin: 6px 0;"></div>
+          <div style="padding: 6px 12px; background: rgba(255, 255, 255, 0.02);" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-size: 11px; font-weight: 700; color: #38bdf8;">☸️ Kubeconfig File</span>
+              <span id="kubeConfigResetBtn" onclick="resetKubeConfig(event)" style="font-size: 10px; color: var(--text-muted); cursor: pointer; text-decoration: underline;" title="Reset to default kubeconfig">Reset</span>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <input type="text" id="customKubeConfigInput" placeholder="e.g. sb-config or ~/.kube/config" style="flex: 1; font-size: 11px; padding: 4px 6px; background: var(--bg-card); border: 1px solid var(--card-border); border-radius: 4px; color: var(--text-main);" />
+              <button onclick="applyCustomKubeConfig(event)" style="padding: 3px 8px; font-size: 11px; background: #0284c7; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Set</button>
+            </div>
+            <div id="activeKubeConfigDisplay" style="font-size: 10px; color: var(--text-muted); margin-top: 4px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Active kubeconfig">
+              ${context.kubeconfig || 'Default (~/.kube/config)'}
+            </div>
+          </div>
           <div class="cluster-item" onclick="activateK8sOnly(event)" style="background: rgba(56, 189, 248, 0.08);">
             <div style="width: 100%; text-align: center; font-weight: 700; color: #38bdf8; font-size: 12px;">
               ⚡ Activate Kubernetes-Only Mode
@@ -2012,6 +2026,12 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
           };
           updateCloudUI(data.cloudProviders, data.stickToKubeConfig);
         }
+        if (data.kubeconfig) {
+          const input = document.getElementById('customKubeConfigInput');
+          if (input && !input.value) input.value = data.kubeconfig;
+          const display = document.getElementById('activeKubeConfigDisplay');
+          if (display) display.innerText = data.kubeconfig;
+        }
       } catch (e) {}
     }
 
@@ -2105,6 +2125,56 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         }
       } catch (err) {
         showToast('Error activating k8s-only: ' + err.message);
+      }
+    }
+
+    async function applyCustomKubeConfig(e) {
+      if (e) e.stopPropagation();
+      const input = document.getElementById('customKubeConfigInput');
+      const val = input ? input.value.trim() : '';
+      if (!val) {
+        showToast('Please specify a kubeconfig file (e.g. sb-config)');
+        return;
+      }
+      try {
+        const res = await fetch('/api/config/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kubeconfig: val }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          const display = document.getElementById('activeKubeConfigDisplay');
+          if (display) display.innerText = data.kubeconfig || val;
+          showToast('Kubeconfig switched: ' + (data.kubeconfig || val));
+          loadClusters();
+          loadSystemStatus();
+        }
+      } catch (err) {
+        showToast('Error setting kubeconfig: ' + err.message);
+      }
+    }
+
+    async function resetKubeConfig(e) {
+      if (e) e.stopPropagation();
+      try {
+        const res = await fetch('/api/config/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kubeconfig: 'reset' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          const input = document.getElementById('customKubeConfigInput');
+          if (input) input.value = '';
+          const display = document.getElementById('activeKubeConfigDisplay');
+          if (display) display.innerText = 'Default (~/.kube/config)';
+          showToast('Reset to default kubeconfig');
+          loadClusters();
+          loadSystemStatus();
+        }
+      } catch (err) {
+        showToast('Error resetting kubeconfig: ' + err.message);
       }
     }
 

@@ -16,48 +16,53 @@ Enterprises frequently require strict operational boundaries:
   ENABLE_AZURE=true|false
   ENABLE_GCP=true|false
   STICK_TO_KUBECONFIG=true|false
+  KUBECONFIG=sb-config                  # Optional custom kubeconfig path
   ```
 - **CLI Startup Flags:**
   ```bash
+  --kubeconfig=sb-config               # Target specific kubeconfig file (just like kubectl --kubeconfig=sb-config)
   --no-aws, --no-azure, --no-gcp
   --aws=true|false, --azure=true|false, --gcp=true|false
-  --k8s-only                         # Disables AWS, Azure, and GCP simultaneously
+  --k8s-only                           # Disables AWS, Azure, and GCP simultaneously
   --stick-to-kubeconfig, --no-stick-to-kubeconfig
   ```
 - **Interactive REPL Commands:**
   ```bash
-  /cloud                             # Show active provider and grounding status
-  /providers                         # Alias for /cloud
-  /cloud aws off                     # Disable AWS dynamically
-  /cloud azure on                    # Enable Azure dynamically
-  /cloud stick on                    # Enforce strict in-cluster kubeconfig grounding
-  /k8s-only                          # Instantly disable all cloud providers and ground to kubeconfig
+  /kubeconfig                          # Show active kubeconfig file, existence, and available contexts
+  /kubeconfig sb-config                # Switch active kubeconfig dynamically
+  /kubeconfig reset                    # Reset to default ~/.kube/config
+  /cloud                               # Show active provider and grounding status
+  /providers                           # Alias for /cloud
+  /cloud aws off                       # Disable AWS dynamically
+  /cloud azure on                      # Enable Azure dynamically
+  /cloud stick on                      # Enforce strict in-cluster kubeconfig grounding
+  /k8s-only                            # Instantly disable all cloud providers and ground to kubeconfig
   ```
 - **REST Webhook API:**
-  - `GET /api/config/providers` -> Returns active cloud providers, grounding status, and tool counts.
-  - `POST /api/config/providers` -> Dynamically updates `{ aws?: boolean, azure?: boolean, gcp?: boolean, stickToKubeConfig?: boolean }`.
+  - `GET /api/config/providers` -> Returns active cloud providers, active kubeconfig path, grounding status, and tool counts.
+  - `POST /api/config/providers` -> Dynamically updates `{ kubeconfig?: string, aws?: boolean, azure?: boolean, gcp?: boolean, stickToKubeConfig?: boolean }`.
 
 ---
 
 ## 3. Dynamic Tool Catalog Filtering
 
-The agent maintains **108 platform tools** in its master catalog. When cloud providers are toggled, [`getAvailableToolDefinitions(context)`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts) dynamically filters the tool catalog before sending definitions to LLMs or publishing via the MCP server:
+The agent maintains **109 platform tools** in its master catalog. When cloud providers are toggled, [`getAvailableToolDefinitions(context)`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts) dynamically filters the tool catalog before sending definitions to LLMs or publishing via the MCP server:
 
 | Configuration State | Disabled Tools | Active Tool Catalog Size |
 | :--- | :--- | :--- |
-| **All Cloud Providers Enabled** | None | **108 tools** |
-| **AWS Disabled** (`--no-aws`) | `aws_resource_list`, `aws_eks_status` | **106 tools** |
-| **Azure Disabled** (`--no-azure`) | `az_resource_list`, `az_aks_status` | **106 tools** |
-| **GCP Disabled** (`--no-gcp`) | `gcp_resource_list`, `gcp_gke_status` | **106 tools** |
-| **Kubernetes-Only Mode** (`--k8s-only`) | All 6 cloud provider tools | **102 tools** |
+| **All Cloud Providers Enabled** | None | **109 tools** |
+| **AWS Disabled** (`--no-aws`) | `aws_resource_list`, `aws_eks_status` | **107 tools** |
+| **Azure Disabled** (`--no-azure`) | `az_resource_list`, `az_aks_status` | **107 tools** |
+| **GCP Disabled** (`--no-gcp`) | `gcp_resource_list`, `gcp_gke_status` | **107 tools** |
+| **Kubernetes-Only Mode** (`--k8s-only`) | All 6 cloud provider tools | **103 tools** |
 
 Multi-provider tools like `cloud_db_snapshot` remain accessible if at least one cloud provider is active, but selectively block arguments corresponding to disabled providers.
 
 ```mermaid
 flowchart TD
     Config[Provider Config: AWS=false, Azure=true, GCP=false] --> Filter[getAvailableToolDefinitions]
-    Master[Master Catalog: 108 Tools] --> Filter
-    Filter --> LLM[LLM Prompt Tool Schema: 104 Tools]
+    Master[Master Catalog: 109 Tools] --> Filter
+    Filter --> LLM[LLM Prompt Tool Schema: 105 Tools]
     Filter --> MCP[MCP JSON-RPC tools/list: 104 Tools]
 
     ToolCall[Agent Tool Invocation] --> Gate{Is Provider Enabled?}
