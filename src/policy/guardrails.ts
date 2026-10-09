@@ -146,6 +146,13 @@ export class Guardrails {
       toolName === 'k8s_cronjob_status' ||
       toolName === 'k8s_node_status' ||
       toolName === 'k8s_pvc_analysis' ||
+      toolName === 'k8s_resource_quota_audit' ||
+      toolName === 'k8s_job_status' ||
+      toolName === 'k8s_configmap_diff' ||
+      toolName === 'k8s_env_injection_audit' ||
+      toolName === 'k8s_ingress_check' ||
+      toolName === 'k8s_multi_cluster_inventory' ||
+      toolName === 'k8s_cluster_comparison' ||
       (toolName === 'k8s_node_drain' && args.dryRun === true) ||
       (toolName === 'k8s_apply_manifest' && args.dryRun !== false && args.dryRun !== 'none') ||
       (toolName === 'terraform_workspace_manage' && (!args.action || args.action === 'list' || args.action === 'show')) ||
@@ -531,6 +538,75 @@ export class Guardrails {
         reason: isProd
           ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Triggering manual batch jobs consumes cluster worker node capacity.'
           : 'Triggering one-off batch job from CronJob requires operator confirmation.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_port_forward') {
+      const port = Number(args.localPort || args.targetPort || 0);
+      if (port > 0 && port < 1024) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED Port Forward: Privileged port ${port} on ${args.target || 'workload'}`,
+          reason: 'Binding to privileged ports (< 1024) is strictly prohibited by safety policy.',
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Establish Port Forward: localhost:${args.localPort} -> ${args.target}:${args.targetPort} in "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Opening network tunnel to production workload requires operator approval.'
+          : 'Port-forwarding establishes an active network tunnel to cluster workloads. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_copy') {
+      const src = String(args.source || '');
+      const dst = String(args.destination || '');
+      const isSensitive =
+        src.includes('/etc/shadow') ||
+        src.includes('/var/run/secrets') ||
+        src.includes('..') ||
+        dst.includes('..');
+
+      if (isSensitive) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED Pod File Copy: Sensitive credential access or directory traversal detected ("${src}" -> "${dst}")`,
+          reason: 'Accessing service account tokens, shadow credentials, or directory traversal patterns (..) is strictly blocked by safety policy.',
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Copy file: "${src}" -> "${dst}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Copying files to or from production containers requires explicit operator approval.'
+          : 'Copying files to or from containers modifies local or remote state. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'k8s_volume_snapshot') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Trigger CSI VolumeSnapshot for PVC "${args.pvcName}" in namespace "${args.namespace || 'default'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Triggering volume snapshots consumes storage I/O and cloud snapshot quotas.'
+          : 'Triggering CSI VolumeSnapshot creates persistent storage snapshot resources. Operator confirmation required.',
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,

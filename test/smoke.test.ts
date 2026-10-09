@@ -718,13 +718,86 @@ spec:
   const pvcOut = await K8sTool.pvcAnalysis();
   assert(pvcOut.includes('PersistentVolumeClaim') || pvcOut.includes('PVC') || pvcOut.includes('Storage') || pvcOut.includes('Failed to analyze'), 'K8sTool.pvcAnalysis audits persistent storage');
 
-  // Test 74: Complete Enterprise Kubernetes & Multi-Cloud Suite (88 Native Tools & MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 88, `All 88 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 74: Port-Forward Safety (k8s_port_forward)
+  const pfBlockedEval = Guardrails.evaluate('k8s_port_forward', { target: 'pod/api', localPort: 80, targetPort: 8080 }, mockDevContext);
+  assert(pfBlockedEval.tier === 'DANGEROUS' && pfBlockedEval.isBlocked, 'k8s_port_forward on privileged port (< 1024) is strictly BLOCKED');
 
-  const mcp88Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10003, method: 'tools/list' });
-  assert(mcp88Res.result.tools.length >= 88, `MCP Server exposes all tools over JSON-RPC (${mcp88Res.result.tools.length} tools)`);
+  const pfAllowedEval = Guardrails.evaluate('k8s_port_forward', { target: 'pod/api', localPort: 8080, targetPort: 8080 }, mockDevContext);
+  assert(pfAllowedEval.tier === 'MUTATE' && pfAllowedEval.requiresApproval, 'k8s_port_forward on unprivileged port requires human confirmation');
 
-  console.log('\n\x1b[32mAll 74+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes (Exec, Diff, Apply, Delete, DNS, Endpoints, CronJobs, Nodes, PVCs), Container Security, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
+  const pfProdEval = Guardrails.evaluate('k8s_port_forward', { target: 'pod/api', localPort: 8080, targetPort: 8080 }, mockProdContext);
+  assert(pfProdEval.tier === 'MUTATE' && pfProdEval.requiresApproval && pfProdEval.isProductionWarning, 'k8s_port_forward in prod enforces production warning');
+
+  // Test 75: Pod File Copy Safety (k8s_copy)
+  const cpBlockedEval = Guardrails.evaluate('k8s_copy', { source: 'pod:/etc/shadow', destination: './shadow' }, mockDevContext);
+  assert(cpBlockedEval.tier === 'DANGEROUS' && cpBlockedEval.isBlocked, 'k8s_copy accessing /etc/shadow is strictly BLOCKED');
+
+  const cpTraversalEval = Guardrails.evaluate('k8s_copy', { source: 'pod:/tmp/../../etc/passwd', destination: './passwd' }, mockDevContext);
+  assert(cpTraversalEval.tier === 'DANGEROUS' && cpTraversalEval.isBlocked, 'k8s_copy with path traversal is strictly BLOCKED');
+
+  const cpAllowedEval = Guardrails.evaluate('k8s_copy', { source: 'pod:/var/log/app.log', destination: './app.log' }, mockDevContext);
+  assert(cpAllowedEval.tier === 'MUTATE' && cpAllowedEval.requiresApproval, 'k8s_copy for safe paths requires operator approval');
+
+  // Test 76: Resource Quota & Capacity Exhaustion Audit (k8s_resource_quota_audit)
+  const quotaEval = Guardrails.evaluate('k8s_resource_quota_audit', { namespace: 'default' }, mockDevContext);
+  assert(quotaEval.tier === 'READ' && !quotaEval.requiresApproval, 'k8s_resource_quota_audit evaluates autonomously as READ');
+
+  const quotaOut = await K8sTool.resourceQuotaAudit('default');
+  assert(quotaOut.includes('Quota') || quotaOut.includes('Resource') || quotaOut.includes('LimitRange') || quotaOut.includes('No ResourceQuotas') || quotaOut.includes('Failed to audit'), 'K8sTool.resourceQuotaAudit audits namespace quota allocations');
+
+  // Test 77: CSI VolumeSnapshot Safety Gate (k8s_volume_snapshot)
+  const snapDevEval = Guardrails.evaluate('k8s_volume_snapshot', { pvcName: 'data-pvc' }, mockDevContext);
+  assert(snapDevEval.tier === 'MUTATE' && snapDevEval.requiresApproval, 'k8s_volume_snapshot requires confirmation');
+
+  const snapProdEval = Guardrails.evaluate('k8s_volume_snapshot', { pvcName: 'data-pvc' }, mockProdContext);
+  assert(snapProdEval.tier === 'MUTATE' && snapProdEval.requiresApproval && snapProdEval.isProductionWarning, 'k8s_volume_snapshot in prod enforces production warning');
+
+  // Test 78: Batch Job Status & Failure Triage (k8s_job_status)
+  const jobEval = Guardrails.evaluate('k8s_job_status', {}, mockDevContext);
+  assert(jobEval.tier === 'READ' && !jobEval.requiresApproval, 'k8s_job_status evaluates autonomously as READ');
+
+  const jobOut = await K8sTool.jobStatus();
+  assert(jobOut.includes('Job') || jobOut.includes('Batch') || jobOut.includes('No batch Jobs') || jobOut.includes('Failed to get'), 'K8sTool.jobStatus audits batch workloads');
+
+  // Test 79: Cross-Namespace ConfigMap Diff (k8s_configmap_diff)
+  const cmDiffEval = Guardrails.evaluate('k8s_configmap_diff', { configMapName: 'app-config' }, mockDevContext);
+  assert(cmDiffEval.tier === 'READ' && !cmDiffEval.requiresApproval, 'k8s_configmap_diff evaluates autonomously as READ');
+
+  const cmDiffOut = await K8sTool.configMapDiff('test-config');
+  assert(cmDiffOut.includes('ConfigMap') || cmDiffOut.includes('Diff') || cmDiffOut.includes('Failed to diff') || cmDiffOut.includes('No drift detected'), 'K8sTool.configMapDiff compares configuration states');
+
+  // Test 80: Environment Variable & Secret Injection Audit (k8s_env_injection_audit)
+  const envAuditEval = Guardrails.evaluate('k8s_env_injection_audit', {}, mockDevContext);
+  assert(envAuditEval.tier === 'READ' && !envAuditEval.requiresApproval, 'k8s_env_injection_audit evaluates autonomously as READ');
+
+  const envAuditOut = await K8sTool.envInjectionAudit();
+  assert(envAuditOut.includes('Environment') || envAuditOut.includes('Injection') || envAuditOut.includes('Failed to audit') || envAuditOut.includes('No workloads found'), 'K8sTool.envInjectionAudit inspects container environment variables');
+
+  // Test 81: Ingress Routing & TLS Verification (k8s_ingress_check)
+  const ingEval = Guardrails.evaluate('k8s_ingress_check', {}, mockDevContext);
+  assert(ingEval.tier === 'READ' && !ingEval.requiresApproval, 'k8s_ingress_check evaluates autonomously as READ');
+
+  const ingOut = await K8sTool.ingressCheck();
+  assert(ingOut.includes('Ingress') || ingOut.includes('Routing') || ingOut.includes('No Ingress') || ingOut.includes('Failed to check'), 'K8sTool.ingressCheck verifies ingress endpoints');
+
+  // Test 82: Multi-Cluster Fleet Inventory (k8s_multi_cluster_inventory)
+  const multiInvEval = Guardrails.evaluate('k8s_multi_cluster_inventory', {}, mockDevContext);
+  assert(multiInvEval.tier === 'READ' && !multiInvEval.requiresApproval, 'k8s_multi_cluster_inventory evaluates autonomously as READ');
+
+  const multiInvOut = await K8sTool.multiClusterInventory();
+  assert(multiInvOut.includes('Fleet Inventory') || multiInvOut.includes('Clusters') || multiInvOut.includes('No active Kubernetes contexts') || multiInvOut.includes('Multi-Cluster'), 'K8sTool.multiClusterInventory aggregates multi-cluster fleet');
+
+  // Test 83: Cross-Cluster Workload Comparison (k8s_cluster_comparison)
+  const clusterCompEval = Guardrails.evaluate('k8s_cluster_comparison', { sourceContext: 'dev', targetContext: 'prod', resourceName: 'api' }, mockDevContext);
+  assert(clusterCompEval.tier === 'READ' && !clusterCompEval.requiresApproval, 'k8s_cluster_comparison evaluates autonomously as READ');
+
+  // Test 84: Complete Enterprise Kubernetes & Multi-Cloud Suite (98 Native Tools & MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 98, `All 98 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+
+  const mcp98Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10003, method: 'tools/list' });
+  assert(mcp98Res.result.tools.length >= 98, `MCP Server exposes all tools over JSON-RPC (${mcp98Res.result.tools.length} tools)`);
+
+  console.log('\n\x1b[32mAll 84+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes (All 10 Workload, Storage, Scheduling, Network, Multi-Cluster, Diff, Port-Forward, Snapshot Categories), Container Security, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

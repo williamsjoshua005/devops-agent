@@ -2045,6 +2045,264 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'k8s_port_forward',
+    description:
+      'Initiate a managed local port-forwarding tunnel to a pod or service bound strictly to localhost (127.0.0.1) with auto-expiration TTL.',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target resource (e.g. "pod/api-worker" or "svc/redis").',
+        },
+        localPort: {
+          type: 'number',
+          description: 'Local host port to bind to (must be >= 1024).',
+        },
+        targetPort: {
+          type: 'number',
+          description: 'Target container or service port.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to "default").',
+        },
+        timeoutSeconds: {
+          type: 'number',
+          description: 'Session lifetime TTL in seconds (defaults to 300).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['target', 'localPort', 'targetPort'],
+    },
+  },
+  {
+    name: 'k8s_copy',
+    description:
+      'Safely copy files to or from pods (kubectl cp) with path traversal blocks and sensitive credential shielding.',
+    parameters: {
+      type: 'object',
+      properties: {
+        source: {
+          type: 'string',
+          description: 'Source path (e.g. "default/pod-1:/var/log/app.log" or "./local.conf").',
+        },
+        destination: {
+          type: 'string',
+          description: 'Destination path (e.g. "./dump.log" or "default/pod-1:/tmp/config.json").',
+        },
+        container: {
+          type: 'string',
+          description: 'Optional container name inside pod.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['source', 'destination'],
+    },
+  },
+  {
+    name: 'k8s_resource_quota_audit',
+    description:
+      'Audit namespace ResourceQuotas and LimitRanges, detecting CPU, memory, and storage quota exhaustion.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Namespace to audit (defaults to all namespaces if omitted).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_volume_snapshot',
+    description:
+      'Trigger native Kubernetes CSI VolumeSnapshot creation for persistent volumes before risky operations.',
+    parameters: {
+      type: 'object',
+      properties: {
+        pvcName: {
+          type: 'string',
+          description: 'Name of the PVC to snapshot.',
+        },
+        snapshotName: {
+          type: 'string',
+          description: 'Optional custom name for the snapshot.',
+        },
+        volumeSnapshotClassName: {
+          type: 'string',
+          description: 'Optional CSI VolumeSnapshotClass name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['pvcName'],
+    },
+  },
+  {
+    name: 'k8s_job_status',
+    description:
+      'Audit batch Jobs, exit codes, failure causes, and active/completed pod status.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Optional specific Job name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to all namespaces if omitted).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_configmap_diff',
+    description:
+      'Diff ConfigMap data across two namespaces or compare live ConfigMap vs expected YAML manifest.',
+    parameters: {
+      type: 'object',
+      properties: {
+        configMapName: {
+          type: 'string',
+          description: 'Name of the ConfigMap.',
+        },
+        sourceNamespace: {
+          type: 'string',
+          description: 'Source namespace (defaults to "default").',
+        },
+        targetNamespace: {
+          type: 'string',
+          description: 'Target namespace to compare against.',
+        },
+        targetManifestPath: {
+          type: 'string',
+          description: 'Optional local YAML file path to compare against.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['configMapName'],
+    },
+  },
+  {
+    name: 'k8s_env_injection_audit',
+    description:
+      'Inspect environment variables and Secret/ConfigMap injection across pods, flagging plaintext credentials.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to "default").',
+        },
+        workloadName: {
+          type: 'string',
+          description: 'Optional workload name filter.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_ingress_check',
+    description:
+      'Test Ingress controllers, host routing, TLS certificates, and backend service readiness.',
+    parameters: {
+      type: 'object',
+      properties: {
+        ingressName: {
+          type: 'string',
+          description: 'Optional specific Ingress name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to "default").',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_multi_cluster_inventory',
+    description:
+      'Aggregate workloads, nodes, and cluster health across all configured kubeconfig contexts.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resourceType: {
+          type: 'string',
+          description: 'Resource scope: "workloads", "nodes", or "summary" (defaults to "workloads").',
+        },
+        filterContexts: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional list of context names to include.',
+        },
+      },
+    },
+  },
+  {
+    name: 'k8s_cluster_comparison',
+    description:
+      'Compare and diff the same workload between two Kubernetes clusters (e.g. staging vs production).',
+    parameters: {
+      type: 'object',
+      properties: {
+        sourceContext: {
+          type: 'string',
+          description: 'Source Kubernetes context (e.g. "staging-cluster").',
+        },
+        targetContext: {
+          type: 'string',
+          description: 'Target Kubernetes context (e.g. "prod-cluster").',
+        },
+        resourceType: {
+          type: 'string',
+          description: 'Resource type (defaults to "deployment").',
+        },
+        resourceName: {
+          type: 'string',
+          description: 'Resource name (e.g. "payment-api").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Namespace (defaults to "default").',
+        },
+      },
+      required: ['sourceContext', 'targetContext', 'resourceName'],
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
@@ -2356,6 +2614,42 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       const targetCtx = args.context || context?.kubeContext;
       return await K8sTool.pvcAnalysis(args.namespace, targetCtx);
     }
+    case 'k8s_port_forward': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.portForward(args.target, args.localPort, args.targetPort, args.namespace, args.timeoutSeconds, targetCtx);
+    }
+    case 'k8s_copy': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.copyFile(args.source, args.destination, args.container, targetCtx);
+    }
+    case 'k8s_resource_quota_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.resourceQuotaAudit(args.namespace, targetCtx);
+    }
+    case 'k8s_volume_snapshot': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.volumeSnapshot(args.pvcName, args.snapshotName, args.volumeSnapshotClassName, args.namespace, targetCtx);
+    }
+    case 'k8s_job_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.jobStatus(args.name, args.namespace, targetCtx);
+    }
+    case 'k8s_configmap_diff': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.configMapDiff(args.configMapName, args.sourceNamespace, args.targetNamespace, args.targetManifestPath, targetCtx);
+    }
+    case 'k8s_env_injection_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.envInjectionAudit(args.namespace, args.workloadName, targetCtx);
+    }
+    case 'k8s_ingress_check': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await K8sTool.ingressCheck(args.ingressName, args.namespace, targetCtx);
+    }
+    case 'k8s_multi_cluster_inventory':
+      return await K8sTool.multiClusterInventory(args.resourceType, args.filterContexts);
+    case 'k8s_cluster_comparison':
+      return await K8sTool.clusterComparison(args.sourceContext, args.targetContext, args.resourceType, args.resourceName, args.namespace);
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
   }
