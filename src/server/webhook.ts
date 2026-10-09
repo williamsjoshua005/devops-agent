@@ -7,7 +7,7 @@ import { FinOpsTool } from '../tools/finops.js';
 import { SecurityLinterTool } from '../tools/security.js';
 import { CertExpiryTool } from '../tools/certificates.js';
 import { K8sTool } from '../tools/k8s.js';
-import { TOOL_DEFINITIONS } from '../tools/index.js';
+import { TOOL_DEFINITIONS, getAvailableToolDefinitions } from '../tools/index.js';
 import { getDashboardHtml } from './dashboardHtml.js';
 import { WebApprovalHandler } from '../policy/approvals.js';
 
@@ -77,14 +77,16 @@ export class AlertWebhookServer {
       // 3. System Status & Tool Registry
       if (req.method === 'GET' && url.pathname === '/api/status') {
         const ctx = this.harness.getContext();
+        const availableTools = getAvailableToolDefinitions(ctx);
         const records = await this.auditLogger.getRecent(100);
         const blockedCount = records.filter((r) => r.isBlocked).length;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
             context: ctx,
-            toolsCount: TOOL_DEFINITIONS.length,
-            tools: TOOL_DEFINITIONS.map((t) => ({ name: t.name, description: t.description })),
+            toolsCount: availableTools.length,
+            totalToolsCount: TOOL_DEFINITIONS.length,
+            tools: availableTools.map((t) => ({ name: t.name, description: t.description })),
             auditTotal: records.length,
             auditBlocked: blockedCount,
             uptime: process.uptime(),
@@ -115,6 +117,66 @@ export class AlertWebhookServer {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Invalid role. Must be junior, intermediate, or senior.' }));
             }
+          } catch (e: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Malformed JSON payload.' }));
+          }
+        });
+        return;
+      }
+
+      // 3c. Cloud Provider & Grounding configuration endpoints
+      if (req.method === 'GET' && (url.pathname === '/api/config/providers' || url.pathname === '/api/providers')) {
+        const ctx = this.harness.getContext();
+        const cp = ctx.cloudProviders ?? {
+          aws: process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false',
+          azure: process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false',
+          gcp: process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false',
+        };
+        const stickToKubeConfig = ctx.stickToKubeConfig !== false;
+        const availableTools = getAvailableToolDefinitions(ctx);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            cloudProviders: cp,
+            stickToKubeConfig,
+            kubeContext: ctx.kubeContext || null,
+            availableToolsCount: availableTools.length,
+            totalToolsCount: TOOL_DEFINITIONS.length,
+          })
+        );
+        return;
+      }
+
+      if (req.method === 'POST' && (url.pathname === '/api/config/providers' || url.pathname === '/api/providers')) {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body || '{}');
+            if (data.aws !== undefined) {
+              this.harness.setCloudProvider('aws', Boolean(data.aws));
+            }
+            if (data.azure !== undefined) {
+              this.harness.setCloudProvider('azure', Boolean(data.azure));
+            }
+            if (data.gcp !== undefined) {
+              this.harness.setCloudProvider('gcp', Boolean(data.gcp));
+            }
+            if (data.stickToKubeConfig !== undefined) {
+              this.harness.setStickToKubeConfig(Boolean(data.stickToKubeConfig));
+            }
+            const updated = this.harness.getContext();
+            const availableTools = getAvailableToolDefinitions(updated);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(
+              JSON.stringify({
+                success: true,
+                cloudProviders: updated.cloudProviders,
+                stickToKubeConfig: updated.stickToKubeConfig,
+                availableToolsCount: availableTools.length,
+              })
+            );
           } catch (e: any) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Malformed JSON payload.' }));

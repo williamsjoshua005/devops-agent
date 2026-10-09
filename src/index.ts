@@ -87,10 +87,47 @@ function getLLMConfig(): LLMConfig {
   };
 }
 
+function detectCloudProviders(): { aws: boolean; azure: boolean; gcp: boolean } {
+  const args = process.argv;
+  let aws = process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false';
+  let azure = process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false';
+  let gcp = process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false';
+
+  if (args.includes('--k8s-only')) {
+    aws = false;
+    azure = false;
+    gcp = false;
+  }
+  if (args.includes('--no-aws')) aws = false;
+  if (args.includes('--no-azure')) azure = false;
+  if (args.includes('--no-gcp')) gcp = false;
+
+  for (const arg of args) {
+    if (arg.startsWith('--aws=')) aws = arg.split('=')[1]?.toLowerCase() === 'true';
+    if (arg.startsWith('--azure=')) azure = arg.split('=')[1]?.toLowerCase() === 'true';
+    if (arg.startsWith('--gcp=')) gcp = arg.split('=')[1]?.toLowerCase() === 'true';
+  }
+
+  return { aws, azure, gcp };
+}
+
+function detectStickToKubeConfig(): boolean {
+  const args = process.argv;
+  if (args.includes('--k8s-only') || args.includes('--stick-to-kubeconfig')) {
+    return true;
+  }
+  if (args.includes('--no-stick-to-kubeconfig')) {
+    return false;
+  }
+  return process.env.STICK_TO_KUBECONFIG !== 'false';
+}
+
 async function main() {
   const installedTools = detectTools();
   const kubeContext = detectKubeContext();
   const { environment, isProduction } = detectEnvironment(kubeContext);
+  const cloudProviders = detectCloudProviders();
+  const stickToKubeConfig = detectStickToKubeConfig();
 
   // Detect role level
   const roleArgIdx = process.argv.indexOf('--role');
@@ -114,6 +151,8 @@ async function main() {
     environment,
     isProduction,
     roleLevel,
+    cloudProviders,
+    stickToKubeConfig,
   };
 
   const auditLogger = new AuditLogger(context.cwd);
@@ -143,8 +182,10 @@ async function main() {
   console.log(`\x1b[1mModel Provider:\x1b[0m      ${llmConfig.provider} (${llmConfig.model})`);
   console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
+  console.log(`\x1b[1mCloud Providers:\x1b[0m     AWS: ${cloudProviders.aws ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'} | Azure: ${cloudProviders.azure ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'} | GCP: ${cloudProviders.gcp ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'}`);
+  console.log(`\x1b[1mStick to Kubeconfig:\x1b[0m ${stickToKubeConfig ? '\x1b[32m✔ ACTIVE (Strict in-cluster grounding)\x1b[0m' : '\x1b[90m⚪ DISABLED\x1b[0m'}`);
   console.log(`\x1b[1mAudit Logging:\x1b[0m       .audit/audit.jsonl (Active)`);
-  console.log('\x1b[90mCommands: /role, /runbooks, /tools, /clusters, /context <name>, /timeline, /rightsize, /hpa, /netpol, /scan <img\>, /audit, /kb, /security, /finops, /mcp, /exit\x1b[0m\n');
+  console.log('\x1b[90mCommands: /role, /cloud, /k8s-only, /runbooks, /tools, /clusters, /context <name>, /timeline, /rightsize, /hpa, /netpol, /scan <img\>, /audit, /kb, /security, /finops, /mcp, /exit\x1b[0m\n');
 
   // Check if --server flag passed
   const args = process.argv.slice(2);
@@ -192,6 +233,17 @@ async function main() {
         console.log(`\n\x1b[1mActive DevOps Role:\x1b[0m \x1b[36m${cur.toUpperCase()}\x1b[0m`);
         console.log(`Options to switch:\n  • /role junior\n  • /role intermediate\n  • /role senior\n`);
       }
+      continue;
+    }
+
+    if (
+      trimmed === '/cloud' ||
+      trimmed === '/providers' ||
+      trimmed.startsWith('/cloud ') ||
+      trimmed.startsWith('/providers ') ||
+      trimmed === '/k8s-only'
+    ) {
+      await runTask(harness, trimmed);
       continue;
     }
 

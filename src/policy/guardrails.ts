@@ -54,6 +54,96 @@ export class Guardrails {
     const role = context?.roleLevel || 'junior';
     const isIntermediateOrSenior = role === 'intermediate' || role === 'senior';
 
+    const awsEnabled = context?.cloudProviders?.aws ?? (process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false');
+    const azureEnabled = context?.cloudProviders?.azure ?? (process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false');
+    const gcpEnabled = context?.cloudProviders?.gcp ?? (process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false');
+    const stickToKubeConfig = context?.stickToKubeConfig ?? (process.env.STICK_TO_KUBECONFIG !== 'false');
+
+    // Cloud Provider Toggles & Grounding Policy
+    if (!awsEnabled) {
+      if (toolName === 'aws_resource_list' || toolName === 'aws_eks_status' || (toolName === 'cloud_db_snapshot' && args.provider === 'aws')) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED AWS Action: ${toolName}`,
+          reason: `AWS cloud provider is turned off in configuration (ENABLE_AWS=false). When investigating Kubernetes tasks, stick strictly to the active kubeconfig context ("${context?.kubeContext || 'current'}").`,
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+      if (toolName === 'shell_exec' && /^\s*aws\b/i.test(args.command || '')) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED AWS CLI command: "${args.command}"`,
+          reason: `AWS cloud provider is turned off in configuration (ENABLE_AWS=false). When investigating Kubernetes tasks, stick strictly to the active kubeconfig context ("${context?.kubeContext || 'current'}").`,
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+    }
+
+    if (!azureEnabled) {
+      if (toolName === 'az_resource_list' || toolName === 'az_aks_status' || (toolName === 'cloud_db_snapshot' && args.provider === 'azure')) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED Azure Action: ${toolName}`,
+          reason: `Azure cloud provider is turned off in configuration (ENABLE_AZURE=false). When investigating Kubernetes tasks, stick strictly to the active kubeconfig context ("${context?.kubeContext || 'current'}").`,
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+      if (toolName === 'shell_exec' && /^\s*az\b/i.test(args.command || '')) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED Azure CLI command: "${args.command}"`,
+          reason: `Azure cloud provider is turned off in configuration (ENABLE_AZURE=false). When investigating Kubernetes tasks, stick strictly to the active kubeconfig context ("${context?.kubeContext || 'current'}").`,
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+    }
+
+    if (!gcpEnabled) {
+      if (toolName === 'gcp_resource_list' || toolName === 'gcp_gke_status' || (toolName === 'cloud_db_snapshot' && args.provider === 'gcp')) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED GCP Action: ${toolName}`,
+          reason: `GCP cloud provider is turned off in configuration (ENABLE_GCP=false). When investigating Kubernetes tasks, stick strictly to the active kubeconfig context ("${context?.kubeContext || 'current'}").`,
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+      if (toolName === 'shell_exec' && /^\s*gcloud\b/i.test(args.command || '')) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED GCP CLI command: "${args.command}"`,
+          reason: `GCP cloud provider is turned off in configuration (ENABLE_GCP=false). When investigating Kubernetes tasks, stick strictly to the active kubeconfig context ("${context?.kubeContext || 'current'}").`,
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+    }
+
+    // Stick to Kubeconfig Grounding Policy
+    if (stickToKubeConfig && toolName === 'shell_exec') {
+      const command = (args.command || '').trim();
+      if (/^\s*(aws\s+eks\s+update-kubeconfig|az\s+aks\s+get-credentials|gcloud\s+container\s+clusters\s+get-credentials)\b/i.test(command)) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED Cloud Kubernetes credentials override: "${command}"`,
+          reason: `Kubernetes investigation is configured to stick strictly to the active kubeconfig context ("${context?.kubeContext || 'current'}"). Bypassing or modifying kubeconfig credentials via cloud wrapper CLIs is forbidden.`,
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+    }
+
     // 1. Filesystem write tools
     if (toolName === 'file_write') {
       const filePath = args.path || 'unknown';

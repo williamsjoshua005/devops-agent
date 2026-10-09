@@ -7,6 +7,18 @@ export function getDashboardHtml(context: any): string {
   const toolsCount = context.installedTools?.length || 5;
   const roleStr = (context.roleLevel || 'intermediate').toUpperCase();
 
+  const cp = context.cloudProviders ?? {
+    aws: process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false',
+    azure: process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false',
+    gcp: process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false',
+  };
+  const stick = context.stickToKubeConfig !== false;
+  const enabledProviders: string[] = [];
+  if (cp.aws) enabledProviders.push('AWS');
+  if (cp.azure) enabledProviders.push('AZ');
+  if (cp.gcp) enabledProviders.push('GCP');
+  const cloudSummary = enabledProviders.length > 0 ? enabledProviders.join(' • ') : 'K8S ONLY';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -648,6 +660,60 @@ export function getDashboardHtml(context: any): string {
         <div id="clusterDropdownMenu" class="cluster-dropdown" style="display: none;">
           <div class="dropdown-header">SWITCH KUBERNETES CONTEXT</div>
           <div id="clusterListItems">Loading contexts...</div>
+        </div>
+      </div>
+      <!-- Cloud Provider Pill -->
+      <div class="ctx-pill" id="cloudPill" onclick="toggleCloudDropdown(event)" style="cursor: pointer; position: relative;" title="Click to configure Cloud Providers and Kubeconfig Grounding">
+        <span>☁️ Cloud:</span>
+        <code id="activeCloudText">${cloudSummary}</code>
+        <span class="status-dot dot-green" id="cloudDot"></span>
+        <span style="font-size: 10px; color: var(--text-muted); margin-left: 2px;">▼</span>
+
+        <!-- Cloud Dropdown Menu -->
+        <div id="cloudDropdownMenu" class="cluster-dropdown" style="display: none; min-width: 300px;">
+          <div class="dropdown-header">CLOUD PROVIDERS & KUBECONFIG</div>
+          <div class="cluster-item" onclick="toggleProvider('aws', event)">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div>
+                <div style="font-weight: 700;">AWS (EKS / EC2)</div>
+                <div style="font-size: 11px; color: var(--text-muted);">aws_* tools and aws CLI</div>
+              </div>
+              <span id="awsBadge" class="badge ${cp.aws ? 'badge-dev' : 'badge-prod'}">${cp.aws ? 'ON' : 'OFF'}</span>
+            </div>
+          </div>
+          <div class="cluster-item" onclick="toggleProvider('azure', event)">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div>
+                <div style="font-weight: 700;">Azure (AKS / ARM)</div>
+                <div style="font-size: 11px; color: var(--text-muted);">az_* tools and az CLI</div>
+              </div>
+              <span id="azureBadge" class="badge ${cp.azure ? 'badge-dev' : 'badge-prod'}">${cp.azure ? 'ON' : 'OFF'}</span>
+            </div>
+          </div>
+          <div class="cluster-item" onclick="toggleProvider('gcp', event)">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div>
+                <div style="font-weight: 700;">GCP (GKE / Compute)</div>
+                <div style="font-size: 11px; color: var(--text-muted);">gcp_* tools and gcloud CLI</div>
+              </div>
+              <span id="gcpBadge" class="badge ${cp.gcp ? 'badge-dev' : 'badge-prod'}">${cp.gcp ? 'ON' : 'OFF'}</span>
+            </div>
+          </div>
+          <div style="border-top: 1px solid var(--card-border); margin: 6px 0;"></div>
+          <div class="cluster-item" onclick="toggleStickKubeConfig(event)">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div>
+                <div style="font-weight: 700; color: #38bdf8;">☸️ Stick to Kubeconfig</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Strict in-cluster diagnostics only</div>
+              </div>
+              <span id="stickBadge" class="badge ${stick ? 'badge-dev' : 'badge-prod'}">${stick ? 'ACTIVE' : 'OFF'}</span>
+            </div>
+          </div>
+          <div class="cluster-item" onclick="activateK8sOnly(event)" style="background: rgba(56, 189, 248, 0.08);">
+            <div style="width: 100%; text-align: center; font-weight: 700; color: #38bdf8; font-size: 12px;">
+              ⚡ Activate Kubernetes-Only Mode
+            </div>
+          </div>
         </div>
       </div>
       <div id="envBadgeContainer">${envBadge}</div>
@@ -1922,10 +1988,131 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       }
     }
 
+    let currentCloudConfig = { aws: true, azure: true, gcp: true, stickToKubeConfig: true };
+
+    function toggleCloudDropdown(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('cloudDropdownMenu');
+      const roleMenu = document.getElementById('roleDropdownMenu');
+      const clusterMenu = document.getElementById('clusterDropdownMenu');
+      if (roleMenu) roleMenu.style.display = 'none';
+      if (clusterMenu) clusterMenu.style.display = 'none';
+      if (!menu) return;
+      menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+    }
+
+    async function loadCloudProviders() {
+      try {
+        const res = await fetch('/api/config/providers');
+        const data = await res.json();
+        if (data.cloudProviders) {
+          currentCloudConfig = {
+            ...data.cloudProviders,
+            stickToKubeConfig: data.stickToKubeConfig,
+          };
+          updateCloudUI(data.cloudProviders, data.stickToKubeConfig);
+        }
+      } catch (e) {}
+    }
+
+    function updateCloudUI(cp, stick) {
+      const awsBadge = document.getElementById('awsBadge');
+      const azureBadge = document.getElementById('azureBadge');
+      const gcpBadge = document.getElementById('gcpBadge');
+      const stickBadge = document.getElementById('stickBadge');
+      const text = document.getElementById('activeCloudText');
+
+      if (awsBadge) {
+        awsBadge.className = 'badge ' + (cp.aws ? 'badge-dev' : 'badge-prod');
+        awsBadge.innerText = cp.aws ? 'ON' : 'OFF';
+      }
+      if (azureBadge) {
+        azureBadge.className = 'badge ' + (cp.azure ? 'badge-dev' : 'badge-prod');
+        azureBadge.innerText = cp.azure ? 'ON' : 'OFF';
+      }
+      if (gcpBadge) {
+        gcpBadge.className = 'badge ' + (cp.gcp ? 'badge-dev' : 'badge-prod');
+        gcpBadge.innerText = cp.gcp ? 'ON' : 'OFF';
+      }
+      if (stickBadge) {
+        stickBadge.className = 'badge ' + (stick ? 'badge-dev' : 'badge-prod');
+        stickBadge.innerText = stick ? 'ACTIVE' : 'OFF';
+      }
+      if (text) {
+        const enabled = [];
+        if (cp.aws) enabled.push('AWS');
+        if (cp.azure) enabled.push('AZ');
+        if (cp.gcp) enabled.push('GCP');
+        text.innerText = enabled.length > 0 ? enabled.join(' • ') : 'K8S ONLY';
+      }
+    }
+
+    async function toggleProvider(provider, e) {
+      if (e) e.stopPropagation();
+      const newVal = !currentCloudConfig[provider];
+      try {
+        const res = await fetch('/api/config/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [provider]: newVal }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentCloudConfig = { ...data.cloudProviders, stickToKubeConfig: data.stickToKubeConfig };
+          updateCloudUI(data.cloudProviders, data.stickToKubeConfig);
+          showToast(provider.toUpperCase() + ' provider ' + (newVal ? 'ENABLED' : 'DISABLED'));
+          loadSystemStatus();
+        }
+      } catch (err) {
+        showToast('Error updating provider: ' + err.message);
+      }
+    }
+
+    async function toggleStickKubeConfig(e) {
+      if (e) e.stopPropagation();
+      const newVal = !currentCloudConfig.stickToKubeConfig;
+      try {
+        const res = await fetch('/api/config/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stickToKubeConfig: newVal }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentCloudConfig = { ...data.cloudProviders, stickToKubeConfig: data.stickToKubeConfig };
+          updateCloudUI(data.cloudProviders, data.stickToKubeConfig);
+          showToast('Stick to Kubeconfig ' + (newVal ? 'ACTIVATED' : 'DISABLED'));
+        }
+      } catch (err) {
+        showToast('Error updating kubeconfig grounding: ' + err.message);
+      }
+    }
+
+    async function activateK8sOnly(e) {
+      if (e) e.stopPropagation();
+      try {
+        const res = await fetch('/api/config/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ aws: false, azure: false, gcp: false, stickToKubeConfig: true }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentCloudConfig = { ...data.cloudProviders, stickToKubeConfig: data.stickToKubeConfig };
+          updateCloudUI(data.cloudProviders, data.stickToKubeConfig);
+          showToast('Kubernetes-Only Mode ACTIVATED');
+          loadSystemStatus();
+        }
+      } catch (err) {
+        showToast('Error activating k8s-only: ' + err.message);
+      }
+    }
+
     // Initial Data Fetch
     loadAudit();
     loadSystemStatus();
     loadClusters();
+    loadCloudProviders();
     setupTerminalScrollListener();
     // Auto-refresh audit trail every 6 seconds
     setInterval(loadAudit, 6000);

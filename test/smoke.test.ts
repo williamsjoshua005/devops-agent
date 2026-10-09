@@ -1,5 +1,5 @@
 import { Guardrails } from '../src/policy/guardrails.js';
-import { executeTool, TOOL_DEFINITIONS } from '../src/tools/index.js';
+import { executeTool, TOOL_DEFINITIONS, getAvailableToolDefinitions } from '../src/tools/index.js';
 import { AuditLogger } from '../src/policy/audit.js';
 import { generateUnifiedDiff } from '../src/policy/diff.js';
 import { PostmortemTool } from '../src/tools/postmortem.js';
@@ -870,7 +870,98 @@ spec:
   const mcp108Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10004, method: 'tools/list' });
   assert(mcp108Res.result.tools.length >= 108, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
 
-  console.log('\n\x1b[32mAll 94+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes (All 10 Workload, Storage, Scheduling, Network, Multi-Cluster, Diff, Port-Forward, Snapshot, PDB, VPA, Cost, Carbon Categories), Container Security, Mesh, and Multi-Cloud feature tests passed successfully!\x1b[0m\n');
+  // Test 95: Cloud Provider Dynamic Catalog Filtering (getAvailableToolDefinitions)
+  const allTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: true } });
+  assert(allTools.length === 108, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
+
+  const noAwsTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } });
+  assert(noAwsTools.length === 106 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (106 tools remaining)');
+
+  const noAzTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: false, gcp: true } });
+  assert(noAzTools.length === 106 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (106 tools remaining)');
+
+  const noGcpTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: false } });
+  assert(noGcpTools.length === 106 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (106 tools remaining)');
+
+  const k8sOnlyTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: false, gcp: false } });
+  assert(k8sOnlyTools.length === 102, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 102 tools (${k8sOnlyTools.length} tools)`);
+
+  // Test 96: Guardrails Enforcement for Disabled Cloud Provider Tools
+  const awsDisabledCtx: AgentContext = { ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } };
+  const awsEval = Guardrails.evaluate('aws_resource_list', { service: 'ec2' }, awsDisabledCtx);
+  assert(awsEval.tier === 'DANGEROUS' && awsEval.isBlocked, 'Guardrails block aws_resource_list when AWS is disabled');
+
+  const azDisabledCtx: AgentContext = { ...mockDevContext, cloudProviders: { aws: true, azure: false, gcp: true } };
+  const azEval = Guardrails.evaluate('az_aks_status', { resourceGroup: 'rg', clusterName: 'aks' }, azDisabledCtx);
+  assert(azEval.tier === 'DANGEROUS' && azEval.isBlocked, 'Guardrails block az_aks_status when Azure is disabled');
+
+  const gcpDisabledCtx: AgentContext = { ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: false } };
+  const gcpEval = Guardrails.evaluate('gcp_gke_status', { clusterName: 'gke' }, gcpDisabledCtx);
+  assert(gcpEval.tier === 'DANGEROUS' && gcpEval.isBlocked, 'Guardrails block gcp_gke_status when GCP is disabled');
+
+  const cloudDbAwsEval = Guardrails.evaluate('cloud_db_snapshot', { provider: 'aws', instanceIdentifier: 'rds-db' }, awsDisabledCtx);
+  assert(cloudDbAwsEval.tier === 'DANGEROUS' && cloudDbAwsEval.isBlocked, 'Guardrails block cloud_db_snapshot(aws) when AWS is disabled');
+
+  // Test 97: Shell Command Guardrail Blocking Disabled Cloud CLIs
+  const awsCliEval = Guardrails.evaluate('shell_exec', { command: 'aws ec2 describe-instances' }, awsDisabledCtx);
+  assert(awsCliEval.tier === 'DANGEROUS' && awsCliEval.isBlocked, 'Guardrails block "aws" shell commands when AWS is disabled');
+
+  const azCliEval = Guardrails.evaluate('shell_exec', { command: 'az vm list' }, azDisabledCtx);
+  assert(azCliEval.tier === 'DANGEROUS' && azCliEval.isBlocked, 'Guardrails block "az" shell commands when Azure is disabled');
+
+  const gcpCliEval = Guardrails.evaluate('shell_exec', { command: 'gcloud compute instances list' }, gcpDisabledCtx);
+  assert(gcpCliEval.tier === 'DANGEROUS' && gcpCliEval.isBlocked, 'Guardrails block "gcloud" shell commands when GCP is disabled');
+
+  // Test 98: Strict Kubernetes Grounding (stickToKubeConfig: true)
+  const stickCtx: AgentContext = { ...mockDevContext, kubeContext: 'docker-desktop', stickToKubeConfig: true };
+  const eksAuthEval = Guardrails.evaluate('shell_exec', { command: 'aws eks update-kubeconfig --name prod' }, stickCtx);
+  assert(eksAuthEval.tier === 'DANGEROUS' && eksAuthEval.isBlocked, 'stickToKubeConfig blocks "aws eks update-kubeconfig" wrapper commands');
+
+  const aksAuthEval = Guardrails.evaluate('shell_exec', { command: 'az aks get-credentials --resource-group rg --name aks' }, stickCtx);
+  assert(aksAuthEval.tier === 'DANGEROUS' && aksAuthEval.isBlocked, 'stickToKubeConfig blocks "az aks get-credentials" wrapper commands');
+
+  const gkeAuthEval = Guardrails.evaluate('shell_exec', { command: 'gcloud container clusters get-credentials my-cluster' }, stickCtx);
+  assert(gkeAuthEval.tier === 'DANGEROUS' && gkeAuthEval.isBlocked, 'stickToKubeConfig blocks "gcloud container clusters get-credentials" wrapper commands');
+
+  const k8sNativeEval = Guardrails.evaluate('shell_exec', { command: 'kubectl get pods -n kube-system' }, stickCtx);
+  assert(k8sNativeEval.tier === 'READ' && !k8sNativeEval.isBlocked, 'stickToKubeConfig allows native in-cluster kubectl commands');
+
+  // Test 99: Tool Execution Runtime Enforcement
+  let awsError = '';
+  try {
+    await executeTool('aws_eks_status', { clusterName: 'test' }, awsDisabledCtx);
+  } catch (err: any) {
+    awsError = err.message;
+  }
+  assert(awsError.includes('disabled') && awsError.includes('AWS') && awsError.includes('active Kubernetes context'), 'executeTool explicitly rejects disabled AWS tools');
+
+  let azError = '';
+  try {
+    await executeTool('az_aks_status', { resourceGroup: 'rg', clusterName: 'test' }, azDisabledCtx);
+  } catch (err: any) {
+    azError = err.message;
+  }
+  assert(azError.includes('disabled') && azError.includes('Azure') && azError.includes('active Kubernetes context'), 'executeTool explicitly rejects disabled Azure tools');
+
+  let gcpError = '';
+  try {
+    await executeTool('gcp_gke_status', { clusterName: 'test' }, gcpDisabledCtx);
+  } catch (err: any) {
+    gcpError = err.message;
+  }
+  assert(gcpError.includes('disabled') && gcpError.includes('GCP') && gcpError.includes('active Kubernetes context'), 'executeTool explicitly rejects disabled GCP tools');
+
+  // Test 100: MCP Server Dynamic Tool List Filtering with Cloud Providers Disabled
+  DevOpsMcpServer.setContext({
+    ...mockDevContext,
+    cloudProviders: { aws: false, azure: false, gcp: false },
+    stickToKubeConfig: true,
+  });
+  const mcpFilteredRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10005, method: 'tools/list' });
+  assert(mcpFilteredRes.result.tools.length === 102, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 102 tools)`);
+  assert(!mcpFilteredRes.result.tools.some((t: any) => t.name.startsWith('aws_') || t.name.startsWith('az_') || t.name.startsWith('gcp_')), 'MCP Server tool list contains zero disabled cloud tools');
+
+  console.log('\n\x1b[32mAll 100+ enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle & Strict Kubeconfig Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

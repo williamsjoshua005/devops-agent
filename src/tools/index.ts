@@ -2532,7 +2532,43 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
+/**
+ * Returns available tool definitions dynamically filtered by cloud provider configurations.
+ */
+export function getAvailableToolDefinitions(context?: AgentContext): ToolDefinition[] {
+  const awsEnabled = context?.cloudProviders?.aws ?? (process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false');
+  const azureEnabled = context?.cloudProviders?.azure ?? (process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false');
+  const gcpEnabled = context?.cloudProviders?.gcp ?? (process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false');
+
+  return TOOL_DEFINITIONS.filter((tool) => {
+    if (!awsEnabled && (tool.name.startsWith('aws_') || tool.name === 'aws_eks_status' || tool.name === 'aws_resource_list')) {
+      return false;
+    }
+    if (!azureEnabled && (tool.name.startsWith('az_') || tool.name.startsWith('azure_') || tool.name === 'az_aks_status' || tool.name === 'az_resource_list')) {
+      return false;
+    }
+    if (!gcpEnabled && (tool.name.startsWith('gcp_') || tool.name === 'gcp_gke_status' || tool.name === 'gcp_resource_list')) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export async function executeTool(name: string, args: Record<string, any>, context?: AgentContext): Promise<string> {
+  const awsEnabled = context?.cloudProviders?.aws ?? (process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false');
+  const azureEnabled = context?.cloudProviders?.azure ?? (process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false');
+  const gcpEnabled = context?.cloudProviders?.gcp ?? (process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false');
+
+  if (!awsEnabled && (name.startsWith('aws_') || (name === 'cloud_db_snapshot' && args.provider === 'aws'))) {
+    throw new Error(`Tool "${name}" is disabled because AWS cloud provider is turned off (ENABLE_AWS=false). Please stick to the active Kubernetes context (${context?.kubeContext || 'kubeconfig'}).`);
+  }
+  if (!azureEnabled && (name.startsWith('az_') || (name === 'cloud_db_snapshot' && args.provider === 'azure'))) {
+    throw new Error(`Tool "${name}" is disabled because Azure cloud provider is turned off (ENABLE_AZURE=false). Please stick to the active Kubernetes context (${context?.kubeContext || 'kubeconfig'}).`);
+  }
+  if (!gcpEnabled && (name.startsWith('gcp_') || (name === 'cloud_db_snapshot' && args.provider === 'gcp'))) {
+    throw new Error(`Tool "${name}" is disabled because GCP cloud provider is turned off (ENABLE_GCP=false). Please stick to the active Kubernetes context (${context?.kubeContext || 'kubeconfig'}).`);
+  }
+
   switch (name) {
     case 'shell_exec':
       return await ShellTool.run(args.command, { maxOutputChars: 12000 });

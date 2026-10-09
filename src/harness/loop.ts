@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Message, ToolCall, AgentContext, RoleLevel } from '../types.js';
-import { TOOL_DEFINITIONS, executeTool } from '../tools/index.js';
+import { TOOL_DEFINITIONS, executeTool, getAvailableToolDefinitions } from '../tools/index.js';
 import { Guardrails } from '../policy/guardrails.js';
 import { ApprovalHandler, CliApprovalHandler } from '../policy/approvals.js';
 import { AuditLogger } from '../policy/audit.js';
@@ -69,6 +69,23 @@ export class DevOpsAgentHarness {
     this.initSystemPrompt();
   }
 
+  setCloudProvider(provider: 'aws' | 'azure' | 'gcp', enabled: boolean) {
+    if (!this.context.cloudProviders) {
+      this.context.cloudProviders = {
+        aws: process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false',
+        azure: process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false',
+        gcp: process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false',
+      };
+    }
+    this.context.cloudProviders[provider] = enabled;
+    this.initSystemPrompt();
+  }
+
+  setStickToKubeConfig(stick: boolean) {
+    this.context.stickToKubeConfig = stick;
+    this.initSystemPrompt();
+  }
+
   updateKubeContext(newContext: string) {
     this.context.kubeContext = newContext;
     const raw = `${process.env.ENVIRONMENT || ''} ${newContext}`.toLowerCase();
@@ -110,6 +127,13 @@ export class DevOpsAgentHarness {
       ? `\nActive Environment: PRODUCTION (${this.context.kubeContext || 'prod'}). Read-only diagnostic mode is active. Mutating operations require human approval.\n`
       : `\nActive Environment: ${(this.context.environment || 'development').toUpperCase()} (Standard operational mode - ${role.toUpperCase()} autonomy active)\n`;
 
+    const cp = this.context.cloudProviders ?? {
+      aws: process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false',
+      azure: process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false',
+      gcp: process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false',
+    };
+    const stickStatus = this.context.stickToKubeConfig !== false ? '🟢 ACTIVE (Strict In-Cluster Kubeconfig Grounding)' : '⚪ DISABLED';
+
     const systemPrompt = `You are a ${roleTitle} on the platform engineering team.
 Your goal is to investigate, diagnose, and resolve infrastructure, Kubernetes, cloud, and CI/CD tasks methodically.
 
@@ -117,11 +141,17 @@ Your goal is to investigate, diagnose, and resolve infrastructure, Kubernetes, c
 - Active Role: ${role.toUpperCase()} (${roleTitle})
 - ${roleGuidance}
 
-### Environment Context:
+### Environment & Cloud Provider Context:
 - Current Working Directory: ${this.context.cwd}
 - Installed Tools: ${this.context.installedTools.join(', ')}
-${this.context.kubeContext ? `- Current Kubernetes Context: ${this.context.kubeContext}` : ''}
+${this.context.kubeContext ? `- Active Kubernetes Context: ${this.context.kubeContext}` : ''}
+- Cloud Providers: AWS: ${cp.aws ? '🟢 ENABLED' : '🔴 DISABLED'} | Azure: ${cp.azure ? '🟢 ENABLED' : '🔴 DISABLED'} | GCP: ${cp.gcp ? '🟢 ENABLED' : '🔴 DISABLED'}
+- Stick to Kubeconfig: ${stickStatus}
 ${envWarning}
+
+### Kubernetes Task Grounding Guideline:
+When investigating Kubernetes-related tasks, ALWAYS stick strictly to the active Kubernetes context (\`${this.context.kubeContext || 'current kubeconfig'}\`) and use native Kubernetes tools (\`k8s_*\`, \`kubectl\`, \`helm_*\`, \`kustomize_*\`).
+Do NOT invoke cloud provider CLIs or tools (AWS/EKS, Azure/AKS, GCP/GKE) for in-cluster diagnosis unless the cloud provider is enabled AND the user explicitly requests cloud-level infrastructure or cluster provisioning inspection.
 
 ### Operational Guidelines:
 1. Gather facts first using diagnostic queries (k8s_get_resources, k8s_describe_resource, k8s_get_logs, metrics_query, cert_expiry_check, finops_idle_resources_audit, file_read).
@@ -305,6 +335,89 @@ ${runbooks}
         `• \`/role junior\` - Cautious diagnostics; all mutations require human approval\n` +
         `• \`/role intermediate\` - Autonomous non-prod remediation, self-healing rollouts, GitOps PRs\n` +
         `• \`/role senior\` - Architectural critiques, cross-cluster blast-radius assessment\n`
+      );
+    }
+    if (
+      trimmed === '/cloud' ||
+      trimmed === '/providers' ||
+      trimmed.startsWith('/cloud ') ||
+      trimmed.startsWith('/providers ') ||
+      trimmed === '/k8s-only'
+    ) {
+      const parts = trimmed.split(/\s+/);
+      const sub = parts[1]?.toLowerCase();
+      const valArg = parts[2]?.toLowerCase();
+
+      if (trimmed === '/k8s-only' || sub === 'k8s-only') {
+        this.setCloudProvider('aws', false);
+        this.setCloudProvider('azure', false);
+        this.setCloudProvider('gcp', false);
+        this.setStickToKubeConfig(true);
+        const ctx = this.getContext();
+        return (
+          `✔ **Kubernetes-Only Mode Activated**\n\n` +
+          `• **AWS:** 🔴 DISABLED\n` +
+          `• **Azure:** 🔴 DISABLED\n` +
+          `• **GCP:** 🔴 DISABLED\n` +
+          `• **Stick to Kubeconfig:** 🟢 ACTIVE (Strict In-Cluster Grounding)\n` +
+          `• **Active Kube Context:** \`${ctx.kubeContext || 'current kubeconfig'}\`\n\n` +
+          `All cloud provider CLIs and tools are blocked. The agent will strictly execute diagnostics within the active Kubernetes cluster context.`
+        );
+      }
+
+      if (sub === 'aws' || sub === 'azure' || sub === 'gcp') {
+        if (valArg) {
+          const enabled = ['on', 'true', '1', 'enable', 'yes'].includes(valArg);
+          this.setCloudProvider(sub as 'aws' | 'azure' | 'gcp', enabled);
+          return `✔ Cloud provider **${sub.toUpperCase()}** is now **${enabled ? '🟢 ENABLED' : '🔴 DISABLED'}**.`;
+        }
+      }
+
+      if (sub === 'all') {
+        if (valArg) {
+          const enabled = ['on', 'true', '1', 'enable', 'yes'].includes(valArg);
+          this.setCloudProvider('aws', enabled);
+          this.setCloudProvider('azure', enabled);
+          this.setCloudProvider('gcp', enabled);
+          return `✔ All cloud providers are now **${enabled ? '🟢 ENABLED' : '🔴 DISABLED'}**.`;
+        }
+      }
+
+      if (sub === 'stick' || sub === 'stick-to-kubeconfig' || sub === 'kubeconfig') {
+        if (valArg) {
+          const stick = ['on', 'true', '1', 'enable', 'yes'].includes(valArg);
+          this.setStickToKubeConfig(stick);
+          return `✔ **Stick to Kubeconfig** is now **${stick ? '🟢 ACTIVE' : '⚪ DISABLED'}**.\n${
+            stick
+              ? 'The agent is strictly restricted to in-cluster Kubernetes diagnostics and will block cloud wrapper credential overrides.'
+              : 'Cloud wrapper credential commands are permitted.'
+          }`;
+        }
+      }
+
+      const cp = this.context.cloudProviders ?? {
+        aws: process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false',
+        azure: process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false',
+        gcp: process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false',
+      };
+      const stick = this.context.stickToKubeConfig !== false;
+      const availableTools = getAvailableToolDefinitions(this.context);
+
+      return (
+        `### ☁️ Cloud Providers & Kubeconfig Grounding\n\n` +
+        `| Target | Status | Tools Available | Notes |\n` +
+        `| :--- | :--- | :--- | :--- |\n` +
+        `| **AWS** | ${cp.aws ? '🟢 ENABLED' : '🔴 DISABLED'} | \`aws_*\`, \`cloud_db_snapshot(aws)\` | EKS & AWS CLI guardrail |\n` +
+        `| **Azure** | ${cp.azure ? '🟢 ENABLED' : '🔴 DISABLED'} | \`az_*\`, \`cloud_db_snapshot(azure)\` | AKS & Azure CLI guardrail |\n` +
+        `| **GCP** | ${cp.gcp ? '🟢 ENABLED' : '🔴 DISABLED'} | \`gcp_*\`, \`cloud_db_snapshot(gcp)\` | GKE & gcloud CLI guardrail |\n` +
+        `| **Stick to Kubeconfig** | ${stick ? '🟢 ACTIVE' : '⚪ DISABLED'} | Native K8s tools only | Current: \`${this.context.kubeContext || 'current kubeconfig'}\` |\n\n` +
+        `• **Active Tool Catalog:** ${availableTools.length} / ${TOOL_DEFINITIONS.length} tools registered\n\n` +
+        `**Management Commands:**\n` +
+        `• \`/cloud aws <on|off>\` — Toggle AWS\n` +
+        `• \`/cloud azure <on|off>\` — Toggle Azure\n` +
+        `• \`/cloud gcp <on|off>\` — Toggle GCP\n` +
+        `• \`/cloud stick <on|off>\` — Toggle strict in-cluster kubeconfig grounding\n` +
+        `• \`/k8s-only\` — Disable all cloud providers & lock to current kubeconfig`
       );
     }
 
@@ -568,7 +681,7 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
       // 1. Query LLM
       let response;
       try {
-        response = await this.llm.chat(this.messages, TOOL_DEFINITIONS);
+        response = await this.llm.chat(this.messages, getAvailableToolDefinitions(this.context));
       } catch (err: any) {
         const isNetworkOrProxy =
           err.message?.includes('fetch failed') ||

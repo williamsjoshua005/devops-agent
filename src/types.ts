@@ -63,6 +63,12 @@ export interface LLMConfig {
 export type EnvironmentLevel = 'development' | 'staging' | 'production' | 'unknown';
 export type RoleLevel = 'junior' | 'intermediate' | 'senior';
 
+export interface CloudProviderConfig {
+  aws: boolean;
+  azure: boolean;
+  gcp: boolean;
+}
+
 export interface AgentContext {
   cwd: string;
   kubeContext?: string;
@@ -71,6 +77,8 @@ export interface AgentContext {
   environment: EnvironmentLevel;
   isProduction: boolean;
   roleLevel?: RoleLevel;
+  cloudProviders?: CloudProviderConfig;
+  stickToKubeConfig?: boolean;
 }
 
 export interface AuditRecord {

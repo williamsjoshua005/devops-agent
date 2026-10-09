@@ -1,6 +1,6 @@
 import * as readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
-import { TOOL_DEFINITIONS, executeTool } from '../tools/index.js';
+import { TOOL_DEFINITIONS, executeTool, getAvailableToolDefinitions } from '../tools/index.js';
 import { Guardrails } from '../policy/guardrails.js';
 import { AuditLogger } from '../policy/audit.js';
 import { SecretSanitizer } from '../policy/sanitizer.js';
@@ -13,11 +13,17 @@ export class DevOpsMcpServer {
   private static detectContext(): AgentContext {
     const rawEnv = (process.env.ENVIRONMENT || '').toLowerCase();
     const isProd = rawEnv.includes('prod') || rawEnv.includes('production');
+    const aws = process.env.ENABLE_AWS !== 'false' && process.env.CLOUD_AWS !== 'false';
+    const azure = process.env.ENABLE_AZURE !== 'false' && process.env.CLOUD_AZURE !== 'false';
+    const gcp = process.env.ENABLE_GCP !== 'false' && process.env.CLOUD_GCP !== 'false';
+    const stick = process.env.STICK_TO_KUBECONFIG !== 'false';
     return {
       cwd: process.cwd(),
       installedTools: ['git', 'kubectl', 'helm', 'docker', 'az', 'aws', 'gcloud'],
       environment: isProd ? 'production' : 'development',
       isProduction: isProd,
+      cloudProviders: { aws, azure, gcp },
+      stickToKubeConfig: stick,
     };
   }
 
@@ -84,11 +90,12 @@ export class DevOpsMcpServer {
 
     // 2. tools/list
     if (method === 'tools/list') {
+      const availableTools = getAvailableToolDefinitions(this.context);
       return {
         jsonrpc: '2.0',
         id,
         result: {
-          tools: TOOL_DEFINITIONS.map((t) => ({
+          tools: availableTools.map((t) => ({
             name: t.name,
             description: t.description,
             inputSchema: t.parameters,
