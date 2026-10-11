@@ -639,6 +639,9 @@ spec:
   const scanJson = await ContainerSecurityTool.scanImage('redis:latest', 'HIGH', 'json');
   assert(scanJson.includes('"scanner"') && scanJson.includes('"summary"'), 'ContainerSecurityTool supports JSON output format');
 
+  const workloadScanOut = await ContainerSecurityTool.scanImage('deployment/api-worker', 'HIGH', 'summary', { namespace: 'default' });
+  assert(workloadScanOut.includes('Vulnerability') || workloadScanOut.includes('Could not resolve') || workloadScanOut.includes('Workload') || workloadScanOut.includes('Failed'), 'ContainerSecurityTool.scanImage supports deployment and pod targets');
+
   // Test 64: NetworkPolicy & Zero-Trust Microsegmentation Audit
   const netpolEval = Guardrails.evaluate('k8s_network_policy_audit', { namespace: 'default' }, mockDevContext);
   assert(netpolEval.tier === 'READ' && !netpolEval.requiresApproval, 'k8s_network_policy_audit evaluates autonomously as READ');

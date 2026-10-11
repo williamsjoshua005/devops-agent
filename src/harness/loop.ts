@@ -330,8 +330,16 @@ ${runbooks}
     }
     if (trimmed.startsWith('/scan') || trimmed.startsWith('/scan-image')) {
       const parts = trimmed.split(/\s+/);
-      const img = parts[1] || 'nginx:latest';
-      const out = await ContainerSecurityTool.scanImage(img);
+      const target = parts[1] || 'nginx:latest';
+      let namespace = 'default';
+      const nIndex = parts.findIndex((p) => p === '-n' || p === '--namespace');
+      if (nIndex !== -1 && parts[nIndex + 1]) {
+        namespace = parts[nIndex + 1];
+      }
+      const out = await ContainerSecurityTool.scanImage(target, 'HIGH', 'summary', {
+        namespace,
+        context: this.context.kubeContext,
+      });
       return await recordDirect('container_image_scan', out);
     }
     if (trimmed === '/nodes' || trimmed.startsWith('/nodes ')) {

@@ -1,4 +1,5 @@
 import { ShellTool } from './shell.js';
+import { K8sTool } from './k8s.js';
 
 export interface ImageVulnerability {
   id: string;
@@ -24,20 +25,114 @@ export interface ImageScanResult {
   recommendations: string[];
 }
 
+export interface ScanOptions {
+  podName?: string;
+  deploymentName?: string;
+  workloadName?: string;
+  workloadType?: 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'auto';
+  namespace?: string;
+  container?: string;
+  context?: string;
+}
+
 export class ContainerSecurityTool {
   /**
-   * Scan a container image for vulnerabilities and CVEs
+   * Scan a container image or running workload (pod/deployment) for vulnerabilities and CVEs
    */
   static async scanImage(
-    image: string,
+    target: string = '',
+    severityThreshold: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'HIGH',
+    format: 'summary' | 'json' = 'summary',
+    options?: ScanOptions
+  ): Promise<string> {
+    const trimmed = (target || options?.workloadName || options?.deploymentName || options?.podName || '').trim();
+    if (!trimmed) {
+      return 'Error: No container image or Kubernetes workload specified for vulnerability scanning.';
+    }
+
+    // Check if target is a Kubernetes workload reference (pod, deployment, etc.)
+    const isWorkload =
+      Boolean(options?.podName || options?.deploymentName || options?.workloadName || options?.workloadType) ||
+      trimmed.startsWith('pod/') ||
+      trimmed.startsWith('deployment/') ||
+      trimmed.startsWith('deploy/') ||
+      trimmed.startsWith('statefulset/') ||
+      trimmed.startsWith('sts/') ||
+      trimmed.startsWith('daemonset/') ||
+      trimmed.startsWith('ds/');
+
+    if (isWorkload) {
+      const explicitKind = options?.podName
+        ? 'pod'
+        : options?.deploymentName
+        ? 'deployment'
+        : options?.workloadType;
+      const explicitTarget = options?.podName || options?.deploymentName || options?.workloadName || trimmed;
+      const namespace = options?.namespace || 'default';
+
+      const foundContainers = await K8sTool.getWorkloadImages(explicitTarget, {
+        kind: explicitKind,
+        namespace,
+        container: options?.container,
+        context: options?.context,
+      });
+
+      if (foundContainers.length === 0) {
+        // If it looks like a direct image tag despite prefix or if not found in cluster:
+        if (!trimmed.includes('/') || (trimmed.includes(':') && !trimmed.startsWith('pod/') && !trimmed.startsWith('deploy/'))) {
+          return await this.scanSingleImage(trimmed, severityThreshold, format);
+        }
+        return `## Container Security Scan Failed\nCould not resolve container images for \`${explicitTarget}\` in namespace \`${namespace}\`.\nEnsure the pod or deployment exists in cluster, or specify a container image directly (e.g. \`nginx:latest\`).`;
+      }
+
+      // Scan each resolved container image
+      if (foundContainers.length === 1) {
+        const item = foundContainers[0];
+        const singleReport = await this.scanSingleImage(item.image, severityThreshold, format);
+        if (format === 'json') return singleReport;
+        return `### Workload Source: \`${item.kind}/${item.name}\` (Namespace: \`${namespace}\`, Container: \`${item.containerName}\`)\n\n` + singleReport;
+      }
+
+      // Multi-container workload
+      const reports: string[] = [];
+      const jsonResults: any[] = [];
+      for (const item of foundContainers) {
+        const rep = await this.scanSingleImage(item.image, severityThreshold, format);
+        if (format === 'json') {
+          try {
+            jsonResults.push({ container: item.containerName, ...JSON.parse(rep) });
+          } catch {
+            jsonResults.push({ container: item.containerName, raw: rep });
+          }
+        } else {
+          reports.push(`### Container: \`${item.containerName}\` (Image: \`${item.image}\`)\n\n${rep}`);
+        }
+      }
+
+      if (format === 'json') {
+        return JSON.stringify({ workload: explicitTarget, namespace, containers: jsonResults }, null, 2);
+      }
+
+      return (
+        `## Multi-Container Workload Vulnerability Audit\n` +
+        `• **Target Workload:** \`${foundContainers[0].kind}/${foundContainers[0].name}\`\n` +
+        `• **Namespace:** \`${namespace}\`\n` +
+        `• **Total Containers Scanned:** \`${foundContainers.length}\`\n\n` +
+        reports.join('\n\n---\n\n')
+      );
+    }
+
+    return await this.scanSingleImage(trimmed, severityThreshold, format);
+  }
+
+  /**
+   * Internal single image scan
+   */
+  private static async scanSingleImage(
+    trimmedImage: string,
     severityThreshold: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'HIGH',
     format: 'summary' | 'json' = 'summary'
   ): Promise<string> {
-    const trimmedImage = image.trim();
-    if (!trimmedImage) {
-      return 'Error: No container image specified for vulnerability scanning.';
-    }
-
     // 1. Try Trivy scanner if available
     try {
       const trivyCheck = await ShellTool.run('which trivy');

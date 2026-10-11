@@ -2412,5 +2412,83 @@ ${snapClassLine}  source:
       return `Failed to estimate carbon footprint: ${err.message}`;
     }
   }
+
+  /**
+   * Resolve container images from a running pod, deployment, statefulset, or daemonset
+   */
+  static async getWorkloadImages(
+    workload: string,
+    options: {
+      kind?: 'pod' | 'deployment' | 'statefulset' | 'daemonset' | 'auto';
+      namespace?: string;
+      container?: string;
+      context?: string;
+    } = {}
+  ): Promise<{ containerName: string; image: string; kind: string; name: string }[]> {
+    const rawTarget = workload.trim();
+    let kind = options.kind || 'auto';
+    let name = rawTarget;
+    const namespace = options.namespace || 'default';
+    const ctxFlag = this.getContextFlag(options.context);
+
+    if (rawTarget.includes('/')) {
+      const parts = rawTarget.split('/');
+      const prefix = parts[0].toLowerCase();
+      name = parts.slice(1).join('/');
+      if (prefix === 'pod' || prefix === 'po' || prefix === 'pods') kind = 'pod';
+      else if (prefix === 'deploy' || prefix === 'deployment' || prefix === 'deployments') kind = 'deployment';
+      else if (prefix === 'sts' || prefix === 'statefulset' || prefix === 'statefulsets') kind = 'statefulset';
+      else if (prefix === 'ds' || prefix === 'daemonset' || prefix === 'daemonsets') kind = 'daemonset';
+    }
+
+    const candidateKinds =
+      kind === 'auto'
+        ? ['deployment', 'pod', 'statefulset', 'daemonset']
+        : [kind];
+
+    for (const candKind of candidateKinds) {
+      try {
+        const cmd = `kubectl ${ctxFlag} get ${candKind} ${name} -n ${namespace} -o json --request-timeout=15s`.replace(/\s+/g, ' ');
+        const rawJson = await ShellTool.run(cmd);
+        if (rawJson.startsWith('Error') || rawJson.includes('NotFound') || !rawJson.trim().startsWith('{')) {
+          continue;
+        }
+        const parsed = JSON.parse(rawJson);
+        const containers: any[] = [];
+
+        if (candKind === 'pod') {
+          if (parsed.spec?.containers) containers.push(...parsed.spec.containers);
+          if (parsed.spec?.initContainers) containers.push(...parsed.spec.initContainers);
+        } else {
+          // deployment, statefulset, daemonset
+          if (parsed.spec?.template?.spec?.containers) containers.push(...parsed.spec.template.spec.containers);
+          if (parsed.spec?.template?.spec?.initContainers) containers.push(...parsed.spec.template.spec.initContainers);
+        }
+
+        const results: { containerName: string; image: string; kind: string; name: string }[] = [];
+        for (const c of containers) {
+          if (c.image) {
+            if (options.container && c.name !== options.container) {
+              continue;
+            }
+            results.push({
+              containerName: c.name || 'unnamed',
+              image: c.image,
+              kind: candKind,
+              name,
+            });
+          }
+        }
+
+        if (results.length > 0) {
+          return results;
+        }
+      } catch {
+        // continue to next candidate
+      }
+    }
+
+    return [];
+  }
 }
 

@@ -196,7 +196,7 @@ When all cloud providers are enabled, the agent exposes **109 native tools**. In
 | `k8s_secret_rotate_check` | Tier 1 (Read-Only) | Audit secret age and flag unrotated secrets older than threshold without value leakage. |
 | `k8s_env_injection_audit` | Tier 1 (Read-Only) | Inspect environment variables and detect hardcoded secrets vs. ConfigMap/Secret refs. |
 | `security_scan` | Tier 1 (Read-Only) | Static analysis of YAML manifests and Dockerfiles for security risks. |
-| `container_image_scan` | Tier 1 (Read-Only) | Scan container images for CVEs and vulnerabilities (Trivy/Clair format). |
+| `container_image_scan` | Tier 1 (Read-Only) | Scan images for CVEs via Trivy/Grype/heuristics; resolves images directly from pods or deployments (`pod/<name>`, `deployment/<name>`). |
 | `vault_secret_inspect` | Tier 1 (Read-Only) | Audit HashiCorp Vault, AWS, Azure, or K8s secret metadata, TTLs, and rotation dates. |
 | `sealed_secrets_check` | Tier 1 (Read-Only) | Audit Bitnami SealedSecrets decryption sync and encryption certificate health. |
 | `external_secrets_check` | Tier 1 (Read-Only) | Audit External Secrets Operator (ESO) CRDs and secret store sync status. |

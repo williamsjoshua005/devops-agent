@@ -1780,13 +1780,38 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'container_image_scan',
     description:
-      'Scan a container image for security vulnerabilities and CVEs using Trivy, Grype, or heuristic inspection.',
+      'Scan a container image or running Kubernetes workload (pod, deployment, statefulset, daemonset) for security vulnerabilities and CVEs.',
     parameters: {
       type: 'object',
       properties: {
         image: {
           type: 'string',
-          description: 'Container image reference (e.g. "nginx:latest", "redis:6.0", "repo/app:v1.2.3").',
+          description: 'Container image reference (e.g. "nginx:latest", "redis:6.0") or workload reference (e.g. "pod/api-123", "deployment/payment-api", "deploy/web").',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional name of a running pod to resolve and scan container images from.',
+        },
+        deploymentName: {
+          type: 'string',
+          description: 'Optional name of a deployment to resolve and scan container images from.',
+        },
+        workloadType: {
+          type: 'string',
+          enum: ['pod', 'deployment', 'statefulset', 'daemonset', 'auto'],
+          description: 'Optional Kubernetes workload kind (defaults to "auto").',
+        },
+        workloadName: {
+          type: 'string',
+          description: 'Optional workload name to inspect and scan.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace (defaults to "default").',
+        },
+        container: {
+          type: 'string',
+          description: 'Optional container name filter inside multi-container pods or deployments.',
         },
         severityThreshold: {
           type: 'string',
@@ -1796,8 +1821,11 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'string',
           description: 'Output format: "summary" (markdown) or "json" (defaults to "summary").',
         },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
       },
-      required: ['image'],
     },
   },
   {
@@ -2900,8 +2928,18 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       const targetCtx = args.context || context?.kubeContext;
       return await K8sTool.ephemeralDebug(args.targetPod, args, targetCtx);
     }
-    case 'container_image_scan':
-      return await ContainerSecurityTool.scanImage(args.image, args.severityThreshold, args.format);
+    case 'container_image_scan': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ContainerSecurityTool.scanImage(args.image, args.severityThreshold, args.format, {
+        podName: args.podName,
+        deploymentName: args.deploymentName,
+        workloadName: args.workloadName,
+        workloadType: args.workloadType,
+        namespace: args.namespace,
+        container: args.container,
+        context: targetCtx,
+      });
+    }
     case 'k8s_network_policy_audit': {
       const targetCtx = args.context || context?.kubeContext;
       return await K8sTool.auditNetworkPolicy(args.namespace, args.podSelector, targetCtx);
