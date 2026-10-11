@@ -1,6 +1,6 @@
 # DevOps Autonomous Agent Engine — Feature Specifications Index
 
-Welcome to the comprehensive technical specification catalog for the **DevOps Autonomous Agent Engine (v4.5)**. This directory contains detailed, production-grade architecture and design specifications (`.md`) for every capability across our **108 platform tools**, multi-tier safety envelope, and multi-cloud isolation architecture.
+Welcome to the comprehensive technical specification catalog for the **DevOps Autonomous Agent Engine (v4.5)**. This directory contains detailed, production-grade architecture and design specifications (`.md`) for every capability across our **109 platform tools**, multi-tier safety envelope, and multi-cloud isolation architecture.
 
 ---
 
@@ -30,7 +30,7 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
 - **[Spec 24: GCP Cloud & Google Kubernetes Engine (GKE) Operations](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/24-gcp-cloud-and-gke-operations.md)**
   *GCP resource queries (GCE, Cloud Storage, Cloud SQL, VPC), GKE cluster health, and unattached persistent disk audit.*
 - **[Spec 26: Cloud Provider Toggles & Strict Kubeconfig Grounding](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/26-cloud-provider-toggles-and-kubeconfig-grounding.md)**
-  *Dynamic runtime cloud toggles (`AWS`, `Azure`, `GCP`), tool filtering (108 to 102 tools in `--k8s-only` mode), and strict guardrails preventing credentials wrapper overrides.*
+  *Dynamic runtime cloud toggles (`AWS`, `Azure`, `GCP`), tool filtering (109 to 103 tools in `--k8s-only` mode), and strict guardrails preventing credentials wrapper overrides.*
 
 ---
 
@@ -38,7 +38,9 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
 - **[Spec 07: Kubernetes Cluster Operations](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/07-kubernetes-cluster-operations.md)**
   *Resource queries (`-A`), describe, pod previous crash logs (`logs -p`), and workload restarts.*
 - **[Spec 25: Enterprise Kubernetes & Containers Toolset](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/25-enterprise-kubernetes-and-containers-toolset.md)**
-  *33 specialized tools covering Interactive Debugging (`k8s_exec`, `k8s_port_forward`, `k8s_copy`), Resource Lifecycle, Scheduling, Autoscaling, Persistent Storage, Batch, Networking, and GreenOps.*
+  *35 specialized tools covering Interactive Debugging (`k8s_exec`, `k8s_port_forward`, `k8s_copy`), Resource Lifecycle & Kubeconfig Targeting (`k8s_set_kubeconfig`), Scheduling, Autoscaling, Persistent Storage, Batch, Networking, Container Security (`container_image_scan` from pods & deployments), and GreenOps.*
+- **[Spec 29: Container Security & Workload Image Vulnerability Scanning](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/29-container-security-and-workload-image-scanning.md)**
+  *Vulnerability and CVE scanning via Trivy, Grype, and heuristic analysis; direct resolution of container images from running Pods and Deployments with multi-container aggregation.*
 - **[Spec 15: In-Cluster Network Connectivity Prober](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/15-in-cluster-network-connectivity-prober.md)**
   *CoreDNS resolution checks, TCP socket reachability, and network latency instrumentation.*
 - **[Spec 19: Ephemeral Docker Sandbox Runner](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/19-ephemeral-docker-sandbox.md)**

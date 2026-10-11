@@ -335,7 +335,7 @@ Run `npm run dev` to enter the interactive REPL. The engine provides intuitive s
 | `/rightsize [ns]` | Display CPU/memory rightsizing capacity recommendations |
 | `/hpa [ns]` | Audit HorizontalPodAutoscalers for saturation bottlenecks |
 | `/netpol [ns]` | Audit NetworkPolicies for Zero-Trust microsegmentation |
-| `/scan <image>` | Scan container image for CVEs and vulnerabilities |
+| `/scan <image|pod/...|deploy/...>` | Scan container image or running Kubernetes workload for CVEs and vulnerabilities |
 | `/security [dir]` | Run static security linter against manifests and Dockerfiles |
 | `/finops` | Audit idle resources, unattached PVCs, and cloud waste |
 | `/kb <query>` | Search postmortem knowledge base memory |

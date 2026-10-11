@@ -1,7 +1,7 @@
 # Feature Spec 25: Enterprise Kubernetes & Containers Toolset
 
 ## 1. Overview & Objective
-The **Enterprise Kubernetes & Containers Toolset** provides a comprehensive collection of 33 native, production-grade tools designed to handle every facet of Kubernetes workload lifecycle, interactive debugging, batch scheduling, autoscaling, storage resilience, network segmentation, multi-cluster federation, and FinOps/GreenOps attribution.
+The **Enterprise Kubernetes & Containers Toolset** provides a comprehensive collection of 35 native, production-grade tools designed to handle every facet of Kubernetes workload lifecycle, interactive debugging, batch scheduling, autoscaling, storage resilience, network segmentation, multi-cluster federation, container image vulnerability scanning, and FinOps/GreenOps attribution.
 
 All tools execute with structured validation, non-zero exit code error handling, and strict integration with the agent's 3-Tier Safety Policy, human approval gates, and immutable audit ledger.
 
@@ -19,6 +19,7 @@ Provides non-destructive and gated interactive troubleshooting capabilities insi
   - *Guardrails:* Path traversal (`../`), system credentials (`/etc/shadow`, `/etc/passwd`), and secret mounts are strictly blocked.
 
 ### Domain 2: Resource Lifecycle & Diffing
+- **`k8s_set_kubeconfig`** (`READ / Tier 1 Dev / Tier 2 Prod`): Explicitly specify or switch the active kubeconfig file (e.g. `--kubeconfig=sb-config`) across all CLI, REST, and child process executions with strict in-cluster grounding.
 - **`k8s_diff_resource`** (`READ / Tier 1`): Generate a clean, unified diff preview between live in-cluster state and a local YAML manifest or Git-desired state.
 - **`k8s_apply_manifest`** (`READ for DryRun / Tier 2 for Live`): Apply YAML manifests to the cluster. Defaults to `--dry-run=server` or `--dry-run=client` for autonomous validation; live mutations enforce human sign-off.
 - **`k8s_delete_resource`** (`Tier 2 Approval / Tier 3 Block for Criticals`): Safely delete resources with dependency and cascade checks.
@@ -66,6 +67,16 @@ Provides non-destructive and gated interactive troubleshooting capabilities insi
 - **`k8s_git_sync_status`** (`READ / Tier 1`): Check synchronization drift between live cluster state and a Git repository.
 - **`k8s_cost_by_namespace`** (`READ / Tier 1`): Estimate monthly cloud cost allocation broken down by namespace and workload based on CPU/RAM requests.
 - **`k8s_carbon_footprint`** (`READ / Tier 1`): Estimate operational carbon footprint (kg CO2e) and power consumption based on node CPU architectures and regional grid carbon intensity.
+
+### Domain 10: Container Security & Workload Image Vulnerability Scanning
+- **`container_image_scan`** (`READ / Tier 1`): Scan container images for CVEs, outdated base libraries, and security vulnerabilities using Trivy, Grype, or built-in heuristic analysis.
+  - *Workload Image Resolution:* Natively resolves and extracts images from running Kubernetes workloads:
+    - **Pods:** `pod/<name>`, `po/<name>`, or `podName: "..."`
+    - **Deployments:** `deployment/<name>`, `deploy/<name>`, or `deploymentName: "..."`
+    - **StatefulSets / DaemonSets:** `sts/<name>`, `statefulset/<name>`, `ds/<name>`, `daemonset/<name>`
+  - *Multi-Container Auditing:* Automatically discovers and scans all containers (application containers, init-containers, and sidecars such as Envoy/Istio), reporting per-container vulnerability matrices and hardening recommendations.
+- **`k8s_ephemeral_debug`** (`Tier 1 Dev / Tier 2 Prod Approval`): Attach modern ephemeral diagnostic container to running pods sharing PID and network namespaces.
+- **`k8s_debug_pod`** (`Tier 2 Approval`): Spin up detached diagnostic netshoot pods for isolated network probing.
 
 ---
 
