@@ -770,7 +770,7 @@ export function getDashboardHtml(context: any): string {
       <button class="tab-btn" onclick="switchTab('tab-finops')">💰 FinOps Multi-Cloud Waste</button>
       <button class="tab-btn" onclick="switchTab('tab-security')">🔒 Security & TLS Scanner</button>
       <button class="tab-btn" onclick="switchTab('tab-topology')">🗺️ Service Topology Map</button>
-      <button class="tab-btn" onclick="switchTab('tab-kb')">🧠 Incident RCA Knowledge Base</button>
+      <button class="tab-btn" onclick="switchTab('tab-kb')">🧠 Incident RCA & Reports</button>
       <button class="tab-btn" onclick="switchTab('tab-simulate')">🚨 Alert Simulator & Webhook</button>
     </nav>
 
@@ -835,6 +835,7 @@ export function getDashboardHtml(context: any): string {
                   <button class="btn-secondary" id="wrapToggleBtn" onclick="toggleWrap()" style="font-size: 11px; padding: 3px 8px;" title="Toggle word wrap to prevent horizontal stretching">Wrap: ON</button>
                   <button class="btn-secondary" onclick="scrollToBottom()" style="font-size: 11px; padding: 3px 8px;" title="Scroll directly to the bottom line">⬇ Bottom</button>
                   <button class="btn-secondary" onclick="copyTerminalOutput()" style="font-size: 11px; padding: 3px 8px;" title="Copy terminal output to clipboard">📋 Copy</button>
+                  <button class="btn-secondary" onclick="downloadTerminalReport()" style="font-size: 11px; padding: 3px 8px;" title="Download terminal investigation report as Markdown file">📥 Download</button>
                   <button class="btn-secondary" onclick="clearTerminal()" style="font-size: 11px; padding: 3px 8px;" title="Clear terminal screen">🗑 Clear</button>
                 </div>
               </div>
@@ -910,9 +911,11 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
             <div class="panel-title">🛡️ Guardrail Policy & Compliance Stream</div>
             <div class="panel-subtitle">Every operation is classified into 3 tiers and cryptographically logged to <code>.audit/audit.jsonl</code>.</div>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <input type="text" id="auditSearchInput" placeholder="Filter by tool or command..." style="margin-bottom: 0; width: 220px; padding: 6px 12px; font-size: 12px;" oninput="filterAudit()">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="auditSearchInput" placeholder="Filter by tool or command..." style="margin-bottom: 0; width: 190px; padding: 6px 12px; font-size: 12px;" oninput="filterAudit()">
             <button class="btn-secondary" onclick="loadAudit()" style="padding: 6px 12px; font-size: 12px;">Refresh</button>
+            <button class="btn-secondary" onclick="exportAudit('json')" style="padding: 6px 12px; font-size: 12px;" title="Export full compliance audit trail as JSON">📥 Export JSON</button>
+            <button class="btn-secondary" onclick="exportAudit('csv')" style="padding: 6px 12px; font-size: 12px;" title="Export full compliance audit trail as CSV">📥 Export CSV</button>
           </div>
         </div>
 
@@ -1050,20 +1053,34 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       </div>
     </div>
 
-    <!-- Tab 6: Incident RCA Knowledge Base -->
+    <!-- Tab 6: Incident RCA Knowledge Base & Downloadable Reports -->
     <div class="tab-panel" id="tab-kb">
       <div class="panel">
         <div class="panel-header">
           <div>
-            <div class="panel-title">🧠 Incident RCA Knowledge Base</div>
-            <div class="panel-subtitle">Vector-indexed past incident postmortems, root causes, and remediation runbooks.</div>
+            <div class="panel-title">🧠 Incident RCA Knowledge Base & Postmortem Reports</div>
+            <div class="panel-subtitle">Browse and download incident postmortem markdown reports, or search indexed root cause runbooks.</div>
+          </div>
+          <button class="btn-secondary" onclick="loadReportsList()" style="padding: 6px 12px; font-size: 12px;">🔄 Refresh Reports</button>
+        </div>
+
+        <!-- Downloadable Reports Catalog -->
+        <div style="margin-bottom: 24px;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--text);">📄 Generated Postmortem Incident Reports</div>
+          <div id="reportsListContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
+            <div style="color: var(--text-muted); font-size: 13px;">Loading reports catalog...</div>
           </div>
         </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
+
+        <!-- Knowledge Base Full-Text Search -->
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--text);">🔍 Semantic & Keyword Runbook Search</div>
         <input type="text" id="kbQuery" placeholder="Search past incidents (e.g. 'CrashLoopBackOff', 'OOMKilled', 'database timeout', '502 Bad Gateway')..." oninput="searchKb()">
 
         <div class="terminal-container" style="margin-top: 14px;">
-          <div class="terminal-topbar">SEARCH RESULTS</div>
-          <div class="terminal-body markdown-rendered" id="kbResults">Type a query above to search through indexed incident postmortems...</div>
+          <div class="terminal-topbar">SEARCH RESULTS & INCIDENT VIEWER</div>
+          <div class="terminal-body markdown-rendered" id="kbResults">Type a query above to search through indexed incident postmortems, or click "View" on any report above.</div>
         </div>
       </div>
     </div>
@@ -1295,6 +1312,11 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       } catch (e) {
         console.error('Audit load failed:', e);
       }
+    }
+
+    function exportAudit(format) {
+      window.location.href = '/api/audit/export?format=' + encodeURIComponent(format);
+      showToast('Exporting compliance audit log as ' + format.toUpperCase() + '...');
     }
 
     function renderAuditTables(records) {
@@ -1717,6 +1739,27 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       showToast('Output copied to clipboard!');
     }
 
+    function downloadTerminalReport() {
+      const el = document.getElementById('terminalOutput');
+      const text = el ? el.innerText : '';
+      if (!text || !text.trim() || text.includes('Welcome to DevOps Agent Mission Control v4.0.\nEnter an instruction above')) {
+        showToast('Terminal is empty or awaiting instruction.', true);
+        return;
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = 'devops-investigation-report-' + timestamp + '.md';
+      const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Downloaded ' + filename + '!');
+    }
+
     // FinOps Waste Scan
     async function runFinOpsScan() {
       const out = document.getElementById('finopsResults');
@@ -1821,6 +1864,59 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         out.innerHTML = renderMarkdown(data.results || 'No historical incidents matched your query.');
       } catch (e) {
         out.innerHTML = 'Search error: ' + e.message;
+      }
+    }
+
+    // Stored Incident Postmortem Reports Catalog
+    async function loadReportsList() {
+      const container = document.getElementById('reportsListContainer');
+      if (!container) return;
+      try {
+        const res = await fetch('/api/reports');
+        const data = await res.json();
+        const reports = data.reports || [];
+        if (reports.length === 0) {
+          container.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">No postmortem reports generated yet. Reports generated during triage will appear here.</div>';
+          return;
+        }
+        container.innerHTML = reports.map((r) => {
+          const sizeKb = (r.size / 1024).toFixed(1) + ' KB';
+          const safeName = escapeHtml(r.filename);
+          const safeTitle = escapeHtml(r.title);
+          const encoded = encodeURIComponent(r.filename);
+          return (
+            '<div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">' +
+              '<div>' +
+                '<div style="font-weight: 600; font-size: 13px; color: #38bdf8; margin-bottom: 4px;">' + safeTitle + '</div>' +
+                '<div style="font-size: 11px; color: var(--text-muted);">' +
+                  '📅 ' + r.date + ' • 📦 ' + sizeKb + ' • <code style="font-size: 10px;">' + safeName + '</code>' +
+                '</div>' +
+              '</div>' +
+              '<div style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">' +
+                '<button class="btn-secondary" onclick="viewReport(\'' + encoded + '\')" style="font-size: 11px; padding: 4px 8px;">👁️ View</button>' +
+                '<a href="/api/reports/download?file=' + encoded + '" class="btn-secondary" style="font-size: 11px; padding: 4px 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" download>📥 Download .md</a>' +
+              '</div>' +
+            '</div>'
+          );
+        }).join('');
+      } catch (err) {
+        container.innerHTML = '<div style="color: #f87171; font-size: 12px;">Failed to load reports: ' + err.message + '</div>';
+      }
+    }
+
+    async function viewReport(filename) {
+      const decoded = decodeURIComponent(filename);
+      const out = document.getElementById('kbResults');
+      out.innerHTML = 'Loading report <code>' + escapeHtml(decoded) + '</code>...';
+      try {
+        const res = await fetch('/api/reports/download?file=' + encodeURIComponent(decoded));
+        if (!res.ok) throw new Error('Status ' + res.status);
+        const md = await res.text();
+        out.innerHTML = renderMarkdown(md);
+        out.scrollIntoView({ behavior: 'smooth' });
+        showToast('Loaded ' + decoded);
+      } catch (e) {
+        out.innerHTML = 'Failed to load report: ' + e.message;
       }
     }
 
@@ -2183,6 +2279,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     loadSystemStatus();
     loadClusters();
     loadCloudProviders();
+    loadReportsList();
     setupTerminalScrollListener();
     // Auto-refresh audit trail every 6 seconds
     setInterval(loadAudit, 6000);

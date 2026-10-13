@@ -971,7 +971,28 @@ spec:
   const prodKubeEval = Guardrails.evaluate('k8s_set_kubeconfig', { kubeconfig: 'prod-cluster.conf' }, mockProdContext);
   assert(prodKubeEval.requiresApproval, 'k8s_set_kubeconfig with prod target enforces operator approval');
 
-  console.log('\n\x1b[32mAll 101 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Kubeconfig Targeting & Strict Grounding feature tests passed successfully!\x1b[0m\n');
+  // Test 102: Postmortem Reports Listing
+  const reportsList = await PostmortemTool.listReports();
+  assert(Array.isArray(reportsList), 'PostmortemTool.listReports returns an array of reports');
+  assert(reportsList.length > 0, `PostmortemTool.listReports found ${reportsList.length} report(s) on disk`);
+  const firstReport = reportsList[0];
+  assert(Boolean(firstReport.filename && firstReport.title && firstReport.date && firstReport.size > 0), 'Report metadata contains filename, title, date, and size');
+
+  // Test 103: Postmortem Report Retrieval & Download Security
+  const reportContent = await PostmortemTool.getReport(firstReport.filename);
+  assert(reportContent !== null && reportContent.includes('Incident Postmortem'), 'PostmortemTool.getReport successfully loads report markdown');
+  const pathTraversalReport = await PostmortemTool.getReport('../../etc/passwd.md');
+  assert(pathTraversalReport === null, 'PostmortemTool.getReport safely blocks directory traversal');
+  const invalidExtReport = await PostmortemTool.getReport('audit.jsonl');
+  assert(invalidExtReport === null, 'PostmortemTool.getReport rejects non-markdown files');
+
+  // Test 104: Mission Control Dashboard HTML includes Download and Export Actions
+  const missionControlHtml = getDashboardHtml(mockDevContext);
+  assert(missionControlHtml.includes('downloadTerminalReport()'), 'Mission Control includes 1-click terminal report download');
+  assert(missionControlHtml.includes('exportAudit('), 'Mission Control includes audit export actions');
+  assert(missionControlHtml.includes('loadReportsList()'), 'Mission Control includes postmortem reports catalog');
+
+  console.log('\n\x1b[32mAll 104 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Kubeconfig Targeting, Report Download & Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

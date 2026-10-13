@@ -119,4 +119,55 @@ ${(data.actionItems || []).map((item, i) => `${i + 1}. [ ] ${item}`).join('\n')}
       console.error(`Failed to save to knowledge base: ${err.message}`);
     }
   }
+
+  /**
+   * List all generated postmortem reports from disk
+   */
+  static async listReports(): Promise<Array<{ filename: string; title: string; date: string; size: number }>> {
+    try {
+      await fs.mkdir(this.reportsDir, { recursive: true });
+      const files = await fs.readdir(this.reportsDir);
+      const reports: Array<{ filename: string; title: string; date: string; size: number }> = [];
+
+      for (const file of files) {
+        if (!file.endsWith('.md')) continue;
+        const filePath = path.join(this.reportsDir, file);
+        const stat = await fs.stat(filePath);
+        let title = file.replace(/^postmortem-/, '').replace(/\.md$/, '').replace(/-/g, ' ');
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const firstLine = content.split('\n')[0];
+          if (firstLine && firstLine.startsWith('# Incident Postmortem:')) {
+            title = firstLine.replace('# Incident Postmortem:', '').trim();
+          }
+        } catch {}
+
+        reports.push({
+          filename: file,
+          title,
+          date: stat.mtime.toISOString().split('T')[0],
+          size: stat.size,
+        });
+      }
+
+      return reports.sort((a, b) => b.filename.localeCompare(a.filename));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get content of a specific report by filename
+   */
+  static async getReport(filename: string): Promise<string | null> {
+    try {
+      const safe = path.basename(filename);
+      if (!safe.endsWith('.md')) return null;
+      const filePath = path.join(this.reportsDir, safe);
+      return await fs.readFile(filePath, 'utf-8');
+    } catch {
+      return null;
+    }
+  }
 }
+

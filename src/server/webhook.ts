@@ -1,4 +1,5 @@
 import * as http from 'node:http';
+import * as path from 'node:path';
 import { DevOpsAgentHarness } from '../harness/loop.js';
 import { AuditLogger } from '../policy/audit.js';
 import { PostmortemTool } from '../tools/postmortem.js';
@@ -204,12 +205,91 @@ export class AlertWebhookServer {
         return;
       }
 
+      // 4b. Audit export endpoint (CSV / JSON)
+      if (req.method === 'GET' && url.pathname === '/api/audit/export') {
+        const format = (url.searchParams.get('format') || 'json').toLowerCase();
+        const records = await this.auditLogger.getRecent(1000);
+        const dateStr = new Date().toISOString().split('T')[0];
+
+        if (format === 'csv') {
+          const header = 'id,timestamp,sessionId,toolName,tier,isBlocked,requiresApproval,approved,durationMs,outputSummary,error\n';
+          const rows = records
+            .map((r) =>
+              [
+                `"${r.id}"`,
+                `"${r.timestamp}"`,
+                `"${r.sessionId}"`,
+                `"${r.toolName}"`,
+                `"${r.tier}"`,
+                `"${r.isBlocked}"`,
+                `"${r.requiresApproval}"`,
+                `"${r.approved ?? ''}"`,
+                `"${r.durationMs}"`,
+                `"${(r.outputSummary || '').replace(/"/g, '""')}"`,
+                `"${(r.error || '').replace(/"/g, '""')}"`,
+              ].join(',')
+            )
+            .join('\n');
+          res.writeHead(200, {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="devops-audit-${dateStr}.csv"`,
+          });
+          res.end(header + rows);
+          return;
+        }
+
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="devops-audit-${dateStr}.json"`,
+        });
+        res.end(JSON.stringify(records, null, 2));
+        return;
+      }
+
       // 5. Knowledge base search
       if (req.method === 'GET' && url.pathname === '/api/kb') {
         const query = url.searchParams.get('q') || '';
         const results = await PostmortemTool.searchKnowledgeBase(query);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ query, results }));
+        return;
+      }
+
+      // 5b. Stored postmortem reports catalog
+      if (req.method === 'GET' && url.pathname === '/api/reports') {
+        const reports = await PostmortemTool.listReports();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ reports }));
+        return;
+      }
+
+      // 5c. Download postmortem report markdown
+      if (req.method === 'GET' && (url.pathname === '/api/reports/download' || url.pathname.startsWith('/api/reports/'))) {
+        const queryFile = url.searchParams.get('file');
+        const pathFile =
+          url.pathname.startsWith('/api/reports/') && url.pathname !== '/api/reports/download'
+            ? decodeURIComponent(url.pathname.replace('/api/reports/', ''))
+            : null;
+        const filename = queryFile || pathFile;
+        if (!filename) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing report filename parameter' }));
+          return;
+        }
+
+        const safeFilename = path.basename(filename);
+        const report = await PostmortemTool.getReport(safeFilename);
+        if (report === null) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Report ${safeFilename} not found` }));
+          return;
+        }
+
+        res.writeHead(200, {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${safeFilename}"`,
+        });
+        res.end(report);
         return;
       }
 

@@ -355,8 +355,11 @@ Start the engine in server mode (`npm run dev -- --server`) to enable the Web Co
   - `GET /api/config/providers` — Returns active providers, kubeconfig path, grounding status, and tool counts.
   - `POST /api/config/providers` — Update provider settings or switch kubeconfig (`{ "kubeconfig": "sb-config", "stickToKubeConfig": true }`).
 - **Prometheus Alertmanager Webhook:** `POST /api/alerts/webhook`
-- **Immutable Audit Trail:** `GET /api/audit`
-- **Interactive Task Execution API:** `POST /api/tasks`
+- **Immutable Audit Trail & Export:** `GET /api/audit` | `GET /api/audit/export?format=csv|json`
+- **Postmortem Reports Catalog & Download:**
+  - `GET /api/reports` — List generated incident postmortem markdown reports.
+  - `GET /api/reports/download?file=<name>` — Download raw postmortem report markdown.
+- **Interactive Task Execution API:** `POST /api/task`
 
 ---
 
