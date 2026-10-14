@@ -31,6 +31,10 @@ import { ServiceMeshTool } from './service_mesh.js';
 import { FluxTool } from './flux.js';
 import { KustomizeTool } from './kustomize.js';
 import { ContainerSecurityTool } from './container_security.js';
+import { RedisTool } from './middleware_cache.js';
+import { KafkaTool } from './middleware_kafka.js';
+import { RabbitMqTool, ActiveMqTool } from './middleware_queues.js';
+import { DownstreamProbeTool } from './downstream_services.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -2582,6 +2586,489 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'redis_info_diagnose',
+    description:
+      'Audit Redis in-memory cache health, memory fragmentation ratio, connected client counts, and cache hit/miss ratio.',
+    parameters: {
+      type: 'object',
+      properties: {
+        host: {
+          type: 'string',
+          description: 'Redis hostname or service name (defaults to "redis").',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port (defaults to 6379).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace where Redis is deployed.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional Redis pod name for in-cluster exec.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'redis_slowlog_inspect',
+    description:
+      'Inspect Redis slowlog to detect blocking O(N) commands (e.g. KEYS *, large HGETALL, heavy Lua scripts).',
+    parameters: {
+      type: 'object',
+      properties: {
+        host: {
+          type: 'string',
+          description: 'Redis hostname or service name.',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port (defaults to 6379).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace where Redis is deployed.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional Redis pod name.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Number of slowlog entries to inspect (defaults to 10).',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'redis_key_analysis',
+    description:
+      'Analyze Redis key namespaces, memory footprint, key counts, and TTL distribution via non-blocking SCAN sampling.',
+    parameters: {
+      type: 'object',
+      properties: {
+        host: {
+          type: 'string',
+          description: 'Redis hostname or service name.',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port.',
+        },
+        pattern: {
+          type: 'string',
+          description: 'Key pattern to sample (defaults to "*").',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'redis_cache_purge',
+    description:
+      'Purge or invalidate Redis keys matching a specific pattern. Guardrails prevent wildcard flush in production.',
+    parameters: {
+      type: 'object',
+      properties: {
+        pattern: {
+          type: 'string',
+          description: 'Key pattern to purge (e.g. "cache:catalog:*" or "session:stale:*"). Cannot be "*".',
+        },
+        host: {
+          type: 'string',
+          description: 'Redis hostname.',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port.',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Simulate key invalidation without deleting (defaults to true).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['pattern'],
+    },
+  },
+  {
+    name: 'redis_eviction_audit',
+    description:
+      'Audit Redis memory pressure, maxmemory limits, eviction policy, and cache stampede risks.',
+    parameters: {
+      type: 'object',
+      properties: {
+        host: {
+          type: 'string',
+          description: 'Redis hostname.',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'kafka_consumer_lag',
+    description:
+      'Triage Apache Kafka consumer group lag: computes offset gaps, consumer stalling, and partition skew.',
+    parameters: {
+      type: 'object',
+      properties: {
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap brokers (e.g. "kafka:9092").',
+        },
+        consumerGroup: {
+          type: 'string',
+          description: 'Kafka consumer group ID.',
+        },
+        topic: {
+          type: 'string',
+          description: 'Kafka topic name.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace where Kafka/workers reside.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'kafka_cluster_health',
+    description:
+      'Audit Apache Kafka cluster health: checks broker counts, active controller, under-replicated partitions (URP), and ISR stability.',
+    parameters: {
+      type: 'object',
+      properties: {
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap broker addresses.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'kafka_topic_inspect',
+    description:
+      'Inspect Apache Kafka topic partition distribution, replication factor, retention configuration, and leader skew.',
+    parameters: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Kafka topic name.',
+        },
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap brokers.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'kafka_offset_reset',
+    description:
+      'Reset consumer group offsets to earliest, latest, or specific timestamp with mandatory dry-run verification.',
+    parameters: {
+      type: 'object',
+      properties: {
+        consumerGroup: {
+          type: 'string',
+          description: 'Kafka consumer group name.',
+        },
+        topic: {
+          type: 'string',
+          description: 'Kafka topic name.',
+        },
+        resetTo: {
+          type: 'string',
+          enum: ['earliest', 'latest', 'shift-by', 'to-datetime'],
+          description: 'Offset reset position.',
+        },
+        value: {
+          type: 'string',
+          description: 'Offset shift count or ISO timestamp when resetTo is shift-by or to-datetime.',
+        },
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap brokers.',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Simulate offset update without committing (defaults to true).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['consumerGroup', 'topic', 'resetTo'],
+    },
+  },
+  {
+    name: 'rabbitmq_queue_status',
+    description:
+      'Audit RabbitMQ queue message depths, ready messages, unacknowledged backlogs, and consumer throughput.',
+    parameters: {
+      type: 'object',
+      properties: {
+        managementUrl: {
+          type: 'string',
+          description: 'RabbitMQ management URL (defaults to "http://rabbitmq:15672").',
+        },
+        vhost: {
+          type: 'string',
+          description: 'RabbitMQ virtual host (defaults to "/").',
+        },
+        queueName: {
+          type: 'string',
+          description: 'Optional specific queue name to filter.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'rabbitmq_dlq_inspect',
+    description:
+      'Inspect RabbitMQ Dead-Letter Exchanges (DLX) and Dead-Letter Queues for poison pill message payloads and rejection reasons.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dlqName: {
+          type: 'string',
+          description: 'Dead-letter queue name (e.g. "orders.dead_letter").',
+        },
+        managementUrl: {
+          type: 'string',
+          description: 'RabbitMQ management endpoint.',
+        },
+        vhost: {
+          type: 'string',
+          description: 'Virtual host.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'rabbitmq_alarms_check',
+    description:
+      'Audit RabbitMQ node-level memory watermark alarms, disk free limits, and flow-control publisher blocking.',
+    parameters: {
+      type: 'object',
+      properties: {
+        managementUrl: {
+          type: 'string',
+          description: 'RabbitMQ management endpoint.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'activemq_queue_audit',
+    description:
+      'Audit Apache ActiveMQ broker queues, pending JMS message counts, consumer starvation, and store utilization.',
+    parameters: {
+      type: 'object',
+      properties: {
+        brokerUrl: {
+          type: 'string',
+          description: 'ActiveMQ web console / Jolokia URL (defaults to "http://activemq:8161").',
+        },
+        queueName: {
+          type: 'string',
+          description: 'Optional queue name to filter.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'activemq_dlq_triage',
+    description:
+      'Triage Apache ActiveMQ Dead-Letter Queue (ActiveMQ.DLQ) for poison pill messages, socket timeouts, and exception traces.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dlqName: {
+          type: 'string',
+          description: 'Dead letter queue name (defaults to "ActiveMQ.DLQ").',
+        },
+        brokerUrl: {
+          type: 'string',
+          description: 'ActiveMQ broker URL.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'service_endpoint_probe',
+    description:
+      'Execute synthetic HTTP/HTTPS, TCP, or gRPC endpoint probes from inside the cluster to measure latency, TLS validity, and timeouts.',
+    parameters: {
+      type: 'object',
+      properties: {
+        targetUrl: {
+          type: 'string',
+          description: 'Endpoint URL or host:port to probe (e.g. "http://order-service:8080/health" or "redis:6379").',
+        },
+        method: {
+          type: 'string',
+          enum: ['GET', 'POST', 'HEAD', 'TCP'],
+          description: 'Probe method (defaults to "GET").',
+        },
+        timeoutMs: {
+          type: 'number',
+          description: 'Probe timeout in milliseconds (defaults to 5000).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Source Kubernetes namespace for probe.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['targetUrl'],
+    },
+  },
+  {
+    name: 'db_pool_audit',
+    description:
+      'Audit downstream database connection pool utilization (HikariCP, pgBouncer) for wait times, starvation, and leaked connections.',
+    parameters: {
+      type: 'object',
+      properties: {
+        serviceName: {
+          type: 'string',
+          description: 'Workload or microservice name connecting to database.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'downstream_dependency_map',
+    description:
+      'Map downstream service dependencies (databases, Redis, Kafka, RabbitMQ, ActiveMQ, external APIs) and check health.',
+    parameters: {
+      type: 'object',
+      properties: {
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace to map.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
 ];
 
 /**
@@ -3060,6 +3547,74 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       const targetCtx = args.context || context?.kubeContext;
       return await K8sTool.carbonFootprint(args.namespace, args.region, targetCtx);
     }
+    case 'redis_info_diagnose': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.diagnose({ ...args, context: targetCtx });
+    }
+    case 'redis_slowlog_inspect': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.inspectSlowlog({ ...args, context: targetCtx });
+    }
+    case 'redis_key_analysis': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.analyzeKeys({ ...args, context: targetCtx });
+    }
+    case 'redis_cache_purge': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.purgeCache({ ...args, context: targetCtx } as any);
+    }
+    case 'redis_eviction_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.auditEvictions({ ...args, context: targetCtx });
+    }
+    case 'kafka_consumer_lag': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.consumerLag({ ...args, context: targetCtx });
+    }
+    case 'kafka_cluster_health': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.clusterHealth({ ...args, context: targetCtx });
+    }
+    case 'kafka_topic_inspect': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.topicInspect({ ...args, context: targetCtx });
+    }
+    case 'kafka_offset_reset': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.offsetReset({ ...args, context: targetCtx } as any);
+    }
+    case 'rabbitmq_queue_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RabbitMqTool.queueStatus({ ...args, context: targetCtx });
+    }
+    case 'rabbitmq_dlq_inspect': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RabbitMqTool.dlqInspect({ ...args, context: targetCtx });
+    }
+    case 'rabbitmq_alarms_check': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RabbitMqTool.alarmsCheck({ ...args, context: targetCtx });
+    }
+    case 'activemq_queue_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ActiveMqTool.queueAudit({ ...args, context: targetCtx });
+    }
+    case 'activemq_dlq_triage': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await ActiveMqTool.dlqTriage({ ...args, context: targetCtx });
+    }
+    case 'service_endpoint_probe': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await DownstreamProbeTool.probeEndpoint({ ...args, context: targetCtx } as any);
+    }
+    case 'db_pool_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await DownstreamProbeTool.auditDbPools({ ...args, context: targetCtx });
+    }
+    case 'downstream_dependency_map': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await DownstreamProbeTool.dependencyMap({ ...args, context: targetCtx });
+    }
     default:
       throw new Error(`Tool "${name}" is not implemented.`);
   }
@@ -3068,3 +3623,7 @@ export async function executeTool(name: string, args: Record<string, any>, conte
 export { FluxTool } from './flux.js';
 export { KustomizeTool } from './kustomize.js';
 export { ContainerSecurityTool } from './container_security.js';
+export { RedisTool } from './middleware_cache.js';
+export { KafkaTool } from './middleware_kafka.js';
+export { RabbitMqTool, ActiveMqTool } from './middleware_queues.js';
+export { DownstreamProbeTool } from './downstream_services.js';

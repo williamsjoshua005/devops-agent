@@ -37,6 +37,10 @@ import { FluxTool } from '../src/tools/flux.js';
 import { KustomizeTool } from '../src/tools/kustomize.js';
 import { GitOpsTool } from '../src/tools/gitops.js';
 import { ContainerSecurityTool } from '../src/tools/container_security.js';
+import { RedisTool } from '../src/tools/middleware_cache.js';
+import { KafkaTool } from '../src/tools/middleware_kafka.js';
+import { RabbitMqTool, ActiveMqTool } from '../src/tools/middleware_queues.js';
+import { DownstreamProbeTool } from '../src/tools/downstream_services.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
@@ -867,27 +871,27 @@ spec:
   const carbonOut = await K8sTool.carbonFootprint(undefined, 'us-east-1');
   assert(carbonOut.includes('Carbon Footprint') || carbonOut.includes('Sustainability') || carbonOut.includes('kWh') || carbonOut.includes('CO2') || carbonOut.includes('Failed to estimate'), 'K8sTool.carbonFootprint computes GreenOps footprint');
 
-  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (109 Native Tools & MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 109, `All 109 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (126 Native Tools & MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 126, `All 126 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
 
   const mcp108Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10004, method: 'tools/list' });
-  assert(mcp108Res.result.tools.length >= 109, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
+  assert(mcp108Res.result.tools.length >= 126, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
 
   // Test 95: Cloud Provider Dynamic Catalog Filtering (getAvailableToolDefinitions)
   const allTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: true } });
-  assert(allTools.length === 109, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
+  assert(allTools.length === 126, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
 
   const noAwsTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } });
-  assert(noAwsTools.length === 107 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (107 tools remaining)');
+  assert(noAwsTools.length === 124 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (124 tools remaining)');
 
   const noAzTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: false, gcp: true } });
-  assert(noAzTools.length === 107 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (107 tools remaining)');
+  assert(noAzTools.length === 124 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (124 tools remaining)');
 
   const noGcpTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: false } });
-  assert(noGcpTools.length === 107 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (107 tools remaining)');
+  assert(noGcpTools.length === 124 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (124 tools remaining)');
 
   const k8sOnlyTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: false, gcp: false } });
-  assert(k8sOnlyTools.length === 103, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 103 tools (${k8sOnlyTools.length} tools)`);
+  assert(k8sOnlyTools.length === 120, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 120 tools (${k8sOnlyTools.length} tools)`);
 
   // Test 96: Guardrails Enforcement for Disabled Cloud Provider Tools
   const awsDisabledCtx: AgentContext = { ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } };
@@ -961,7 +965,7 @@ spec:
     stickToKubeConfig: true,
   });
   const mcpFilteredRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10005, method: 'tools/list' });
-  assert(mcpFilteredRes.result.tools.length === 103, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 103 tools)`);
+  assert(mcpFilteredRes.result.tools.length === 120, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 120 tools)`);
   assert(!mcpFilteredRes.result.tools.some((t: any) => t.name.startsWith('aws_') || t.name.startsWith('az_') || t.name.startsWith('gcp_')), 'MCP Server tool list contains zero disabled cloud tools');
 
   // Test 101: Custom Kubeconfig Targeting (k8s_set_kubeconfig & K8sTool.setKubeconfig)
@@ -992,7 +996,114 @@ spec:
   assert(missionControlHtml.includes('exportAudit('), 'Mission Control includes audit export actions');
   assert(missionControlHtml.includes('loadReportsList()'), 'Mission Control includes postmortem reports catalog');
 
-  console.log('\n\x1b[32mAll 104 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Kubeconfig Targeting, Report Download & Grounding feature tests passed successfully!\x1b[0m\n');
+  // Test 105: Redis Cache Diagnostics & Memory Fragmentation
+  const redisDiagEval = Guardrails.evaluate('redis_info_diagnose', { host: 'redis', port: 6379 }, mockDevContext);
+  assert(redisDiagEval.tier === 'READ' && !redisDiagEval.requiresApproval, 'redis_info_diagnose evaluates autonomously as READ');
+
+  const redisDiagOut = await RedisTool.diagnose({ host: 'redis-cache', port: 6379, namespace: 'cache' });
+  assert(redisDiagOut.includes('Redis') && (redisDiagOut.includes('Memory') || redisDiagOut.includes('Fragmentation')), 'RedisTool.diagnose generates structured cache report');
+
+  // Test 106: Redis Slowlog & Key Analysis
+  const redisSlowlogEval = Guardrails.evaluate('redis_slowlog_inspect', {}, mockDevContext);
+  assert(redisSlowlogEval.tier === 'READ' && !redisSlowlogEval.requiresApproval, 'redis_slowlog_inspect evaluates autonomously as READ');
+
+  const slowlogOut = await RedisTool.inspectSlowlog({ limit: 5 });
+  assert(slowlogOut.includes('Slowlog') && slowlogOut.includes('Latency'), 'RedisTool.inspectSlowlog detects slow operations');
+
+  const keyAnalysisOut = await RedisTool.analyzeKeys({ pattern: 'session:*' });
+  assert(keyAnalysisOut.includes('Key Analysis') && keyAnalysisOut.includes('Namespace'), 'RedisTool.analyzeKeys samples keyspace without blocking');
+
+  // Test 107: Redis Cache Purge Guardrails
+  const purgeDryEval = Guardrails.evaluate('redis_cache_purge', { pattern: 'cache:v1:*', dryRun: true }, mockDevContext);
+  assert(purgeDryEval.tier === 'READ' && !purgeDryEval.requiresApproval, 'redis_cache_purge in dry-run mode evaluates as READ');
+
+  const purgeProdWildcardEval = Guardrails.evaluate('redis_cache_purge', { pattern: '*' }, mockProdContext);
+  assert(purgeProdWildcardEval.tier === 'DANGEROUS' && purgeProdWildcardEval.isBlocked, 'redis_cache_purge with wildcard in production is strictly BLOCKED');
+
+  const purgeTargetedEval = Guardrails.evaluate('redis_cache_purge', { pattern: 'cache:catalog:*', dryRun: false }, mockProdContext);
+  assert(purgeTargetedEval.tier === 'MUTATE' && purgeTargetedEval.requiresApproval && purgeTargetedEval.isProductionWarning, 'redis_cache_purge in prod enforces operator confirmation');
+
+  // Test 108: Apache Kafka Consumer Group Lag Triage
+  const kafkaLagEval = Guardrails.evaluate('kafka_consumer_lag', { consumerGroup: 'payment-group' }, mockDevContext);
+  assert(kafkaLagEval.tier === 'READ' && !kafkaLagEval.requiresApproval, 'kafka_consumer_lag evaluates autonomously as READ');
+
+  const kafkaLagOut = await KafkaTool.consumerLag({ consumerGroup: 'orders-worker', topic: 'order-events' });
+  assert(kafkaLagOut.includes('Kafka') && kafkaLagOut.includes('Consumer Group Lag') && kafkaLagOut.includes('Partition'), 'KafkaTool.consumerLag calculates partition lag and offsets');
+
+  // Test 109: Apache Kafka Cluster Health & Topic Inspection
+  const kafkaHealthEval = Guardrails.evaluate('kafka_cluster_health', {}, mockDevContext);
+  assert(kafkaHealthEval.tier === 'READ' && !kafkaHealthEval.requiresApproval, 'kafka_cluster_health evaluates autonomously as READ');
+
+  const kafkaHealthOut = await KafkaTool.clusterHealth();
+  assert(kafkaHealthOut.includes('Kafka') && kafkaHealthOut.includes('Under-Replicated Partitions'), 'KafkaTool.clusterHealth audits broker and replica health');
+
+  const topicInspectOut = await KafkaTool.topicInspect({ topic: 'orders-topic' });
+  assert(topicInspectOut.includes('Topic Configuration') && topicInspectOut.includes('Partition Count'), 'KafkaTool.topicInspect audits topic replication and skew');
+
+  // Test 110: Apache Kafka Consumer Offset Reset Guardrails
+  const offsetDryEval = Guardrails.evaluate('kafka_offset_reset', { consumerGroup: 'orders', topic: 'events', resetTo: 'latest', dryRun: true }, mockDevContext);
+  assert(offsetDryEval.tier === 'READ' && !offsetDryEval.requiresApproval, 'kafka_offset_reset in dry-run mode evaluates safely as READ');
+
+  const offsetLiveEval = Guardrails.evaluate('kafka_offset_reset', { consumerGroup: 'orders', topic: 'events', resetTo: 'latest', dryRun: false }, mockProdContext);
+  assert(offsetLiveEval.tier === 'MUTATE' && offsetLiveEval.requiresApproval && offsetLiveEval.isProductionWarning, 'kafka_offset_reset in prod requires operator approval with warning');
+
+  // Test 111: RabbitMQ Queue Status & Dead-Letter Queue (DLQ) Triage
+  const rmqQueueEval = Guardrails.evaluate('rabbitmq_queue_status', {}, mockDevContext);
+  assert(rmqQueueEval.tier === 'READ' && !rmqQueueEval.requiresApproval, 'rabbitmq_queue_status evaluates autonomously as READ');
+
+  const rmqStatusOut = await RabbitMqTool.queueStatus();
+  assert(rmqStatusOut.includes('RabbitMQ') && rmqStatusOut.includes('Ready Msgs') && rmqStatusOut.includes('Unacked'), 'RabbitMqTool.queueStatus audits queue depths and rates');
+
+  const rmqDlqOut = await RabbitMqTool.dlqInspect({ dlqName: 'orders.dead_letter' });
+  assert(rmqDlqOut.includes('Dead-Letter Queue') && rmqDlqOut.includes('Sampled Failed Message'), 'RabbitMqTool.dlqInspect extracts dead-lettered payloads');
+
+  // Test 112: RabbitMQ Node Alarms & ActiveMQ Broker Queue Audit
+  const rmqAlarmsOut = await RabbitMqTool.alarmsCheck();
+  assert(rmqAlarmsOut.includes('RabbitMQ') && rmqAlarmsOut.includes('Memory Alarm') && rmqAlarmsOut.includes('Disk Alarm'), 'RabbitMqTool.alarmsCheck checks cluster resource watermarks');
+
+  const amqQueueEval = Guardrails.evaluate('activemq_queue_audit', {}, mockDevContext);
+  assert(amqQueueEval.tier === 'READ' && !amqQueueEval.requiresApproval, 'activemq_queue_audit evaluates autonomously as READ');
+
+  const amqQueueOut = await ActiveMqTool.queueAudit();
+  assert(amqQueueOut.includes('ActiveMQ') && amqQueueOut.includes('Pending Messages'), 'ActiveMqTool.queueAudit inspects broker queues');
+
+  const amqDlqOut = await ActiveMqTool.dlqTriage();
+  assert(amqDlqOut.includes('ActiveMQ') && amqDlqOut.includes('DLQ Triage') && amqDlqOut.includes('Destination'), 'ActiveMqTool.dlqTriage samples poison pill exceptions');
+
+  // Test 113: Downstream Synthetic Service Endpoint Probing
+  const probeEval = Guardrails.evaluate('service_endpoint_probe', { targetUrl: 'http://order-service:8080/health' }, mockDevContext);
+  assert(probeEval.tier === 'READ' && !probeEval.requiresApproval, 'service_endpoint_probe evaluates autonomously as READ');
+
+  const probeOut = await DownstreamProbeTool.probeEndpoint({ targetUrl: 'http://order-service.default.svc:8080/health' });
+  assert(probeOut.includes('Downstream Synthetic Service Probe') && (probeOut.includes('HTTP Status Code') || probeOut.includes('HTTP Response Code')), 'DownstreamProbeTool.probeEndpoint performs synthetic health audit');
+
+  // Test 114: Database Connection Pool Audit & Dependency Mapping
+  const dbPoolEval = Guardrails.evaluate('db_pool_audit', {}, mockDevContext);
+  assert(dbPoolEval.tier === 'READ' && !dbPoolEval.requiresApproval, 'db_pool_audit evaluates autonomously as READ');
+
+  const dbPoolOut = await DownstreamProbeTool.auditDbPools({ serviceName: 'payment-api' });
+  assert(dbPoolOut.includes('Database Connection Pool') && dbPoolOut.includes('Starvation'), 'DownstreamProbeTool.auditDbPools flags connection pool bottlenecks');
+
+  const depMapOut = await DownstreamProbeTool.dependencyMap();
+  assert(depMapOut.includes('Dependency Map') && depMapOut.includes('Kafka') && depMapOut.includes('Redis'), 'DownstreamProbeTool.dependencyMap outlines full middleware graph');
+
+  // Test 115: Enterprise Runbook Catalog includes Middleware & Downstream Runbooks
+  const kafkaRunbook = RunbookTool.listRunbooks({ symptom: 'Kafka lag' });
+  assert(kafkaRunbook.includes('kafka-consumer-lag-remediation'), 'Runbook catalog includes Kafka consumer lag runbook');
+
+  const redisRunbook = RunbookTool.listRunbooks({ symptom: 'OOM command not allowed' });
+  assert(redisRunbook.includes('redis-oom-cache-stampede'), 'Runbook catalog includes Redis OOM cache stampede runbook');
+
+  const rmqRunbook = RunbookTool.listRunbooks({ symptom: 'RabbitMQ backpressure' });
+  assert(rmqRunbook.includes('rabbitmq-unacked-queue-backpressure'), 'Runbook catalog includes RabbitMQ backpressure runbook');
+
+  const amqRunbook = RunbookTool.listRunbooks({ symptom: 'ActiveMQ.DLQ spike' });
+  assert(amqRunbook.includes('activemq-dlq-surge'), 'Runbook catalog includes ActiveMQ DLQ surge runbook');
+
+  const cbRunbook = RunbookTool.listRunbooks({ symptom: 'Circuit breaker OPEN' });
+  assert(cbRunbook.includes('downstream-service-circuit-breaker-open'), 'Runbook catalog includes downstream circuit breaker runbook');
+
+  console.log('\n\x1b[32mAll 115 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka, RabbitMQ, ActiveMQ, Downstream Probing & Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

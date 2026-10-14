@@ -25,6 +25,9 @@ const DANGEROUS_PATTERNS = [
   /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, // fork bomb
   />\s*\/dev\/sd[a-z]/i,
   /DROP\s+(DATABASE|TABLE)\b/i,
+  /kafka-topics(\.sh)?\s+.*--delete\b/i,
+  /redis-cli\s+.*flushall\b/i,
+  /rabbitmqctl\s+.*delete_(queue|vhost|user)\b/i,
 ];
 
 // Patterns that mutate state (requiring human confirmation)
@@ -39,6 +42,8 @@ const MUTATING_PATTERNS = [
   /git\s+(commit|push|merge|rebase|reset|checkout\s+-b)\b/i,
   /sed\s+-i\b/i,
   /echo\s+.*>\s+[^>]/, // file redirection overwrite
+  /redis-cli\s+.*(unlink|del|flushdb|config\s+set)\b/i,
+  /kafka-consumer-groups(\.sh)?\s+.*--reset-offsets\b/i,
 ];
 
 export class Guardrails {
@@ -252,6 +257,23 @@ export class Guardrails {
       toolName === 'k8s_git_sync_status' ||
       toolName === 'k8s_cost_by_namespace' ||
       toolName === 'k8s_carbon_footprint' ||
+      toolName === 'redis_info_diagnose' ||
+      toolName === 'redis_slowlog_inspect' ||
+      toolName === 'redis_key_analysis' ||
+      toolName === 'redis_eviction_audit' ||
+      (toolName === 'redis_cache_purge' && args.dryRun === true) ||
+      toolName === 'kafka_consumer_lag' ||
+      toolName === 'kafka_cluster_health' ||
+      toolName === 'kafka_topic_inspect' ||
+      (toolName === 'kafka_offset_reset' && args.dryRun === true) ||
+      toolName === 'rabbitmq_queue_status' ||
+      toolName === 'rabbitmq_dlq_inspect' ||
+      toolName === 'rabbitmq_alarms_check' ||
+      toolName === 'activemq_queue_audit' ||
+      toolName === 'activemq_dlq_triage' ||
+      toolName === 'service_endpoint_probe' ||
+      toolName === 'db_pool_audit' ||
+      toolName === 'downstream_dependency_map' ||
       (toolName === 'k8s_pv_cleanup' && args.dryRun !== false) ||
       (toolName === 'k8s_node_drain' && args.dryRun === true) ||
       (toolName === 'k8s_apply_manifest' && args.dryRun !== false && args.dryRun !== 'none') ||
@@ -739,6 +761,46 @@ export class Guardrails {
         reason: isProd
           ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Deleting PersistentVolumes permanently removes storage resources and associated cloud disks.'
           : 'Reclaiming PersistentVolumes deletes storage resources. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'redis_cache_purge') {
+      const pattern = String(args.pattern || '').trim();
+      if ((pattern === '*' || pattern === '') && isProd) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED Redis Wildcard Cache Purge in PRODUCTION: "${pattern}"`,
+          reason: 'Purging all keys in production triggers massive Cache Stampede / Thundering Herd against primary databases. Permanently blocked by safety policy.',
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+      const requiresApproval = isProd || !isIntermediateOrSenior;
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Redis Cache Purge: Invalidate keys matching "${pattern}" on "${args.host || 'redis'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Invalidating cache keys shifts query load directly onto downstream databases.'
+          : isIntermediateOrSenior
+          ? 'Intermediate DevOps autonomy: Non-production cache purge executed autonomously.'
+          : 'Invalidating cache keys modifies application cache state. Operator confirmation required.',
+        requiresApproval,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'kafka_offset_reset') {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Kafka Offset Reset: Reset consumer group "${args.consumerGroup}" offsets on topic "${args.topic}" to "${args.resetTo}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Operating on PRODUCTION Kafka cluster. Resetting consumer offsets alters stream processing position and can cause message skips or reprocessing duplicates.'
+          : 'Resetting Kafka consumer offsets alters event consumption position. Operator confirmation required.',
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,
