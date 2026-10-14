@@ -1754,7 +1754,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     function downloadTerminalReport() {
       const el = document.getElementById('terminalOutput');
       const text = el ? el.innerText : '';
-      if (!text || !text.trim() || text.includes('Welcome to DevOps Agent Mission Control v4.0.\nEnter an instruction above')) {
+      if (!text || !text.trim() || text.includes('Welcome to DevOps Agent Mission Control')) {
         showToast('Terminal is empty or awaiting instruction.', true);
         return;
       }
@@ -1905,7 +1905,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
                 '</div>' +
               '</div>' +
               '<div style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">' +
-                '<button class="btn-secondary" onclick="viewReport(\'' + encoded + '\')" style="font-size: 11px; padding: 4px 8px;">👁️ View</button>' +
+                '<button class="btn-secondary" onclick="viewReport(&quot;' + encoded + '&quot;)" style="font-size: 11px; padding: 4px 8px;">👁️ View</button>' +
                 '<a href="/api/reports/download?file=' + encoded + '" class="btn-secondary" style="font-size: 11px; padding: 4px 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" download>📥 Download .md</a>' +
               '</div>' +
             '</div>'
