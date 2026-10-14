@@ -124,6 +124,10 @@ export function getDashboardHtml(context: any): string {
       z-index: 1000;
       text-align: left;
     }
+    .cluster-dropdown-right {
+      left: auto !important;
+      right: 0 !important;
+    }
     .dropdown-header {
       padding: 10px 14px;
       font-size: 11px;
@@ -670,43 +674,46 @@ export function getDashboardHtml(context: any): string {
         <span style="font-size: 10px; color: var(--text-muted); margin-left: 2px;">▼</span>
 
         <!-- Cloud Dropdown Menu -->
-        <div id="cloudDropdownMenu" class="cluster-dropdown" style="display: none; min-width: 300px;">
-          <div class="dropdown-header">CLOUD PROVIDERS & KUBECONFIG</div>
-          <div class="cluster-item" onclick="toggleProvider('aws', event)">
+        <div id="cloudDropdownMenu" class="cluster-dropdown cluster-dropdown-right" style="display: none; min-width: 320px;" onclick="event.stopPropagation()">
+          <div class="dropdown-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>CLOUD PROVIDERS & KUBECONFIG</span>
+            <span onclick="toggleCloudDropdown(event)" style="cursor: pointer; color: var(--text-muted); font-size: 13px; padding: 0 4px;" title="Close">✕</span>
+          </div>
+          <div class="cluster-item" onclick="toggleProvider('aws', event)" style="cursor: pointer; user-select: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
               <div>
-                <div style="font-weight: 700;">AWS (EKS / EC2)</div>
+                <div style="font-weight: 700; color: #f1f5f9;">AWS (EKS / EC2)</div>
                 <div style="font-size: 11px; color: var(--text-muted);">aws_* tools and aws CLI</div>
               </div>
-              <span id="awsBadge" class="badge ${cp.aws ? 'badge-dev' : 'badge-prod'}">${cp.aws ? 'ON' : 'OFF'}</span>
+              <button id="awsBadge" class="badge ${cp.aws ? 'badge-dev' : 'badge-prod'}" style="cursor: pointer; border: none; font-size: 11px; padding: 4px 10px;">${cp.aws ? 'ON' : 'OFF'}</button>
             </div>
           </div>
-          <div class="cluster-item" onclick="toggleProvider('azure', event)">
+          <div class="cluster-item" onclick="toggleProvider('azure', event)" style="cursor: pointer; user-select: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
               <div>
-                <div style="font-weight: 700;">Azure (AKS / ARM)</div>
+                <div style="font-weight: 700; color: #f1f5f9;">Azure (AKS / ARM)</div>
                 <div style="font-size: 11px; color: var(--text-muted);">az_* tools and az CLI</div>
               </div>
-              <span id="azureBadge" class="badge ${cp.azure ? 'badge-dev' : 'badge-prod'}">${cp.azure ? 'ON' : 'OFF'}</span>
+              <button id="azureBadge" class="badge ${cp.azure ? 'badge-dev' : 'badge-prod'}" style="cursor: pointer; border: none; font-size: 11px; padding: 4px 10px;">${cp.azure ? 'ON' : 'OFF'}</button>
             </div>
           </div>
-          <div class="cluster-item" onclick="toggleProvider('gcp', event)">
+          <div class="cluster-item" onclick="toggleProvider('gcp', event)" style="cursor: pointer; user-select: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
               <div>
-                <div style="font-weight: 700;">GCP (GKE / Compute)</div>
+                <div style="font-weight: 700; color: #f1f5f9;">GCP (GKE / Compute)</div>
                 <div style="font-size: 11px; color: var(--text-muted);">gcp_* tools and gcloud CLI</div>
               </div>
-              <span id="gcpBadge" class="badge ${cp.gcp ? 'badge-dev' : 'badge-prod'}">${cp.gcp ? 'ON' : 'OFF'}</span>
+              <button id="gcpBadge" class="badge ${cp.gcp ? 'badge-dev' : 'badge-prod'}" style="cursor: pointer; border: none; font-size: 11px; padding: 4px 10px;">${cp.gcp ? 'ON' : 'OFF'}</button>
             </div>
           </div>
           <div style="border-top: 1px solid var(--card-border); margin: 6px 0;"></div>
-          <div class="cluster-item" onclick="toggleStickKubeConfig(event)">
+          <div class="cluster-item" onclick="toggleStickKubeConfig(event)" style="cursor: pointer; user-select: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
               <div>
                 <div style="font-weight: 700; color: #38bdf8;">☸️ Stick to Kubeconfig</div>
                 <div style="font-size: 11px; color: var(--text-muted);">Strict in-cluster diagnostics only</div>
               </div>
-              <span id="stickBadge" class="badge ${stick ? 'badge-dev' : 'badge-prod'}">${stick ? 'ACTIVE' : 'OFF'}</span>
+              <button id="stickBadge" class="badge ${stick ? 'badge-dev' : 'badge-prod'}" style="cursor: pointer; border: none; font-size: 11px; padding: 4px 10px;">${stick ? 'ACTIVE' : 'OFF'}</button>
             </div>
           </div>
           <div style="border-top: 1px solid var(--card-border); margin: 6px 0;"></div>
@@ -723,10 +730,13 @@ export function getDashboardHtml(context: any): string {
               ${context.kubeconfig || 'Default (~/.kube/config)'}
             </div>
           </div>
-          <div class="cluster-item" onclick="activateK8sOnly(event)" style="background: rgba(56, 189, 248, 0.08);">
-            <div style="width: 100%; text-align: center; font-weight: 700; color: #38bdf8; font-size: 12px;">
-              ⚡ Activate Kubernetes-Only Mode
-            </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 12px; background: rgba(0,0,0,0.2);">
+            <button onclick="activateK8sOnly(event)" style="padding: 6px 8px; font-size: 11px; font-weight: 700; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 6px; cursor: pointer;" title="Block cloud tools and ground to K8s">
+              ⚡ K8s Only
+            </button>
+            <button onclick="enableAllClouds(event)" style="padding: 6px 8px; font-size: 11px; font-weight: 700; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; border-radius: 6px; cursor: pointer;" title="Enable AWS, Azure, and GCP">
+              ☁️ Enable All
+            </button>
           </div>
         </div>
       </div>
@@ -809,6 +819,8 @@ export function getDashboardHtml(context: any): string {
               <span class="chip" onclick="quickTask('List all AWS EC2 instances and EKS status')">☁️ AWS Resources</span>
               <span class="chip" onclick="quickTask('List all GCP compute instances and GKE status')">☁️ GCP Resources</span>
               <span class="chip" onclick="quickTask('Inspect Azure resources and AKS cluster health')">☁️ Azure & AKS</span>
+              <span class="chip chip-accent" onclick="quickTask('/cloud')">☁️ Cloud Providers</span>
+              <span class="chip" onclick="quickTask('/k8s-only')">🔒 K8s-Only Mode</span>
               <span class="chip chip-accent" onclick="quickTask('Check for expiring TLS certificates on domain api.github.com')">🔒 TLS Expiry Check</span>
               <span class="chip" onclick="quickTask('Run security audit on Dockerfile for vulnerabilities')">🛡️ Security Lint</span>
             </div>
@@ -1998,8 +2010,13 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     }
 
     function toggleClusterDropdown(e) {
-      e.stopPropagation();
+      if (e) e.stopPropagation();
       const menu = document.getElementById('clusterDropdownMenu');
+      const roleMenu = document.getElementById('roleDropdownMenu');
+      const cloudMenu = document.getElementById('cloudDropdownMenu');
+      if (roleMenu) roleMenu.style.display = 'none';
+      if (cloudMenu) cloudMenu.style.display = 'none';
+      if (!menu) return;
       if (menu.style.display === 'none' || !menu.style.display) {
         menu.style.display = 'block';
         loadClusters();
@@ -2018,13 +2035,19 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       if (roleMenu && !e.target.closest('#rolePill')) {
         roleMenu.style.display = 'none';
       }
+      const cloudMenu = document.getElementById('cloudDropdownMenu');
+      if (cloudMenu && !e.target.closest('#cloudPill')) {
+        cloudMenu.style.display = 'none';
+      }
     });
 
     function toggleRoleDropdown(e) {
-      e.stopPropagation();
+      if (e) e.stopPropagation();
       const menu = document.getElementById('roleDropdownMenu');
       const clusterMenu = document.getElementById('clusterDropdownMenu');
+      const cloudMenu = document.getElementById('cloudDropdownMenu');
       if (clusterMenu) clusterMenu.style.display = 'none';
+      if (cloudMenu) cloudMenu.style.display = 'none';
       if (!menu) return;
       menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
     }
@@ -2101,14 +2124,18 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     let currentCloudConfig = { aws: true, azure: true, gcp: true, stickToKubeConfig: true };
 
     function toggleCloudDropdown(e) {
-      e.stopPropagation();
+      if (e) e.stopPropagation();
       const menu = document.getElementById('cloudDropdownMenu');
       const roleMenu = document.getElementById('roleDropdownMenu');
       const clusterMenu = document.getElementById('clusterDropdownMenu');
       if (roleMenu) roleMenu.style.display = 'none';
       if (clusterMenu) clusterMenu.style.display = 'none';
       if (!menu) return;
-      menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+      const isVisible = menu.style.display === 'block';
+      menu.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible) {
+        loadCloudProviders();
+      }
     }
 
     async function loadCloudProviders() {
@@ -2137,6 +2164,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       const gcpBadge = document.getElementById('gcpBadge');
       const stickBadge = document.getElementById('stickBadge');
       const text = document.getElementById('activeCloudText');
+      const cloudDot = document.getElementById('cloudDot');
 
       if (awsBadge) {
         awsBadge.className = 'badge ' + (cp.aws ? 'badge-dev' : 'badge-prod');
@@ -2160,6 +2188,10 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         if (cp.azure) enabled.push('AZ');
         if (cp.gcp) enabled.push('GCP');
         text.innerText = enabled.length > 0 ? enabled.join(' • ') : 'K8S ONLY';
+      }
+      if (cloudDot) {
+        const hasAny = cp.aws || cp.azure || cp.gcp;
+        cloudDot.className = 'status-dot ' + (hasAny ? 'dot-green' : 'dot-yellow');
       }
     }
 
@@ -2221,6 +2253,26 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         }
       } catch (err) {
         showToast('Error activating k8s-only: ' + err.message);
+      }
+    }
+
+    async function enableAllClouds(e) {
+      if (e) e.stopPropagation();
+      try {
+        const res = await fetch('/api/config/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ aws: true, azure: true, gcp: true }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentCloudConfig = { ...data.cloudProviders, stickToKubeConfig: data.stickToKubeConfig };
+          updateCloudUI(data.cloudProviders, data.stickToKubeConfig);
+          showToast('All Cloud Providers (AWS, Azure, GCP) ENABLED');
+          loadSystemStatus();
+        }
+      } catch (err) {
+        showToast('Error enabling clouds: ' + err.message);
       }
     }
 
