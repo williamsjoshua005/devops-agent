@@ -753,7 +753,7 @@ export function getDashboardHtml(context: any): string {
     <div class="metrics-grid">
       <div class="metric-card" onclick="openToolsModal()" style="cursor: pointer;" title="Click to view all native tools">
         <div class="metric-label">Platform Tools</div>
-        <div class="metric-val" id="toolCountVal">29 Native ↗</div>
+        <div class="metric-val" id="toolCountVal">… Native ↗</div>
         <div class="metric-sub">K8s • Azure • AWS • GCP • FinOps</div>
       </div>
       <div class="metric-card">
@@ -1153,7 +1153,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
   <div class="modal-overlay" id="toolsModal">
     <div class="modal-card">
       <div class="modal-header">
-        <div style="font-weight: 700; font-size: 16px;">🧰 Native DevOps Tool Catalog (27 Registered Tools)</div>
+        <div style="font-weight: 700; font-size: 16px;">🧰 Native DevOps Tool Catalog (<span id="toolsModalCount">…</span> Registered Tools)</div>
         <button class="modal-close" onclick="closeToolsModal()">&times;</button>
       </div>
       <div class="modal-body" id="toolsModalBody">
@@ -1269,6 +1269,8 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         systemStatus = await res.json();
         if (systemStatus.toolsCount) {
           document.getElementById('toolCountVal').innerText = systemStatus.toolsCount + ' Native ↗';
+          var modalCount = document.getElementById('toolsModalCount');
+          if (modalCount) modalCount.innerText = systemStatus.toolsCount;
         }
         if (systemStatus.context && systemStatus.context.roleLevel) {
           const r = systemStatus.context.roleLevel.toUpperCase();

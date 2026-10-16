@@ -787,14 +787,19 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
       try {
         response = await this.llm.chat(this.messages, getAvailableToolDefinitions(this.context));
       } catch (err: any) {
+        const isTimeout = err.name === 'AbortError' || err.message?.includes('timed out');
         const isNetworkOrProxy =
           err.message?.includes('fetch failed') ||
-          err.name === 'AbortError' ||
           err.message?.includes('ENOTFOUND') ||
-          err.message?.includes('ETIMEDOUT');
+          err.message?.includes('ETIMEDOUT') ||
+          err.message?.includes('ECONNREFUSED') ||
+          err.message?.includes('ECONNRESET');
 
         let hint = 'Please check your LLM provider configuration and API key in .env.';
-        if (isNetworkOrProxy) {
+        if (isTimeout) {
+          hint =
+            'The LLM endpoint was reachable but did not respond in time. Large tool catalogs and reasoning models can be slow: increase LLM_TIMEOUT_MS in .env (default 60000) or choose a faster model.';
+        } else if (isNetworkOrProxy) {
           hint =
             'The LLM endpoint could not be reached. If you are using a corporate gateway or proxy (e.g. ai-gateway.isw.la), verify your VPN/office connection, or configure a public provider (Gemini, OpenAI, Ollama) in .env.\n\n💡 *Tip: Quick Action shortcuts, diagnostic commands (/certs, /finops, /security, /topology, /aws, /gcp, /clusters), and runbooks continue to operate offline.*';
         }

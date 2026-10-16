@@ -100,9 +100,30 @@ export class LLMClient {
     return true;
   }
 
+  private getTimeoutMs(): number {
+    const raw = Number(process.env.LLM_TIMEOUT_MS);
+    return Number.isFinite(raw) && raw > 0 ? raw : 60000;
+  }
+
+  private describeError(err: any, timeoutMs: number): Error {
+    const code = err?.cause?.code || err?.code;
+    let message: string;
+    if (err?.name === 'AbortError') {
+      message = `LLM request timed out after ${timeoutMs}ms (raise LLM_TIMEOUT_MS if the model is slow)`;
+    } else {
+      message = err?.message || String(err);
+      if (code) message += ` [${code}]`;
+    }
+    const wrapped = new Error(message);
+    wrapped.name = err?.name === 'AbortError' ? 'AbortError' : err?.name || 'Error';
+    (wrapped as any).cause = err;
+    return wrapped;
+  }
+
   private async makeRequest(url: string, init: any): Promise<Response> {
+    const timeoutMs = this.getTimeoutMs();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const requestInit = { ...init, signal: controller.signal };
 
     if (this.proxyAgent) {
@@ -115,21 +136,24 @@ export class LLMClient {
       return res;
     } catch (err: any) {
       clearTimeout(timeout);
-      // Fallback: If proxy failed or timed out, attempt direct connection without proxy
-      if (this.proxyAgent) {
+      // Fallback: only retry directly when the proxy itself failed to connect.
+      // A timeout while waiting on the model is not retried (it would double the wait).
+      const proxyConnectFailure =
+        this.proxyAgent && err?.name !== 'AbortError';
+      if (proxyConnectFailure) {
         try {
           const directController = new AbortController();
-          const directTimeout = setTimeout(() => directController.abort(), 6000);
+          const directTimeout = setTimeout(() => directController.abort(), timeoutMs);
           const directInit = { ...init, signal: directController.signal };
           delete directInit.dispatcher;
           const directRes = await (undiciFetch as any)(url, directInit);
           clearTimeout(directTimeout);
           return directRes;
         } catch {
-          // If direct attempt also fails, rethrow original error
+          // If direct attempt also fails, report the original error
         }
       }
-      throw err;
+      throw this.describeError(err, timeoutMs);
     }
   }
 
