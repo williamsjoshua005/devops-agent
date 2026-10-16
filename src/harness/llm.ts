@@ -69,7 +69,40 @@ export function fitMessagesToBudget(
   if (systemIndex >= 0) result.push(capped[systemIndex]);
   result.push(...middle);
   result.push(...tail);
-  return result;
+  return dropOrphanedToolMessages(result);
+}
+
+/**
+ * Providers (Anthropic via gateways, OpenAI) reject a tool result whose originating
+ * assistant tool call is missing, and an assistant tool call with no matching result.
+ * Trimming can split these pairs, so remove any that are unmatched.
+ */
+export function dropOrphanedToolMessages(messages: Message[]): Message[] {
+  const resultIds = new Set<string>();
+  for (const m of messages) {
+    if (m.role === 'tool' && m.toolCallId) resultIds.add(m.toolCallId);
+  }
+
+  const keptCallIds = new Set<string>();
+  const withoutOrphanCalls: Message[] = [];
+  for (const m of messages) {
+    if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+      const allAnswered = m.toolCalls.every((tc) => resultIds.has(tc.id));
+      if (!allAnswered) {
+        // Keep any text the assistant produced, drop the unanswered tool calls.
+        if (m.content && m.content.trim()) {
+          withoutOrphanCalls.push({ ...m, toolCalls: undefined });
+        }
+        continue;
+      }
+      for (const tc of m.toolCalls) keptCallIds.add(tc.id);
+    }
+    withoutOrphanCalls.push(m);
+  }
+
+  return withoutOrphanCalls.filter(
+    (m) => m.role !== 'tool' || (m.toolCallId !== undefined && keptCallIds.has(m.toolCallId))
+  );
 }
 
 export interface LLMResponse {
