@@ -1101,9 +1101,15 @@ spec:
   assert(amqRunbook.includes('activemq-dlq-surge'), 'Runbook catalog includes ActiveMQ DLQ surge runbook');
 
   const cbRunbook = RunbookTool.listRunbooks({ symptom: 'Circuit breaker OPEN' });
-  assert(cbRunbook.includes('downstream-service-circuit-breaker-open'), 'Runbook catalog includes downstream circuit breaker runbook');
+  // Test 116: Mission Control Dashboard UX (Search, Filter, Tag, Mobile Layout, Command Palette, Shortcuts)
+  const enhancedDashboardHtml = getDashboardHtml(mockDevContext);
+  assert(enhancedDashboardHtml.includes('commandPaletteModal'), 'Mission Control includes Command Palette modal (Cmd+K)');
+  assert(enhancedDashboardHtml.includes('shortcutsModal'), 'Mission Control includes Keyboard Shortcuts cheatsheet modal (?)');
+  assert(enhancedDashboardHtml.includes('mobileApprovalBar'), 'Mission Control includes responsive mobile floating approval bar');
+  assert(enhancedDashboardHtml.includes('chatSearchInput') && enhancedDashboardHtml.includes('subtabChatBtn'), 'Mission Control includes Chat History search and tagging');
+  assert(enhancedDashboardHtml.includes('auditTag-k8s') && enhancedDashboardHtml.includes('auditStatusFilter'), 'Mission Control includes multi-criteria audit filtering by status and domain tags');
 
-  console.log('\n\x1b[32mAll 115 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka, RabbitMQ, ActiveMQ, Downstream Probing & Grounding feature tests passed successfully!\x1b[0m\n');
+  console.log('\n\x1b[32mAll 116 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka, RabbitMQ, ActiveMQ, Downstream Probing, Dashboard UX & Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

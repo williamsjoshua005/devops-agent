@@ -604,14 +604,283 @@ export function getDashboardHtml(context: any): string {
     .modal-close { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
     .modal-close:hover { color: white; }
 
-    /* Toast Notification */
-    .toast {
-      position: fixed; bottom: 24px; right: 24px;
-      background: #0284c7; color: white; padding: 12px 20px; border-radius: 8px;
-      font-size: 13px; font-weight: 600; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-      transform: translateY(100px); opacity: 0; transition: all 0.3s; z-index: 1000;
+    /* Sub-tabs Switcher */
+    .sub-tabs-bar {
+      display: inline-flex;
+      background: #020617;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 4px;
     }
-    .toast.show { transform: translateY(0); opacity: 1; }
+    .sub-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sub-tab-btn:hover { color: var(--text); }
+    .sub-tab-btn.active {
+      background: #1e293b;
+      color: #38bdf8;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .chip-sm {
+      padding: 2px 8px !important;
+      font-size: 11px !important;
+    }
+
+    /* Chat Session Cards */
+    .chat-session-card {
+      background: #020617;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chat-session-card:hover {
+      border-color: #38bdf8;
+      background: #0b1329;
+    }
+    .chat-session-card.selected {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+    }
+    .session-tag-badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.12);
+      color: #7dd3fc;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-right: 4px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+    .audit-tag-pill {
+      display: inline-block;
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .audit-tag-pill:hover {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+      border-color: #38bdf8;
+    }
+
+    /* Command Palette Modal (Cmd+K) */
+    .cmd-palette-card {
+      max-width: 620px;
+      width: 95%;
+      background: #090d16;
+      border: 1px solid #38bdf8;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 30px rgba(56, 189, 248, 0.2);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .cmd-palette-search-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid #1e293b;
+      background: #0f172a;
+    }
+    .cmd-palette-search-box input {
+      background: transparent !important;
+      border: none !important;
+      font-size: 15px;
+      color: white;
+      width: 100%;
+      outline: none;
+      padding: 0;
+      box-shadow: none !important;
+    }
+    .cmd-palette-results {
+      max-height: 360px;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .cmd-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.1s;
+      color: #cbd5e1;
+    }
+    .cmd-item:hover, .cmd-item.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+    }
+    .cmd-item-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13.5px;
+      font-weight: 500;
+    }
+    .cmd-palette-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 16px;
+      border-top: 1px solid #1e293b;
+      background: #060911;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Shortcuts Cheatsheet */
+    .shortcuts-section {
+      background: #020617;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+    .shortcuts-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 12.5px;
+    }
+    .shortcut-row:last-child { border-bottom: none; }
+    kbd {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    /* Mobile Floating Thumb Approval Bar */
+    .mobile-approval-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(12px);
+      border-top: 2px solid #f59e0b;
+      padding: 12px 20px;
+      z-index: 1000;
+      box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.6);
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .mobile-approval-inner {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* Mobile Responsive Layout Breakpoints */
+    @media (max-width: 768px) {
+      .navbar {
+        padding: 10px 14px;
+      }
+      .brand-text p {
+        display: none;
+      }
+      .container {
+        padding: 12px 10px;
+      }
+      .dual-grid {
+        grid-template-columns: 1fr !important;
+        gap: 14px;
+      }
+      .tabs-bar {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 4px;
+      }
+      .tabs-bar::-webkit-scrollbar {
+        display: none;
+      }
+      .tab-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      .btn, .btn-secondary {
+        min-height: 42px;
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+      .chip {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      .cluster-dropdown {
+        width: 280px;
+        left: 50% !important;
+        transform: translateX(-50%);
+      }
+      .responsive-table thead {
+        display: none;
+      }
+      .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td {
+        display: block;
+        width: 100%;
+      }
+      .responsive-table tr {
+        background: #020617;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+      }
+      .responsive-table td {
+        padding: 4px 0;
+        border: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12.5px;
+      }
+      .responsive-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-muted);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+    }
   </style>
 </head>
 <body>
@@ -740,6 +1009,14 @@ export function getDashboardHtml(context: any): string {
           </div>
         </div>
       </div>
+      <div class="ctx-pill" onclick="openCommandPalette()" style="cursor: pointer; background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.35);" title="Global Command Palette (Cmd+K)">
+        <span style="font-weight: 700; color: #38bdf8;">⌘K</span>
+        <span style="font-size: 11px; color: #7dd3fc;">Palette</span>
+      </div>
+      <div class="ctx-pill" onclick="openShortcutsModal()" style="cursor: pointer;" title="Keyboard Shortcuts (?)">
+        <span>⌨️</span>
+        <span style="font-size: 11px;">Shortcuts</span>
+      </div>
       <div id="envBadgeContainer">${envBadge}</div>
       <div class="ctx-pill" id="agentStatusPill">
         <span class="status-dot dot-green" id="agentDot"></span>
@@ -861,29 +1138,61 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         </div>
 
         <div>
-          <!-- Live Real-Time Audit Feed Preview -->
+          <!-- Chat & Incident History + Live Audit Trail (Dual Subtabs) -->
           <div class="panel">
-            <div class="panel-header">
-              <div class="panel-title">🛡️ Live Audit Trail</div>
-              <button class="btn-secondary" onclick="loadAudit()" style="font-size: 11px; padding: 4px 8px;">Refresh</button>
+            <div class="panel-header" style="margin-bottom: 12px; gap: 6px; flex-wrap: wrap;">
+              <div class="sub-tabs-bar">
+                <button class="sub-tab-btn active" id="subtabChatBtn" onclick="switchRightSubTab('chat')">💬 Incident History (<span id="chatHistoryCount">0</span>)</button>
+                <button class="sub-tab-btn" id="subtabAuditBtn" onclick="switchRightSubTab('audit')">🛡️ Live Audit</button>
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button class="btn-secondary" id="clearHistoryBtn" onclick="clearChatHistory()" style="font-size: 11px; padding: 3px 8px;" title="Clear session history">🗑 Clear</button>
+                <button class="btn-secondary" onclick="refreshRightPanel()" style="font-size: 11px; padding: 3px 8px;" title="Refresh active view">🔄</button>
+              </div>
             </div>
-            <div style="max-height: 280px; overflow-y: auto;">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Tool</th>
-                    <th>Tier</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody id="auditTableBody">
-                  <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading audit history...</td></tr>
-                </tbody>
-              </table>
+
+            <!-- Subtab 1: Interactive Chat & Incident History -->
+            <div id="subtabChatContent">
+              <div style="margin-bottom: 10px;">
+                <input type="text" id="chatSearchInput" placeholder="Search sessions or tags (e.g. 'kafka', '#k8s')..." style="margin-bottom: 8px; padding: 7px 12px; font-size: 12px;" oninput="filterChatHistory()">
+                <div class="chips-row" style="margin: 0; gap: 4px;">
+                  <span class="chip chip-accent chip-sm" id="chatTag-ALL" onclick="filterChatTag('ALL')">All</span>
+                  <span class="chip chip-sm" id="chatTag-incident" onclick="filterChatTag('#incident')">🚨 Incident</span>
+                  <span class="chip chip-sm" id="chatTag-k8s" onclick="filterChatTag('#k8s')">☸️ K8s</span>
+                  <span class="chip chip-sm" id="chatTag-kafka" onclick="filterChatTag('#kafka')">📨 Kafka</span>
+                  <span class="chip chip-sm" id="chatTag-redis" onclick="filterChatTag('#redis')">⚡ Redis</span>
+                  <span class="chip chip-sm" id="chatTag-cloud" onclick="filterChatTag('#cloud')">☁️ Cloud</span>
+                  <span class="chip chip-sm" id="chatTag-finops" onclick="filterChatTag('#finops')">💰 FinOps</span>
+                  <span class="chip chip-sm" id="chatTag-security" onclick="filterChatTag('#security')">🔒 Sec</span>
+                </div>
+              </div>
+
+              <!-- Chat Session Cards List -->
+              <div id="chatHistoryContainer" style="max-height: 290px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 20px 0;">No chat sessions recorded yet. Enter an instruction or click a shortcut chip!</div>
+              </div>
             </div>
-            <div style="text-align: right; margin-top: 10px;">
-              <button class="btn-secondary" onclick="switchTab('tab-audit')" style="font-size: 12px;">View Full Audit Stream →</button>
+
+            <!-- Subtab 2: Live Audit Trail Preview -->
+            <div id="subtabAuditContent" style="display: none;">
+              <div style="max-height: 290px; overflow-y: auto;">
+                <table class="responsive-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Tool</th>
+                      <th>Tier</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auditTableBody">
+                    <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading audit history...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div style="text-align: right; margin-top: 10px;">
+                <button class="btn-secondary" onclick="switchTab('tab-audit')" style="font-size: 12px;">View Full Audit Stream →</button>
+              </div>
             </div>
           </div>
 
@@ -924,26 +1233,70 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
             <div class="panel-subtitle">Every operation is classified into 3 tiers and cryptographically logged to <code>.audit/audit.jsonl</code>.</div>
           </div>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="auditSearchInput" placeholder="Filter by tool or command..." style="margin-bottom: 0; width: 190px; padding: 6px 12px; font-size: 12px;" oninput="filterAudit()">
             <button class="btn-secondary" onclick="loadAudit()" style="padding: 6px 12px; font-size: 12px;">Refresh</button>
             <button class="btn-secondary" onclick="exportAudit('json')" style="padding: 6px 12px; font-size: 12px;" title="Export full compliance audit trail as JSON">📥 Export JSON</button>
             <button class="btn-secondary" onclick="exportAudit('csv')" style="padding: 6px 12px; font-size: 12px;" title="Export full compliance audit trail as CSV">📥 Export CSV</button>
           </div>
         </div>
 
-        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-          <button class="chip chip-accent" onclick="filterAuditTier('ALL')">All Actions</button>
-          <button class="chip" onclick="filterAuditTier('READ')">🟢 Tier 1: Read (Autonomous)</button>
-          <button class="chip" onclick="filterAuditTier('MUTATE')">🟡 Tier 2: Mutate (Approval)</button>
-          <button class="chip" onclick="filterAuditTier('DANGEROUS')">🔴 Tier 3: Blocked (Destructive)</button>
+        <!-- Advanced Multi-Criteria Filter Controls -->
+        <div style="background: #020617; border: 1px solid var(--card-border); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+            <div style="flex: 1; min-width: 220px;">
+              <input type="text" id="auditSearchInput" placeholder="🔍 Search tool name, command, output, or error..." style="margin-bottom: 0; padding: 8px 12px; font-size: 13px;" oninput="applyAuditFilters()">
+            </div>
+            <select id="auditStatusFilter" onchange="applyAuditFilters()" style="background: #0f172a; border: 1px solid var(--card-border); color: white; padding: 8px 12px; border-radius: 8px; font-size: 13px; outline: none;">
+              <option value="ALL">All Statuses</option>
+              <option value="APPROVED">✔ Approved Actions</option>
+              <option value="BLOCKED">⛔ Blocked Actions</option>
+              <option value="REJECTED">✖ Rejected Actions</option>
+            </select>
+            <select id="auditTimeFilter" onchange="applyAuditFilters()" style="background: #0f172a; border: 1px solid var(--card-border); color: white; padding: 8px 12px; border-radius: 8px; font-size: 13px; outline: none;">
+              <option value="ALL">All Time</option>
+              <option value="15M">Last 15 Minutes</option>
+              <option value="1H">Last 1 Hour</option>
+              <option value="TODAY">Today Only</option>
+            </select>
+            <button class="btn-secondary" onclick="resetAuditFilters()" style="padding: 8px 12px; font-size: 12px;">↺ Reset</button>
+          </div>
+
+          <!-- Tier Chips Row -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+              <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Safety Tier:</span>
+              <button class="chip chip-accent chip-sm" id="auditTier-ALL" onclick="filterAuditTier('ALL')">All Tiers</button>
+              <button class="chip chip-sm" id="auditTier-READ" onclick="filterAuditTier('READ')">🟢 Tier 1: Read</button>
+              <button class="chip chip-sm" id="auditTier-MUTATE" onclick="filterAuditTier('MUTATE')">🟡 Tier 2: Mutate</button>
+              <button class="chip chip-sm" id="auditTier-DANGEROUS" onclick="filterAuditTier('DANGEROUS')">🔴 Tier 3: Blocked</button>
+            </div>
+            <div id="auditFilterCount" style="font-size: 12px; color: var(--text-muted);">
+              Showing all recorded actions
+            </div>
+          </div>
+
+          <!-- Domain Tags Row -->
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+            <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Domain Tags:</span>
+            <span class="chip chip-accent chip-sm" id="auditTag-ALL" onclick="filterAuditTag('ALL')">All Tags</span>
+            <span class="chip chip-sm" id="auditTag-k8s" onclick="filterAuditTag('#k8s')">☸️ #k8s</span>
+            <span class="chip chip-sm" id="auditTag-aws" onclick="filterAuditTag('#aws')">🔶 #aws</span>
+            <span class="chip chip-sm" id="auditTag-azure" onclick="filterAuditTag('#azure')">🔷 #azure</span>
+            <span class="chip chip-sm" id="auditTag-gcp" onclick="filterAuditTag('#gcp')">🔴 #gcp</span>
+            <span class="chip chip-sm" id="auditTag-kafka" onclick="filterAuditTag('#kafka')">📨 #kafka</span>
+            <span class="chip chip-sm" id="auditTag-redis" onclick="filterAuditTag('#redis')">⚡ #redis</span>
+            <span class="chip chip-sm" id="auditTag-queues" onclick="filterAuditTag('#queues')">🐰 #queues</span>
+            <span class="chip chip-sm" id="auditTag-iac" onclick="filterAuditTag('#iac')">🏗️ #iac</span>
+            <span class="chip chip-sm" id="auditTag-security" onclick="filterAuditTag('#security')">🛡️ #security</span>
+            <span class="chip chip-sm" id="auditTag-runbook" onclick="filterAuditTag('#runbook')">📖 #runbook</span>
+          </div>
         </div>
 
         <div style="max-height: 550px; overflow-y: auto;">
-          <table>
+          <table class="responsive-table">
             <thead>
               <tr>
                 <th>Timestamp</th>
-                <th>Tool Name</th>
+                <th>Tool Name & Tags</th>
                 <th>Safety Tier</th>
                 <th>Status</th>
                 <th>Executed Command / Context</th>
@@ -1162,6 +1515,77 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     </div>
   </div>
 
+  <!-- Modal: Global SRE Command Palette (Cmd+K / Ctrl+K) -->
+  <div class="modal-overlay" id="commandPaletteModal" onclick="closeCommandPalette()">
+    <div class="modal-card cmd-palette-card" onclick="event.stopPropagation()">
+      <div class="cmd-palette-search-box">
+        <span style="font-size: 16px; color: #38bdf8;">⌘</span>
+        <input type="text" id="cmdPaletteInput" placeholder="Type a runbook, role, or action (e.g. 'kafka', 'crashloop', 'senior', 'audit')..." autocomplete="off" oninput="filterPalette()">
+        <kbd style="cursor: pointer;" onclick="closeCommandPalette()">ESC</kbd>
+      </div>
+      <div class="cmd-palette-results" id="cmdPaletteResults">
+        <!-- Rendered dynamically -->
+      </div>
+      <div class="cmd-palette-footer">
+        <span>Navigate: <kbd>↑</kbd> <kbd>↓</kbd></span>
+        <span>Execute: <kbd>Enter</kbd></span>
+        <span>Dismiss: <kbd>Esc</kbd></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Keyboard Shortcuts Cheatsheet (?) -->
+  <div class="modal-overlay" id="shortcutsModal" onclick="closeShortcutsModal()">
+    <div class="modal-card" style="max-width: 650px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div style="font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+          <span>⌨️ Mission Control Keyboard Shortcuts</span>
+        </div>
+        <button class="modal-close" onclick="closeShortcutsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcuts-section">
+          <div class="shortcuts-title">Navigation & Quick Access</div>
+          <div class="shortcut-row"><span>Global Command Palette</span><div><kbd>⌘</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>K</kbd></div></div>
+          <div class="shortcut-row"><span>Keyboard Shortcuts Cheatsheet</span><div><kbd>?</kbd> or <kbd>Shift</kbd> + <kbd>/</kbd></div></div>
+          <div class="shortcut-row"><span>Dismiss Modal / Dropdown</span><div><kbd>Esc</kbd></div></div>
+        </div>
+        <div class="shortcuts-section">
+          <div class="shortcuts-title">Terminal & Investigation</div>
+          <div class="shortcut-row"><span>Dispatch Task Prompt</span><div><kbd>Enter</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd></div></div>
+          <div class="shortcut-row"><span>Newline in Prompt Box</span><div><kbd>Shift</kbd> + <kbd>Enter</kbd></div></div>
+          <div class="shortcut-row"><span>Clear Terminal Output</span><div><kbd>⌘</kbd> + <kbd>L</kbd> / <kbd>Ctrl</kbd> + <kbd>L</kbd></div></div>
+          <div class="shortcut-row"><span>Jump to Latest Output</span><div><kbd>⌘</kbd> + <kbd>↓</kbd></div></div>
+        </div>
+        <div class="shortcuts-section">
+          <div class="shortcuts-title">DevOps Autonomy Hierarchy</div>
+          <div class="shortcut-row"><span>Switch to Junior SRE (Strict Gate)</span><div><kbd>Alt</kbd> + <kbd>1</kbd></div></div>
+          <div class="shortcut-row"><span>Switch to Intermediate SRE</span><div><kbd>Alt</kbd> + <kbd>2</kbd></div></div>
+          <div class="shortcut-row"><span>Switch to Senior SRE Architect</span><div><kbd>Alt</kbd> + <kbd>3</kbd></div></div>
+        </div>
+        <div class="shortcuts-section">
+          <div class="shortcuts-title">Guardrail Approvals</div>
+          <div class="shortcut-row"><span>Approve Pending Mutation</span><div><kbd>Y</kbd> or <kbd>A</kbd></div></div>
+          <div class="shortcut-row"><span>Reject Pending Mutation</span><div><kbd>N</kbd> or <kbd>R</kbd></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Floating Thumb Approval Bar -->
+  <div id="mobileApprovalBar" class="mobile-approval-bar" style="display: none;">
+    <div class="mobile-approval-inner">
+      <div>
+        <div style="font-size: 11px; color: #f59e0b; font-weight: 700; letter-spacing: 0.05em;">⚠️ APPROVAL REQUIRED</div>
+        <div id="mobileApprovalText" style="font-size: 12px; font-weight: 600; color: white;">Mutate action awaiting confirmation</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn" id="mobileApproveBtn" onclick="resolveActiveApproval(true)" style="background: #10b981; border: 1px solid #059669; padding: 8px 16px; font-size: 12px; font-weight: 700;">✔ Approve</button>
+        <button class="btn" id="mobileRejectBtn" onclick="resolveActiveApproval(false)" style="background: #ef4444; border: 1px solid #dc2626; padding: 8px 14px; font-size: 12px; font-weight: 700;">✖ Reject</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div class="toast" id="toast">Notification message</div>
 
@@ -1314,6 +1738,31 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       document.getElementById('toolsModal').classList.remove('active');
     }
 
+    // Audit Multi-Criteria Filters State
+    let auditFilters = {
+      q: '',
+      tier: 'ALL',
+      status: 'ALL',
+      tag: 'ALL',
+      time: 'ALL'
+    };
+
+    function inferAuditTag(toolName) {
+      if (!toolName) return '#ops';
+      const name = toolName.toLowerCase();
+      if (name.startsWith('k8s_') || name === 'kubectl') return '#k8s';
+      if (name.startsWith('aws_')) return '#aws';
+      if (name.startsWith('az_')) return '#azure';
+      if (name.startsWith('gcp_')) return '#gcp';
+      if (name.startsWith('kafka_')) return '#kafka';
+      if (name.startsWith('redis_')) return '#redis';
+      if (name.startsWith('rabbitmq_') || name.startsWith('activemq_')) return '#queues';
+      if (name.startsWith('terraform_') || name.startsWith('pulumi_') || name.startsWith('ansible_')) return '#iac';
+      if (name.startsWith('sec_') || name.startsWith('trivy_') || name.startsWith('falco_') || name.startsWith('cert_')) return '#security';
+      if (name.startsWith('runbook_')) return '#runbook';
+      return '#ops';
+    }
+
     // Load Audit Trail
     async function loadAudit() {
       try {
@@ -1321,8 +1770,9 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         const data = await res.json();
         auditRecords = data.records || [];
 
-        renderAuditTables(auditRecords);
-        document.getElementById('auditMetricVal').innerText = auditRecords.length + ' Recorded';
+        applyAuditFilters();
+        const metric = document.getElementById('auditMetricVal');
+        if (metric) metric.innerText = auditRecords.length + ' Recorded';
       } catch (e) {
         console.error('Audit load failed:', e);
       }
@@ -1333,24 +1783,123 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       showToast('Exporting compliance audit log as ' + format.toUpperCase() + '...');
     }
 
+    function applyAuditFilters() {
+      const qInput = document.getElementById('auditSearchInput');
+      if (qInput) auditFilters.q = qInput.value.toLowerCase().trim();
+
+      const statusSelect = document.getElementById('auditStatusFilter');
+      if (statusSelect) auditFilters.status = statusSelect.value;
+
+      const timeSelect = document.getElementById('auditTimeFilter');
+      if (timeSelect) auditFilters.time = timeSelect.value;
+
+      const now = Date.now();
+      const filtered = auditRecords.filter(r => {
+        // Text search (tool, command, output, error)
+        if (auditFilters.q) {
+          const matchTool = r.toolName && r.toolName.toLowerCase().includes(auditFilters.q);
+          const matchCmd = r.command && r.command.toLowerCase().includes(auditFilters.q);
+          const matchOut = r.outputSummary && r.outputSummary.toLowerCase().includes(auditFilters.q);
+          const matchErr = r.error && r.error.toLowerCase().includes(auditFilters.q);
+          if (!matchTool && !matchCmd && !matchOut && !matchErr) return false;
+        }
+
+        // Tier filter
+        if (auditFilters.tier !== 'ALL' && r.tier !== auditFilters.tier) return false;
+
+        // Status filter
+        if (auditFilters.status !== 'ALL') {
+          if (auditFilters.status === 'BLOCKED' && !r.isBlocked) return false;
+          if (auditFilters.status === 'APPROVED' && (r.isBlocked || r.approved === false)) return false;
+          if (auditFilters.status === 'REJECTED' && r.approved !== false) return false;
+        }
+
+        // Tag filter
+        if (auditFilters.tag !== 'ALL') {
+          const tag = inferAuditTag(r.toolName);
+          if (tag.toLowerCase() !== auditFilters.tag.toLowerCase()) return false;
+        }
+
+        // Time filter
+        if (auditFilters.time !== 'ALL' && r.timestamp) {
+          const recordTime = new Date(r.timestamp).getTime();
+          const diffMs = now - recordTime;
+          if (auditFilters.time === '15M' && diffMs > 15 * 60 * 1000) return false;
+          if (auditFilters.time === '1H' && diffMs > 60 * 60 * 1000) return false;
+          if (auditFilters.time === 'TODAY' && diffMs > 24 * 60 * 60 * 1000) return false;
+        }
+
+        return true;
+      });
+
+      renderAuditTables(filtered);
+
+      const countEl = document.getElementById('auditFilterCount');
+      if (countEl) {
+        countEl.innerText = 'Showing ' + filtered.length + ' of ' + auditRecords.length + ' recorded actions';
+      }
+    }
+
+    function filterAudit() {
+      applyAuditFilters();
+    }
+
+    function filterAuditTier(tier) {
+      auditFilters.tier = tier;
+      ['ALL', 'READ', 'MUTATE', 'DANGEROUS'].forEach(t => {
+        const btn = document.getElementById('auditTier-' + t);
+        if (btn) {
+          if (t === tier) btn.classList.add('chip-accent');
+          else btn.classList.remove('chip-accent');
+        }
+      });
+      applyAuditFilters();
+    }
+
+    function filterAuditTag(tag) {
+      auditFilters.tag = tag;
+      const tagIds = ['ALL', 'k8s', 'aws', 'azure', 'gcp', 'kafka', 'redis', 'queues', 'iac', 'security', 'runbook'];
+      tagIds.forEach(t => {
+        const el = document.getElementById('auditTag-' + t);
+        if (el) {
+          const currentTagFormatted = t === 'ALL' ? 'ALL' : '#' + t;
+          if (currentTagFormatted.toLowerCase() === tag.toLowerCase()) el.classList.add('chip-accent');
+          else el.classList.remove('chip-accent');
+        }
+      });
+      applyAuditFilters();
+    }
+
+    function resetAuditFilters() {
+      auditFilters = { q: '', tier: 'ALL', status: 'ALL', tag: 'ALL', time: 'ALL' };
+      const qInput = document.getElementById('auditSearchInput');
+      if (qInput) qInput.value = '';
+      const statusSelect = document.getElementById('auditStatusFilter');
+      if (statusSelect) statusSelect.value = 'ALL';
+      const timeSelect = document.getElementById('auditTimeFilter');
+      if (timeSelect) timeSelect.value = 'ALL';
+      filterAuditTier('ALL');
+      filterAuditTag('ALL');
+    }
+
     function renderAuditTables(records) {
       const miniBody = document.getElementById('auditTableBody');
       const fullBody = document.getElementById('fullAuditTableBody');
 
       if (!records || records.length === 0) {
-        const emptyRow = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No actions recorded yet.</td></tr>';
+        const emptyRow = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No actions recorded matching filters.</td></tr>';
         if (miniBody) miniBody.innerHTML = emptyRow;
         if (fullBody) fullBody.innerHTML = emptyRow;
         return;
       }
 
-      // Mini preview (last 6)
+      // Mini preview (last 6 of raw audit trail)
       if (miniBody) {
-        miniBody.innerHTML = records.slice(0, 6).map(r => {
+        miniBody.innerHTML = auditRecords.slice(0, 6).map(r => {
           const time = r.timestamp ? r.timestamp.slice(11, 19) : '--';
           const tierClass = r.tier === 'READ' ? 'tier-read' : r.tier === 'MUTATE' ? 'tier-mutate' : 'tier-danger';
           const status = r.isBlocked ? '⛔ Blocked' : r.approved ? '✔ Approved' : '✖ Rejected';
-          return '<tr><td>' + time + '</td><td><code>' + r.toolName + '</code></td><td class="' + tierClass + '">' + r.tier + '</td><td>' + status + '</td></tr>';
+          return '<tr><td data-label="Time">' + time + '</td><td data-label="Tool"><code>' + r.toolName + '</code></td><td data-label="Tier" class="' + tierClass + '">' + r.tier + '</td><td data-label="Status">' + status + '</td></tr>';
         }).join('');
       }
 
@@ -1360,27 +1909,207 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
           const time = r.timestamp ? r.timestamp.replace('T', ' ').slice(0, 19) : '--';
           const tierClass = r.tier === 'READ' ? 'tier-read' : r.tier === 'MUTATE' ? 'tier-mutate' : 'tier-danger';
           const status = r.isBlocked ? '⛔ Blocked' : r.approved ? '✔ Approved' : '✖ Rejected';
-          const cmd = r.command ? '<code>' + r.command.slice(0, 80) + '</code>' : '<span style="color: var(--text-muted);">-</span>';
-          return '<tr><td>' + time + '</td><td><code>' + r.toolName + '</code></td><td class="' + tierClass + '">' + r.tier + '</td><td>' + status + '</td><td>' + cmd + '</td></tr>';
+          const tag = inferAuditTag(r.toolName);
+          const cmd = r.command ? '<code>' + escapeHtml(r.command.slice(0, 90)) + '</code>' : (r.outputSummary ? '<span style="color: #94a3b8; font-size: 11.5px;">' + escapeHtml(r.outputSummary.slice(0, 80)) + '</span>' : '<span style="color: var(--text-muted);">-</span>');
+          return '<tr>' +
+            '<td data-label="Timestamp" style="font-size: 12px; color: var(--text-muted);">' + time + '</td>' +
+            '<td data-label="Tool">' +
+              '<code>' + escapeHtml(r.toolName) + '</code> ' +
+              '<span class="audit-tag-pill" onclick="filterAuditTag(&quot;' + tag + '&quot;)">' + tag + '</span>' +
+            '</td>' +
+            '<td data-label="Tier" class="' + tierClass + '">' + r.tier + '</td>' +
+            '<td data-label="Status">' + status + '</td>' +
+            '<td data-label="Context">' + cmd + '</td>' +
+          '</tr>';
         }).join('');
       }
     }
 
-    function filterAudit() {
-      const q = document.getElementById('auditSearchInput').value.toLowerCase();
-      const filtered = auditRecords.filter(r => 
-        (r.toolName && r.toolName.toLowerCase().includes(q)) ||
-        (r.command && r.command.toLowerCase().includes(q))
-      );
-      renderAuditTables(filtered);
+    // Chat & Incident History System
+    let chatHistory = [];
+    let currentChatTag = 'ALL';
+    let selectedChatSessionId = null;
+
+    async function loadChatHistory() {
+      try {
+        const res = await fetch('/api/chat/history');
+        if (res.ok) {
+          const data = await res.json();
+          chatHistory = data.sessions || [];
+        }
+      } catch (e) {
+        const local = localStorage.getItem('devops_agent_chat_history');
+        if (local) {
+          try { chatHistory = JSON.parse(local); } catch (err) {}
+        }
+      }
+      renderChatHistory();
     }
 
-    function filterAuditTier(tier) {
-      if (tier === 'ALL') {
-        renderAuditTables(auditRecords);
-      } else {
-        renderAuditTables(auditRecords.filter(r => r.tier === tier));
+    function filterChatHistory() {
+      renderChatHistory();
+    }
+
+    function filterChatTag(tag) {
+      currentChatTag = tag;
+      const tags = ['ALL', 'incident', 'k8s', 'kafka', 'redis', 'cloud', 'finops', 'security'];
+      tags.forEach(t => {
+        const el = document.getElementById('chatTag-' + t);
+        if (el) {
+          const formatted = t === 'ALL' ? 'ALL' : '#' + t;
+          if (formatted.toLowerCase() === tag.toLowerCase()) el.classList.add('chip-accent');
+          else el.classList.remove('chip-accent');
+        }
+      });
+      renderChatHistory();
+    }
+
+    function renderChatHistory() {
+      const container = document.getElementById('chatHistoryContainer');
+      const countEl = document.getElementById('chatHistoryCount');
+      if (countEl) countEl.innerText = chatHistory.length;
+
+      if (!container) return;
+      const qInput = document.getElementById('chatSearchInput');
+      const q = qInput ? qInput.value.toLowerCase().trim() : '';
+
+      const filtered = chatHistory.filter(s => {
+        if (q) {
+          const matchTask = s.task && s.task.toLowerCase().includes(q);
+          const matchRes = s.result && s.result.toLowerCase().includes(q);
+          const matchErr = s.error && s.error.toLowerCase().includes(q);
+          const matchTag = s.tags && s.tags.some(t => t.toLowerCase().includes(q));
+          if (!matchTask && !matchRes && !matchErr && !matchTag) return false;
+        }
+        if (currentChatTag !== 'ALL') {
+          if (!s.tags || !s.tags.some(t => t.toLowerCase() === currentChatTag.toLowerCase())) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 20px 0;">No matching sessions found.</div>';
+        return;
       }
+
+      container.innerHTML = filtered.map(s => {
+        const time = s.timestamp ? s.timestamp.slice(11, 19) : '--';
+        const isRunning = s.status === 'RUNNING';
+        const isSuccess = s.status === 'SUCCESS';
+        const dotClass = isRunning ? 'dot-amber' : isSuccess ? 'dot-green' : 'dot-red';
+        const roleStr = (s.role || 'junior').toUpperCase();
+        const shortPrompt = s.task.length > 55 ? s.task.slice(0, 55) + '...' : s.task;
+        const tagsHtml = (s.tags || []).map(t => '<span class="session-tag-badge" onclick="event.stopPropagation(); filterChatTag(&quot;' + t + '&quot;)">' + escapeHtml(t) + '</span>').join('');
+        const isSelected = selectedChatSessionId === s.id ? ' selected' : '';
+
+        return '<div class="chat-session-card' + isSelected + '" onclick="inspectChatSession(&quot;' + s.id + '&quot;)">' +
+          '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">' +
+            '<div style="display: flex; align-items: center; gap: 6px;">' +
+              '<span class="status-dot ' + dotClass + '"></span>' +
+              '<span style="font-size: 11px; color: var(--text-muted);">' + time + '</span>' +
+              '<span class="badge badge-dev" style="font-size: 9px; padding: 2px 6px;">' + roleStr + '</span>' +
+            '</div>' +
+            '<div style="display: flex; gap: 4px;">' +
+              '<button class="btn-secondary" onclick="event.stopPropagation(); rerunChatSession(&quot;' + s.id + '&quot;)" style="padding: 2px 6px; font-size: 10px;" title="Re-run task">⚡ Re-run</button>' +
+              '<button class="btn-secondary" onclick="event.stopPropagation(); tagChatSession(&quot;' + s.id + '&quot;)" style="padding: 2px 6px; font-size: 10px;" title="Add Tag">+ Tag</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="font-size: 12.5px; font-weight: 600; color: #f1f5f9; margin-bottom: 4px;">' + escapeHtml(shortPrompt) + '</div>' +
+          '<div>' + tagsHtml + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function inspectChatSession(id) {
+      selectedChatSessionId = id;
+      renderChatHistory();
+      const session = chatHistory.find(s => s.id === id);
+      if (!session) return;
+
+      const out = document.getElementById('terminalOutput');
+      const status = document.getElementById('terminalStatus');
+      if (status) status.innerText = 'Viewing session [' + (session.timestamp ? session.timestamp.slice(11, 19) : '') + ']';
+
+      if (out) {
+        const resText = session.result || (session.error ? '[Error]: ' + session.error : '(No result output)');
+        out.innerHTML =
+          '<div class="stream-header">' +
+            '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+              '<div style="color: #38bdf8; font-weight: 600; font-size: 13px;">⚡ [SESSION ARCHIVE]: "' + escapeHtml(session.task) + '"</div>' +
+              '<span class="badge badge-dev">' + (session.role || 'junior').toUpperCase() + '</span>' +
+            '</div>' +
+            '<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Recorded: ' + (session.timestamp || '') + ' • Status: ' + session.status + '</div>' +
+          '</div>' +
+          '<div class="markdown-rendered" style="margin-top: 14px;">' + renderMarkdown(resText) + '</div>';
+        scrollToBottom();
+      }
+    }
+
+    function rerunChatSession(id) {
+      const session = chatHistory.find(s => s.id === id);
+      if (!session) return;
+      document.getElementById('taskInput').value = session.task;
+      runTask();
+    }
+
+    async function tagChatSession(id) {
+      const tag = prompt('Enter a tag to attach to this incident session (e.g. #p1, #prod, #resolved):');
+      if (!tag) return;
+      const formatted = tag.startsWith('#') ? tag : '#' + tag;
+
+      try {
+        const res = await fetch('/api/chat/history/tag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, tag: formatted })
+        });
+        if (res.ok) {
+          const target = chatHistory.find(s => s.id === id);
+          if (target && !target.tags.includes(formatted)) {
+            target.tags.push(formatted);
+          }
+          showToast('Tag ' + formatted + ' added to session!');
+          renderChatHistory();
+        }
+      } catch (err) {
+        showToast('Failed to add tag: ' + err.message);
+      }
+    }
+
+    async function clearChatHistory() {
+      if (!confirm('Clear all recorded chat & incident sessions?')) return;
+      try {
+        await fetch('/api/chat/history', { method: 'DELETE' });
+      } catch (e) {}
+      chatHistory = [];
+      localStorage.removeItem('devops_agent_chat_history');
+      renderChatHistory();
+      showToast('Session history cleared.');
+    }
+
+    function switchRightSubTab(tab) {
+      const chatContent = document.getElementById('subtabChatContent');
+      const auditContent = document.getElementById('subtabAuditContent');
+      const chatBtn = document.getElementById('subtabChatBtn');
+      const auditBtn = document.getElementById('subtabAuditBtn');
+
+      if (tab === 'chat') {
+        if (chatContent) chatContent.style.display = 'block';
+        if (auditContent) auditContent.style.display = 'none';
+        if (chatBtn) chatBtn.classList.add('active');
+        if (auditBtn) auditBtn.classList.remove('active');
+      } else {
+        if (chatContent) chatContent.style.display = 'none';
+        if (auditContent) auditContent.style.display = 'block';
+        if (chatBtn) chatBtn.classList.remove('active');
+        if (auditBtn) auditBtn.classList.add('active');
+      }
+    }
+
+    function refreshRightPanel() {
+      loadChatHistory();
+      loadAudit();
+      showToast('Incident history and audit refreshed.');
     }
 
     // HTML Entity Escaping
@@ -1508,6 +2237,14 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
             '<button class="btn" onclick="resolveWebApproval(&quot;' + escapeHtml(data.approvalId) + '&quot;, false)" style="background: #ef4444; border-color: #dc2626; color: white; font-size: 12px; padding: 6px 16px;">✖ Reject / Cancel</button>' +
           '</div>';
 
+        activePendingApprovalId = data.approvalId;
+        const mobBar = document.getElementById('mobileApprovalBar');
+        if (mobBar) {
+          const mobText = document.getElementById('mobileApprovalText');
+          if (mobText) mobText.innerText = data.actionSummary || 'Action requires confirmation';
+          mobBar.style.display = 'block';
+        }
+
         stepsContainer.appendChild(card);
         status.innerText = isProd ? '⚠️ Awaiting PRODUCTION approval...' : '⚠️ Awaiting operator approval...';
         showToast('Approval required for: ' + data.actionSummary);
@@ -1525,6 +2262,10 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         chunkContainer.innerHTML += renderMarkdown(data.chunk || '');
         scrollToBottom();
       } else if (eventType === 'done') {
+        activePendingApprovalId = null;
+        const mobBarDone = document.getElementById('mobileApprovalBar');
+        if (mobBarDone) mobBarDone.style.display = 'none';
+
         const liveText = document.getElementById('streamLiveText');
         if (liveText) liveText.remove();
         const durSec = (data.durationMs / 1000).toFixed(1);
@@ -1541,7 +2282,12 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         status.innerText = (hasWarning ? 'Completed with notice in ' : 'Task completed in ') + durSec + 's.';
         showToast(hasWarning ? 'Completed with diagnostic notice.' : 'Task completed successfully!');
         scrollToBottom();
+        loadChatHistory();
       } else if (eventType === 'error') {
+        activePendingApprovalId = null;
+        const mobBarErr = document.getElementById('mobileApprovalBar');
+        if (mobBarErr) mobBarErr.style.display = 'none';
+
         const liveText = document.getElementById('streamLiveText');
         if (liveText) liveText.remove();
         finalContainer.innerHTML = 
@@ -1552,6 +2298,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         status.innerText = 'Task failed.';
         showToast('Execution error.');
         scrollToBottom();
+        loadChatHistory();
       }
     }
 
@@ -1682,6 +2429,10 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
     }
 
     async function resolveWebApproval(approvalId, approved) {
+      activePendingApprovalId = null;
+      const mobBar = document.getElementById('mobileApprovalBar');
+      if (mobBar) mobBar.style.display = 'none';
+
       const actionsEl = document.getElementById('approval-actions-' + approvalId);
       if (actionsEl) {
         actionsEl.innerHTML = '<span style="font-size: 12px; color: #94a3b8;">Submitting response... ⏳</span>';
@@ -1955,17 +2706,216 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       }
     }
 
-    // Keyboard shortcut (Enter to run in textarea)
-    document.getElementById('taskInput').addEventListener('keydown', (e) => {
+    // Command Palette and Shortcuts Functions
+    let paletteActiveIndex = 0;
+
+    const commandPaletteActions = [
+      { id: 'runbook-crashloop', icon: '☸️', label: 'Runbook: Pod CrashLoopBackOff Triage', shortcut: 'runbook', action: () => quickTask('Check why pods in the default namespace are failing') },
+      { id: 'runbook-kafka', icon: '📨', label: 'Runbook: Kafka Consumer Lag & Offset Reset', shortcut: 'runbook', action: () => quickTask('Inspect Kafka cluster health and consumer group lag') },
+      { id: 'runbook-redis', icon: '⚡', label: 'Runbook: Redis Eviction & Cache Stampede', shortcut: 'runbook', action: () => quickTask('Run redis_info_diagnose and analyze keyspace memory') },
+      { id: 'runbook-rabbitmq', icon: '🐰', label: 'Runbook: RabbitMQ Backpressure & DLQ Triage', shortcut: 'runbook', action: () => quickTask('Check rabbitmq_queue_status and rabbitmq_dlq_inspect') },
+      { id: 'runbook-activemq', icon: '📬', label: 'Runbook: ActiveMQ Poison Pill DLQ Surge', shortcut: 'runbook', action: () => quickTask('Run activemq_queue_audit and sample dlq triage') },
+      { id: 'runbook-circuit', icon: '🔌', label: 'Runbook: Downstream Service Circuit Breaker', shortcut: 'runbook', action: () => quickTask('Run service_endpoint_probe and audit db connection pool starvation') },
+      { id: 'finops-scan', icon: '💰', label: 'FinOps: Run Multi-Cloud Waste Scan', shortcut: 'finops', action: () => { switchTab('tab-finops'); runFinOpsScan(); } },
+      { id: 'sec-scan', icon: '🔒', label: 'Security: Check TLS Certificate Expiry', shortcut: 'security', action: () => { switchTab('tab-security'); runCertCheck(); } },
+      { id: 'sec-lint', icon: '🛡️', label: 'Security: Lint Dockerfile & K8s Manifests', shortcut: 'security', action: () => { switchTab('tab-security'); runSecurityScan(); } },
+      { id: 'topo-discover', icon: '🗺️', label: 'Topology: Discover Cluster Dependency Graph', shortcut: 'topology', action: () => { switchTab('tab-topology'); loadTopology(); } },
+      { id: 'role-junior', icon: '🟡', label: 'Role: Switch to Junior SRE (Strict Approval Gate)', shortcut: 'Alt+1', action: () => switchRole('junior') },
+      { id: 'role-intermediate', icon: '🔵', label: 'Role: Switch to Intermediate SRE Autonomy', shortcut: 'Alt+2', action: () => switchRole('intermediate') },
+      { id: 'role-senior', icon: '🟣', label: 'Role: Switch to Senior SRE Architect', shortcut: 'Alt+3', action: () => switchRole('senior') },
+      { id: 'tab-console', icon: '⚡', label: 'Navigate: Interactive Autonomous Terminal', shortcut: 'Tab 1', action: () => switchTab('tab-console') },
+      { id: 'tab-audit', icon: '🛡️', label: 'Navigate: Guardrail Policy & Audit Stream', shortcut: 'Tab 2', action: () => switchTab('tab-audit') },
+      { id: 'tab-finops', icon: '💰', label: 'Navigate: FinOps Multi-Cloud Waste Hunter', shortcut: 'Tab 3', action: () => switchTab('tab-finops') },
+      { id: 'tab-security', icon: '🔒', label: 'Navigate: Security & TLS Scanner', shortcut: 'Tab 4', action: () => switchTab('tab-security') },
+      { id: 'tab-topology', icon: '🗺️', label: 'Navigate: Live Cluster Service Topology', shortcut: 'Tab 5', action: () => switchTab('tab-topology') },
+      { id: 'tab-kb', icon: '🧠', label: 'Navigate: Incident RCA Knowledge Base & Reports', shortcut: 'Tab 6', action: () => switchTab('tab-kb') },
+      { id: 'tab-simulate', icon: '🚨', label: 'Navigate: Alert Simulator & Webhook Pipeline', shortcut: 'Tab 7', action: () => switchTab('tab-simulate') },
+      { id: 'term-clear', icon: '🧹', label: 'Terminal: Clear Output Screen', shortcut: '⌘L', action: () => clearTerminal() },
+      { id: 'term-download', icon: '📥', label: 'Terminal: Download Markdown Investigation Report', shortcut: 'download', action: () => downloadTerminalReport() },
+      { id: 'audit-export-json', icon: '📥', label: 'Audit: Export Compliance Log as JSON', shortcut: 'export', action: () => exportAudit('json') },
+      { id: 'audit-export-csv', icon: '📥', label: 'Audit: Export Compliance Log as CSV', shortcut: 'export', action: () => exportAudit('csv') },
+      { id: 'show-shortcuts', icon: '⌨️', label: 'Help: View All Keyboard Shortcuts', shortcut: '?', action: () => openShortcutsModal() }
+    ];
+
+    function openCommandPalette() {
+      const modal = document.getElementById('commandPaletteModal');
+      const input = document.getElementById('cmdPaletteInput');
+      if (modal) modal.classList.add('active');
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+      paletteActiveIndex = 0;
+      filterPalette();
+    }
+
+    function closeCommandPalette() {
+      const modal = document.getElementById('commandPaletteModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function toggleCommandPalette() {
+      const modal = document.getElementById('commandPaletteModal');
+      if (modal && modal.classList.contains('active')) {
+        closeCommandPalette();
+      } else {
+        openCommandPalette();
+      }
+    }
+
+    function filterPalette() {
+      const input = document.getElementById('cmdPaletteInput');
+      const query = input ? input.value.toLowerCase().trim() : '';
+      const resultsContainer = document.getElementById('cmdPaletteResults');
+      if (!resultsContainer) return;
+
+      const filtered = commandPaletteActions.filter(item => {
+        if (!query) return true;
+        return item.label.toLowerCase().includes(query) ||
+               (item.shortcut && item.shortcut.toLowerCase().includes(query));
+      });
+
+      if (filtered.length === 0) {
+        resultsContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 24px;">No matching actions found.</div>';
+        return;
+      }
+
+      if (paletteActiveIndex >= filtered.length) paletteActiveIndex = 0;
+
+      resultsContainer.innerHTML = filtered.map((item, idx) => {
+        const isActive = idx === paletteActiveIndex ? ' active' : '';
+        return '<div class="cmd-item' + isActive + '" onclick="executePaletteAction(' + idx + ')">' +
+          '<div class="cmd-item-label">' +
+            '<span>' + item.icon + '</span>' +
+            '<span>' + escapeHtml(item.label) + '</span>' +
+          '</div>' +
+          '<div class="cmd-item-shortcut"><kbd>' + escapeHtml(item.shortcut) + '</kbd></div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function executePaletteAction(index) {
+      const input = document.getElementById('cmdPaletteInput');
+      const query = input ? input.value.toLowerCase().trim() : '';
+      const filtered = commandPaletteActions.filter(item => {
+        if (!query) return true;
+        return item.label.toLowerCase().includes(query) ||
+               (item.shortcut && item.shortcut.toLowerCase().includes(query));
+      });
+      const selected = filtered[index];
+      if (selected && selected.action) {
+        closeCommandPalette();
+        selected.action();
+      }
+    }
+
+    function openShortcutsModal() {
+      const modal = document.getElementById('shortcutsModal');
+      if (modal) modal.classList.add('active');
+    }
+
+    function closeShortcutsModal() {
+      const modal = document.getElementById('shortcutsModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function resolveActiveApproval(approved) {
+      if (activePendingApprovalId) {
+        resolveWebApproval(activePendingApprovalId, approved);
+      } else {
+        showToast('No pending approval awaiting authorization.');
+      }
+    }
+
+    // Global Keyboard Shortcuts Engine
+    window.addEventListener('keydown', (e) => {
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName);
+
+      // Cmd+K or Ctrl+K -> Toggle Command Palette
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        toggleCommandPalette();
+        return;
+      }
+
+      // Cmd+L or Ctrl+L -> Clear Terminal
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        clearTerminal();
+        return;
+      }
+
+      // Cmd+Enter or Ctrl+Enter -> Run Task from anywhere
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runTask();
+        return;
+      }
+
+      // Alt+1, Alt+2, Alt+3 -> Instant Role Autonomy Switch
+      if (e.altKey && e.key === '1') { e.preventDefault(); switchRole('junior'); return; }
+      if (e.altKey && e.key === '2') { e.preventDefault(); switchRole('intermediate'); return; }
+      if (e.altKey && e.key === '3') { e.preventDefault(); switchRole('senior'); return; }
+
+      // ? or Shift+/ -> Open Shortcuts Modal (when not in an input/textarea)
+      if (e.key === '?' && !isInputFocused) {
+        e.preventDefault();
+        openShortcutsModal();
+        return;
+      }
+
+      // Escape -> Close any open modal or dropdown
+      if (e.key === 'Escape') {
+        closeCommandPalette();
+        closeShortcutsModal();
+        closeToolsModal();
+        closeRoleDropdown();
+        return;
+      }
+
+      // Hotkeys for Pending Human Approvals: Y or A to approve, N or R to reject
+      if (activePendingApprovalId && !isInputFocused) {
+        if (e.key.toLowerCase() === 'y' || e.key.toLowerCase() === 'a') {
+          e.preventDefault();
+          resolveActiveApproval(true);
+          return;
+        }
+        if (e.key.toLowerCase() === 'n' || e.key.toLowerCase() === 'r') {
+          e.preventDefault();
+          resolveActiveApproval(false);
+          return;
+        }
+      }
+    });
+
+    // Command Palette Arrow & Enter Navigation
+    document.getElementById('cmdPaletteInput')?.addEventListener('keydown', (e) => {
+      const resultsContainer = document.getElementById('cmdPaletteResults');
+      if (!resultsContainer) return;
+      const items = resultsContainer.querySelectorAll('.cmd-item');
+      if (items.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        paletteActiveIndex = (paletteActiveIndex + 1) % items.length;
+        filterPalette();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        paletteActiveIndex = (paletteActiveIndex - 1 + items.length) % items.length;
+        filterPalette();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        executePaletteAction(paletteActiveIndex);
+      }
+    });
+
+    // Enter in Task Textarea
+    document.getElementById('taskInput')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         runTask();
       }
-    });
-
-    // Close modal on Escape
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeToolsModal();
     });
 
     // Cluster Context Management
@@ -2330,13 +3280,17 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
 
     // Initial Data Fetch
     loadAudit();
+    loadChatHistory();
     loadSystemStatus();
     loadClusters();
     loadCloudProviders();
     loadReportsList();
     setupTerminalScrollListener();
-    // Auto-refresh audit trail every 6 seconds
-    setInterval(loadAudit, 6000);
+    // Auto-refresh audit trail and chat history every 6 seconds
+    setInterval(() => {
+      loadAudit();
+      loadChatHistory();
+    }, 6000);
   </script>
 </body>
 </html>`;

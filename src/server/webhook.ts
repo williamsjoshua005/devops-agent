@@ -18,11 +18,43 @@ export interface WebhookServerOptions {
   auditLogger: AuditLogger;
 }
 
+export interface ChatSessionRecord {
+  id: string;
+  timestamp: string;
+  task: string;
+  role: string;
+  status: 'SUCCESS' | 'ERROR' | 'RUNNING';
+  durationMs?: number;
+  result?: string;
+  error?: string;
+  tags: string[];
+}
+
 export class AlertWebhookServer {
   private server: http.Server;
   private port: number;
   private harness: DevOpsAgentHarness;
   private auditLogger: AuditLogger;
+  private chatSessions: ChatSessionRecord[] = [];
+
+  private inferTags(task: string): string[] {
+    const lower = (task || '').toLowerCase();
+    const tags: string[] = [];
+    if (lower.includes('pod') || lower.includes('k8s') || lower.includes('kube') || lower.includes('deployment') || lower.includes('ingress') || lower.includes('service') || lower.includes('node')) tags.push('#k8s');
+    if (lower.includes('kafka') || lower.includes('consumer') || lower.includes('partition') || lower.includes('topic')) tags.push('#kafka');
+    if (lower.includes('redis') || lower.includes('cache') || lower.includes('slowlog') || lower.includes('eviction')) tags.push('#redis');
+    if (lower.includes('rabbit') || lower.includes('activemq') || lower.includes('dlq') || lower.includes('queue')) tags.push('#queues');
+    if (lower.includes('aws') || lower.includes('ec2') || lower.includes('s3') || lower.includes('eks')) tags.push('#aws');
+    if (lower.includes('azure') || lower.includes('aks') || lower.includes('cosmos')) tags.push('#azure');
+    if (lower.includes('gcp') || lower.includes('gke') || lower.includes('cloud run')) tags.push('#gcp');
+    if (lower.includes('finops') || lower.includes('waste') || lower.includes('cost') || lower.includes('idle')) tags.push('#finops');
+    if (lower.includes('sec') || lower.includes('cve') || lower.includes('docker') || lower.includes('tls') || lower.includes('cert')) tags.push('#security');
+    if (lower.includes('terraform') || lower.includes('pulumi') || lower.includes('ansible')) tags.push('#iac');
+    if (lower.includes('argo') || lower.includes('flux') || lower.includes('gitops')) tags.push('#gitops');
+    if (lower.includes('runbook') || lower.includes('crashloop') || lower.includes('triage') || lower.includes('fail') || lower.includes('error')) tags.push('#incident');
+    if (tags.length === 0) tags.push('#task');
+    return Array.from(new Set(tags));
+  }
 
   constructor(options: WebhookServerOptions) {
     this.port = options.port || 3456;
@@ -357,6 +389,15 @@ export class AlertWebhookServer {
         });
 
         req.on('end', async () => {
+          const startTime = Date.now();
+          const session: ChatSessionRecord = {
+            id: 'task-' + startTime + '-' + Math.random().toString(36).slice(2, 6),
+            timestamp: new Date().toISOString(),
+            task: '',
+            role: this.harness.getContext().roleLevel || 'junior',
+            status: 'RUNNING',
+            tags: [],
+          };
           try {
             const { task } = JSON.parse(body || '{}');
             if (!task) {
@@ -365,14 +406,26 @@ export class AlertWebhookServer {
               return;
             }
 
+            session.task = task;
+            session.tags = this.inferTags(task);
+            this.chatSessions.unshift(session);
+            if (this.chatSessions.length > 100) this.chatSessions.pop();
+
             console.log(`\n\x1b[36m[Web Console Task]:\x1b[0m ${task}`);
             const result = await this.harness.run({ task });
 
+            session.status = 'SUCCESS';
+            session.durationMs = Date.now() - startTime;
+            session.result = typeof result === 'string' ? result : JSON.stringify(result);
+
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ result }));
+            res.end(JSON.stringify({ result, sessionId: session.id, tags: session.tags }));
           } catch (err: any) {
+            session.status = 'ERROR';
+            session.error = err.message;
+            session.durationMs = Date.now() - startTime;
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err.message }));
+            res.end(JSON.stringify({ error: err.message, sessionId: session.id }));
           }
         });
         return;
@@ -408,9 +461,25 @@ export class AlertWebhookServer {
           };
 
           const startTime = Date.now();
+          const sessionId = 'task-' + startTime + '-' + Math.random().toString(36).slice(2, 6);
+          const role = this.harness.getContext().roleLevel || 'junior';
+          const tags = this.inferTags(taskStr);
+          const session: ChatSessionRecord = {
+            id: sessionId,
+            timestamp: new Date().toISOString(),
+            task: taskStr,
+            role,
+            status: 'RUNNING',
+            tags,
+          };
+          this.chatSessions.unshift(session);
+          if (this.chatSessions.length > 100) this.chatSessions.pop();
+
           sendSse('start', {
             task: taskStr,
-            timestamp: new Date().toISOString(),
+            sessionId,
+            tags,
+            timestamp: session.timestamp,
           });
 
           try {
@@ -458,13 +527,23 @@ export class AlertWebhookServer {
             });
 
             const totalDurationMs = Date.now() - startTime;
+            session.status = 'SUCCESS';
+            session.durationMs = totalDurationMs;
+            session.result = typeof finalResult === 'string' ? finalResult : JSON.stringify(finalResult);
+
             sendSse('done', {
               result: finalResult,
               durationMs: totalDurationMs,
+              sessionId,
+              tags: session.tags,
             });
             res.end();
           } catch (err: any) {
-            sendSse('error', { error: err.message || String(err) });
+            session.status = 'ERROR';
+            session.error = err.message || String(err);
+            session.durationMs = Date.now() - startTime;
+
+            sendSse('error', { error: err.message || String(err), sessionId });
             res.end();
           }
         };
@@ -534,6 +613,87 @@ export class AlertWebhookServer {
       ) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ pending: WebApprovalHandler.getAllPending() }));
+        return;
+      }
+
+      // 6d. Chat & Incident History API (Search, Filter, Tag)
+      if (req.method === 'GET' && url.pathname === '/api/chat/history') {
+        const q = (url.searchParams.get('q') || '').toLowerCase();
+        const tag = (url.searchParams.get('tag') || '').toLowerCase();
+        const role = (url.searchParams.get('role') || '').toLowerCase();
+
+        let filtered = this.chatSessions;
+        if (q) {
+          filtered = filtered.filter(
+            (s) =>
+              s.task.toLowerCase().includes(q) ||
+              (s.result && s.result.toLowerCase().includes(q)) ||
+              (s.error && s.error.toLowerCase().includes(q))
+          );
+        }
+        if (tag) {
+          filtered = filtered.filter((s) => s.tags.some((t) => t.toLowerCase() === tag || t.toLowerCase() === '#' + tag));
+        }
+        if (role) {
+          filtered = filtered.filter((s) => s.role.toLowerCase() === role);
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ sessions: filtered, total: this.chatSessions.length }));
+        return;
+      }
+
+      // 6e. Tag a Chat / Incident Session
+      if (req.method === 'POST' && url.pathname === '/api/chat/history/tag') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { id, tag, action } = JSON.parse(body || '{}');
+            if (!id || !tag) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Missing id or tag string in payload.' }));
+              return;
+            }
+
+            const formattedTag = tag.startsWith('#') ? tag : '#' + tag;
+            const target = this.chatSessions.find((s) => s.id === id);
+            if (!target) {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: `Session "${id}" not found.` }));
+              return;
+            }
+
+            if (action === 'remove') {
+              target.tags = target.tags.filter((t) => t.toLowerCase() !== formattedTag.toLowerCase());
+            } else {
+              if (!target.tags.some((t) => t.toLowerCase() === formattedTag.toLowerCase())) {
+                target.tags.push(formattedTag);
+              }
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, session: target }));
+          } catch (err: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Malformed JSON: ${err.message}` }));
+          }
+        });
+        return;
+      }
+
+      // 6f. Clear or Delete Chat History
+      if (req.method === 'DELETE' && url.pathname === '/api/chat/history') {
+        const id = url.searchParams.get('id');
+        if (id) {
+          this.chatSessions = this.chatSessions.filter((s) => s.id !== id);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, remaining: this.chatSessions.length }));
+        } else {
+          this.chatSessions = [];
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, cleared: true }));
+        }
         return;
       }
 
