@@ -552,12 +552,28 @@ ${runbooks}
       lower.includes('tools installed') ||
       lower.includes('what tools are installed') ||
       lower.includes('which tools are installed') ||
-      lower.includes('installed tools')
+      lower.includes('installed tools') ||
+      lower.includes('platform tools') ||
+      lower.includes('available tools') ||
+      lower.includes('list tools') ||
+      lower.includes('what tools do you have') ||
+      lower === 'tools' ||
+      lower === '/tools'
     ) {
+      const availableTools = getAvailableToolDefinitions(this.context);
+      const hostClis =
+        this.context.installedTools && this.context.installedTools.length > 0
+          ? this.context.installedTools.map((t) => `\`${t}\``).join(', ')
+          : 'None detected in PATH (Native API drivers active)';
+
       const response =
-        `### Detected System Tools (${this.context.installedTools.length} tools available in PATH):\n\n` +
-        this.context.installedTools.map((t) => `• 🟢 **${t}**: Installed and detected in system PATH`).join('\n') +
-        `\n\n*Active Kubernetes Context: \`${this.context.kubeContext || 'none'}\` • Role Autonomy: \`${(this.context.roleLevel || 'intermediate').toUpperCase()}\`*`;
+        `### DevOps Autonomous Agent Platform Tools (${availableTools.length} Native Tools Loaded):\n\n` +
+        `• **Host CLI Binaries Detected:** ${hostClis}\n` +
+        `• **Active Kubernetes Context:** \`${this.context.kubeContext || 'None (In-cluster / Mock / Diagnostics)'}\`\n` +
+        `• **Role Autonomy:** \`${(this.context.roleLevel || 'intermediate').toUpperCase()}\`\n` +
+        `• **Cloud Providers:** AWS: ${this.context.cloudProviders?.aws ? '🟢' : '🔴'} | Azure: ${this.context.cloudProviders?.azure ? '🟢' : '🔴'} | GCP: ${this.context.cloudProviders?.gcp ? '🟢' : '🔴'}\n\n` +
+        `#### Registered Platform Tool Catalog:\n` +
+        availableTools.map((t, i) => `${i + 1}. **\`${t.name}\`**: ${t.description}`).join('\n');
       return await recordDirect('shell_exec', response);
     }
 
@@ -710,7 +726,7 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
 ### To enable full autonomous reasoning and triage:
 1. Open \`.env\` in the project root:
    \`\`\`bash
-   code /Users/joshua.williams/Documents/research/devops-agent/.env
+   code .env
    \`\`\`
 2. Replace \`your_gemini_api_key_here\` with your real key:
    \`\`\`env

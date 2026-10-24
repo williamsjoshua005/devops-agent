@@ -165,7 +165,7 @@ spec:
   assert(toolsRes.result.tools.length >= 18, `MCP Server exposes all tools over JSON-RPC (${toolsRes.result.tools.length} tools)`);
 
   // Test 13: Service Dependency Topology Graph
-  const topoReport = await TopologyTool.discover();
+  const topoReport = (await TopologyTool.discover()).report;
   assert(topoReport.includes('graph TD') && topoReport.includes('Blast-Radius Map'), 'Topology tool generates Mermaid dependency graph');
 
   // Test 14: In-Cluster Network Prober

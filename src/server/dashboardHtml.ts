@@ -1,10 +1,13 @@
+import { TOOL_DEFINITIONS, getAvailableToolDefinitions } from '../tools/index.js';
+
 export function getDashboardHtml(context: any): string {
   const envBadge = context.isProduction
     ? '<span class="badge badge-prod">🔴 PRODUCTION (STRICT)</span>'
     : `<span class="badge badge-dev">🟢 ${(context.environment || 'development').toUpperCase()}</span>`;
 
   const kubeCtx = context.kubeContext || 'None (Local / Cloud CLIs)';
-  const toolsCount = context.installedTools?.length || 5;
+  const availableTools = getAvailableToolDefinitions(context);
+  const toolsCount = availableTools.length;
   const roleStr = (context.roleLevel || 'intermediate').toUpperCase();
 
   const cp = context.cloudProviders ?? {
@@ -1030,7 +1033,7 @@ export function getDashboardHtml(context: any): string {
     <div class="metrics-grid">
       <div class="metric-card" onclick="openToolsModal()" style="cursor: pointer;" title="Click to view all native tools">
         <div class="metric-label">Platform Tools</div>
-        <div class="metric-val" id="toolCountVal">… Native ↗</div>
+        <div class="metric-val" id="toolCountVal">${toolsCount} Native ↗</div>
         <div class="metric-sub">K8s • Azure • AWS • GCP • FinOps</div>
       </div>
       <div class="metric-card">
@@ -1506,11 +1509,19 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
   <div class="modal-overlay" id="toolsModal">
     <div class="modal-card">
       <div class="modal-header">
-        <div style="font-weight: 700; font-size: 16px;">🧰 Native DevOps Tool Catalog (<span id="toolsModalCount">…</span> Registered Tools)</div>
+        <div style="font-weight: 700; font-size: 16px;">🧰 Native DevOps Tool Catalog (<span id="toolsModalCount">${toolsCount}</span> Registered Tools)</div>
         <button class="modal-close" onclick="closeToolsModal()">&times;</button>
       </div>
       <div class="modal-body" id="toolsModalBody">
-        Loading tool catalog...
+        ${availableTools.map((t, idx) => `
+          <div style="background: #020617; border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <code style="color: #38bdf8; font-weight: bold; font-size: 13px;">${t.name}</code>
+              <span style="font-size: 11px; color: var(--text-muted);">#${idx + 1}</span>
+            </div>
+            <div style="color: #cbd5e1; font-size: 12px;">${t.description}</div>
+          </div>
+        `).join('')}
       </div>
     </div>
   </div>

@@ -3,10 +3,11 @@ import * as dotenv from 'dotenv';
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { execSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import { LLMClient } from './harness/llm.js';
 import { DevOpsAgentHarness } from './harness/loop.js';
 import { AgentContext, EnvironmentLevel, LLMConfig, RoleLevel } from './types.js';
-import { TOOL_DEFINITIONS, executeTool } from './tools/index.js';
+import { TOOL_DEFINITIONS, executeTool, getAvailableToolDefinitions } from './tools/index.js';
 import { RUNBOOKS } from './runbooks/index.js';
 import { AuditLogger } from './policy/audit.js';
 import { AlertWebhookServer } from './server/webhook.js';
@@ -19,6 +20,13 @@ import { FinOpsTool } from './tools/finops.js';
 import { AwsTool } from './tools/aws.js';
 import { GcpTool } from './tools/gcp.js';
 import { K8sTool, resolveKubeConfigPath } from './tools/k8s.js';
+
+// Auto-seed .env from .env.example on fresh checkouts if .env is missing
+if (!fs.existsSync('.env') && fs.existsSync('.env.example')) {
+  try {
+    fs.copyFileSync('.env.example', '.env');
+  } catch {}
+}
 
 dotenv.config();
 
@@ -42,9 +50,10 @@ if (process.argv.includes('--mcp')) {
 function detectTools(): string[] {
   const tools = ['git', 'kubectl', 'helm', 'docker', 'az', 'aws', 'gcloud', 'terraform', 'gh'];
   const available: string[] = [];
+  const whichCmd = process.platform === 'win32' ? 'where' : 'which';
   for (const tool of tools) {
     try {
-      execSync(`which ${tool}`, { stdio: 'ignore' });
+      execSync(`${whichCmd} ${tool}`, { stdio: 'ignore' });
       available.push(tool);
     } catch {}
   }
@@ -206,8 +215,9 @@ async function main() {
   console.log('\x1b[0m');
   console.log(`\x1b[1mActive Role:\x1b[0m          ${roleBadge}`);
   console.log(`\x1b[1mEnvironment:\x1b[0m         ${envBadge}`);
-  console.log(`\x1b[1mModel Provider:\x1b[0m      ${llmConfig.provider} (${llmConfig.model})`);
-  console.log(`\x1b[1mDetected Tools:\x1b[0m      ${installedTools.join(', ') || 'none'}`);
+  const availableTools = getAvailableToolDefinitions(context);
+  console.log(`\x1b[1mPlatform Tools:\x1b[0m      \x1b[32m✔ ${availableTools.length} Platform Tools Loaded\x1b[0m (K8s, Multi-Cloud, FinOps, SRE, Chaos, Queues, Cache)`);
+  console.log(`\x1b[1mHost CLI Binaries:\x1b[0m   ${installedTools.length > 0 ? installedTools.join(', ') : 'none detected in PATH (Native API drivers active)'}`);
   console.log(`\x1b[1mKubernetes Config:\x1b[0m   ${kubeconfig ? `\x1b[36m${kubeconfig}\x1b[0m` : 'Default (~/.kube/config)'}`);
   console.log(`\x1b[1mKubernetes Context:\x1b[0m  ${kubeContext || 'none'}`);
   console.log(`\x1b[1mCloud Providers:\x1b[0m     AWS: ${cloudProviders.aws ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'} | Azure: ${cloudProviders.azure ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'} | GCP: ${cloudProviders.gcp ? '\x1b[32m✔ ENABLED\x1b[0m' : '\x1b[31m✖ DISABLED\x1b[0m'}`);
