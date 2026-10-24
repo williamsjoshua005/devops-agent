@@ -3202,7 +3202,7 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       return `${out}\n[Environment Updated]: ${context?.environment?.toUpperCase()} (isProduction: ${context?.isProduction})`;
     }
     case 'topology_graph':
-      return await TopologyTool.discover(args.namespace);
+      return (await TopologyTool.discover(args.namespace)).report;
     case 'diagnose_connectivity':
       return await NetworkProberTool.probe(args.targetHost, args.targetPort, args.namespace);
     case 'canary_deploy':

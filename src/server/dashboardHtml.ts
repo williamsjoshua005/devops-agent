@@ -2593,19 +2593,21 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       try {
         const res = await fetch('/api/topology');
         const data = await res.json();
-        const raw = data.topology || 'graph TD; NoTopology["No services detected"];';
-        box.innerText = raw;
+        // Use the clean diagram source for rendering; fall back to the report text.
+        const diagram = data.diagram || stripMermaidFences(data.topology) || 'graph TD\n  NoTopology["No services detected"];';
+        box.innerText = diagram;
 
         if (window.mermaid) {
           try {
             mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
-            const { svg } = await mermaid.render('mermaidGraph', raw);
+            const { svg } = await mermaid.render('mermaidGraph', diagram);
             visual.innerHTML = svg;
           } catch (mErr) {
-            visual.innerHTML = '<div style="color: #f87171;">Diagram syntax parsed as text below.</div>';
+            console.warn('Mermaid render error:', mErr);
+            visual.innerHTML = '<div style="color: #f87171;">Unable to render diagram. Syntax shown in raw graph below.</div>';
           }
         } else {
-          visual.innerHTML = '<pre style="text-align: left; color: #67e8f9;">' + raw + '</pre>';
+          visual.innerHTML = '<pre style="text-align: left; color: #67e8f9;">' + escapeHtml(diagram) + '</pre>';
         }
         showToast('Topology discovered!');
       } catch (e) {
@@ -2613,6 +2615,16 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
       } finally {
         btn.disabled = false;
       }
+    }
+
+    function stripMermaidFences(text) {
+      if (!text) return '';
+      return text
+        .replace(/^\s*\`\`\`mermaid\s*/i, '')
+        .replace(/\s*\`\`\`\s*$/, '')
+        .replace(/^##.*$/gm, '')
+        .replace(/^###.*$/gm, '')
+        .trim();
     }
 
     // Knowledge Base Search

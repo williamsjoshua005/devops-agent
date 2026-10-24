@@ -257,7 +257,7 @@ ${runbooks}
     }
     if (trimmed === '/topology') {
       const out = await TopologyTool.discover();
-      return await recordDirect('topology_graph', out);
+      return await recordDirect('topology_graph', out.report);
     }
     if (trimmed === '/audit') {
       const records = await this.auditLogger.getRecent(20);
@@ -581,7 +581,7 @@ ${runbooks}
     }
     if (lower === 'discover topology' || lower === 'topology graph' || lower === 'cluster topology') {
       const out = await TopologyTool.discover();
-      return await recordDirect('topology_graph', out);
+      return await recordDirect('topology_graph', out.report);
     }
     if (
       lower.includes('failing pods') ||

@@ -327,9 +327,9 @@ export class AlertWebhookServer {
 
       // 6. Cluster Topology discovery endpoint
       if (req.method === 'GET' && url.pathname === '/api/topology') {
-        const topology = await TopologyTool.discover();
+        const { report, diagram } = await TopologyTool.discover();
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ topology }));
+        res.end(JSON.stringify({ topology: report, diagram }));
         return;
       }
 
