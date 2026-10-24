@@ -43,6 +43,7 @@ import { RabbitMqTool, ActiveMqTool } from '../src/tools/middleware_queues.js';
 import { DownstreamProbeTool } from '../src/tools/downstream_services.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as vm from 'node:vm';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -1109,7 +1110,18 @@ spec:
   assert(enhancedDashboardHtml.includes('chatSearchInput') && enhancedDashboardHtml.includes('subtabChatBtn'), 'Mission Control includes Chat History search and tagging');
   assert(enhancedDashboardHtml.includes('auditTag-k8s') && enhancedDashboardHtml.includes('auditStatusFilter'), 'Mission Control includes multi-criteria audit filtering by status and domain tags');
 
-  console.log('\n\x1b[32mAll 116 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka, RabbitMQ, ActiveMQ, Downstream Probing, Dashboard UX & Grounding feature tests passed successfully!\x1b[0m\n');
+  // Test 117: Mission Control Client Script Integrity (Parses cleanly with 0 syntax errors)
+  const scriptMatch = enhancedDashboardHtml.match(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/i);
+  assert(scriptMatch !== null && scriptMatch[1].length > 0, 'Mission Control embeds inline client-side JavaScript');
+  let scriptParseError: any = null;
+  try {
+    new vm.Script(scriptMatch![1], { filename: 'dashboard-script.js' });
+  } catch (err: any) {
+    scriptParseError = err;
+  }
+  assert(scriptParseError === null, `Mission Control client-side JavaScript parses with 0 syntax errors (got: ${scriptParseError?.message})`);
+
+  console.log('\n\x1b[32mAll 117 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka, RabbitMQ, ActiveMQ, Downstream Probing, Dashboard UX, Script Integrity & Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

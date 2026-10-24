@@ -2605,7 +2605,7 @@ Enter an instruction above or click any shortcut chip to dispatch autonomous dia
         const res = await fetch('/api/topology');
         const data = await res.json();
         // Use the clean diagram source for rendering; fall back to the report text.
-        const diagram = data.diagram || stripMermaidFences(data.topology) || 'graph TD\n  NoTopology["No services detected"];';
+        const diagram = data.diagram || stripMermaidFences(data.topology) || 'graph TD\\n  NoTopology["No services detected"];';
         box.innerText = diagram;
 
         if (window.mermaid) {
