@@ -1,6 +1,6 @@
 # DevOps Autonomous Agent Engine — Feature Specifications Index
 
-Welcome to the comprehensive technical specification catalog for the **DevOps Autonomous Agent Engine (v4.5)**. This directory contains detailed, production-grade architecture and design specifications (`.md`) for every capability across our **109 platform tools**, multi-tier safety envelope, and multi-cloud isolation architecture.
+Welcome to the comprehensive technical specification catalog for the **DevOps Autonomous Agent Engine (v4.5)**. This directory contains detailed, production-grade architecture and design specifications (`.md`) for every capability across our **126 platform tools** (120 in K8s-Only mode), multi-tier safety envelope, and multi-cloud isolation architecture.
 
 ---
 
@@ -30,7 +30,7 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
 - **[Spec 24: GCP Cloud & Google Kubernetes Engine (GKE) Operations](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/24-gcp-cloud-and-gke-operations.md)**
   *GCP resource queries (GCE, Cloud Storage, Cloud SQL, VPC), GKE cluster health, and unattached persistent disk audit.*
 - **[Spec 26: Cloud Provider Toggles & Strict Kubeconfig Grounding](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/26-cloud-provider-toggles-and-kubeconfig-grounding.md)**
-  *Dynamic runtime cloud toggles (`AWS`, `Azure`, `GCP`), tool filtering (109 to 103 tools in `--k8s-only` mode), and strict guardrails preventing credentials wrapper overrides.*
+  *Dynamic runtime cloud toggles (`AWS`, `Azure`, `GCP`), tool filtering (126 to 120 tools in `--k8s-only` mode), and strict guardrails preventing credentials wrapper overrides.*
 
 ---
 
@@ -71,6 +71,8 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
   *Controlled pod termination, latency injection, and production safety interlocking.*
 - **[Spec 28: SRE Runbooks, Vault & Secrets, Service Mesh, and Observability](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/28-sre-runbooks-vault-secrets-and-observability.md)**
   *Vetted operational runbooks, secrets compliance, Istio/Linkerd mTLS diagnostics, Velero backups, and Loki/Jaeger telemetry.*
+- **[Spec 30: Enterprise Middleware, Message Queues & Downstream Services](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/30-enterprise-middleware-message-queues-and-downstream-services.md)**
+  *17 specialized diagnostic and remediation tools covering Redis in-memory cache, Apache Kafka event streams, RabbitMQ, Apache ActiveMQ broker triage, downstream synthetic HTTP/gRPC endpoint probing, and database connection pool auditing.*
 
 ---
 
@@ -88,7 +90,7 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
 - **[Spec 21: Enterprise ChatOps Notification Adapters](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/21-chatops-notification-adapters.md)**
   *Interactive card and message builders for Microsoft Teams Adaptive Cards, Slack Block Kit, and Discord Rich Embeds.*
 - **[Spec 22: Mission Control Web Console & Alert Webhook Server](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/22-mission-control-web-console.md)**
-  *Web console on port 3456 (`/dashboard`), Alertmanager webhook receiver (`/api/alerts/webhook`), audit trail viewer, and live cloud provider toggles.*
+  *Web console on port 3456 (`/dashboard`), Alertmanager webhook receiver (`/api/alerts/webhook`), SRE Command Palette (`Cmd+K`), keyboard shortcuts (`?`), Chat History drawer with domain tagging, mobile floating approval bar, and client script integrity validation.*
 
 ---
 
@@ -98,6 +100,8 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
 graph TD
     subgraph Interfaces_Clients ["Interfaces & Clients"]
         Web["Mission Control Web Console (/dashboard)"]
+        CmdPalette["SRE Command Palette (Cmd+K)"]
+        ChatDrawer["Chat History & Incident Drawer"]
         MCPClient["Claude Desktop / Cursor MCP (stdio)"]
         ChatOps["Teams / Slack / Discord Adapters"]
         Alerts["Prometheus Alertmanager Webhook (/api/alerts/webhook)"]
@@ -115,8 +119,9 @@ graph TD
         Audit[("Immutable Audit Trail (.audit/audit.jsonl)")]
     end
 
-    subgraph Platform_Tools ["109 Platform Tools (103 in K8s-Only Mode)"]
-        K8s["Kubernetes Operations (34 Specialized Tools)"]
+    subgraph Platform_Tools ["126 Platform Tools (120 in K8s-Only Mode)"]
+        K8s["Kubernetes Operations (35 Specialized Tools)"]
+        Middleware["Enterprise Middleware & Message Queues (17 Tools: Redis, Kafka, RabbitMQ, ActiveMQ, Probing)"]
         IaC["Terraform & OpenTofu Operations"]
         GitOps["Argo CD & Flux v2 Engines"]
         Helm["Helm & Kustomize Packaging"]

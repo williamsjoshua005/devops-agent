@@ -3,10 +3,10 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
-[![Tests](https://img.shields.io/badge/Tests-100%2B%20Passing-brightgreen.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts)
-[![Tools](https://img.shields.io/badge/Tools-109%20Native-orange.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts)
+[![Tests](https://img.shields.io/badge/Tests-117%20Passing-brightgreen.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts)
+[![Tools](https://img.shields.io/badge/Tools-126%20Native-orange.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts)
 
-An autonomous, task-driven, user-guided enterprise DevOps agent engine built on the **Pi & Claw harness architecture**. It provides an AI agent with access to day-to-day DevOps tooling (`kubectl`, `helm`, `kustomize`, `terraform`, `flux`, `argocd`, `docker`, `git`, cloud CLIs, filesystem, Prometheus, Loki) while enforcing strict 3-tier safety guardrails, visual diff previews, GitOps PR workflows, automated rollback watchers, multi-agent SRE peer reviews, multi-cloud isolation toggles, strict kubeconfig grounding, Model Context Protocol (MCP), and human-in-the-loop approvals.
+An autonomous, task-driven, user-guided enterprise DevOps agent engine built on the **Pi & Claw harness architecture**. It provides an AI agent with access to day-to-day DevOps tooling (`kubectl`, `helm`, `kustomize`, `terraform`, `flux`, `argocd`, `docker`, `git`, cloud CLIs, filesystem, Prometheus, Loki, Kafka, Redis, RabbitMQ, ActiveMQ) while enforcing strict 3-tier safety guardrails, visual diff previews, GitOps PR workflows, automated rollback watchers, multi-agent SRE peer reviews, multi-cloud isolation toggles, strict kubeconfig grounding, Model Context Protocol (MCP), and human-in-the-loop approvals.
 
 ---
 
@@ -23,7 +23,7 @@ An autonomous, task-driven, user-guided enterprise DevOps agent engine built on 
 
 3. **Cloud Provider Toggles & Strict Kubeconfig Grounding:**
    - Selectively enable or disable cloud providers (`AWS`, `Azure`, `GCP`) via configuration, CLI flags, REPL commands, or REST API.
-   - **Kubernetes-Only Mode (`--k8s-only`):** Disables all cloud providers, reducing the catalog from 109 down to 103 tools.
+   - **Kubernetes-Only Mode (`--k8s-only`):** Disables all cloud providers, reducing the catalog from 126 down to 120 tools.
    - **Custom Kubeconfig Targeting (`--kubeconfig=sb-config`):** Specify custom kubeconfig files via CLI, environment (`KUBECONFIG`), slash command (`/kubeconfig <path>`), tool (`k8s_set_kubeconfig`), or Web Console, just like `kubectl --kubeconfig=sb-config`.
    - **Strict In-Cluster Grounding (`stickToKubeConfig`):** Guardrails strictly block cloud credentials wrappers (`aws eks update-kubeconfig`, `az aks get-credentials`, `gcloud container clusters get-credentials`), eliminating cluster drift.
 
@@ -44,17 +44,26 @@ An autonomous, task-driven, user-guided enterprise DevOps agent engine built on 
    - Centralized logging via Grafana Loki LogQL (`loki_log_query`) and distributed tracing latency via Jaeger/Tempo (`trace_latency_query`).
    - On-call alert triage for PagerDuty and Opsgenie (`pagerduty_manage`, `opsgenie_manage`).
 
-7. **Mission Control Web Console & Alert Webhooks (`/dashboard`):**
-   - Modern, dark-mode single-page Web Console on port 3456 (`http://localhost:3456/dashboard`).
-   - Live interactive execution console, streaming logs, cloud provider navbar pill with dropdown toggles, audit forensics, and Prometheus Alertmanager webhook ingestion.
+7. **Enterprise Middleware, Message Queues & Downstream Probing (17 Specialized Tools):**
+   - **Distributed In-Memory Cache:** Redis diagnostic inspection, slowlog analysis, key sampling, and eviction audits (`redis_*`).
+   - **Event Streaming & Message Queues:** Apache Kafka consumer lag calculation and offset resets, cluster health, and topic inspections (`kafka_*`); RabbitMQ queue depths and dead-letter triage (`rabbitmq_*`); Apache ActiveMQ DLQ triage and queue audits (`activemq_*`).
+   - **Downstream Dependency & Synthetic Probing:** In-cluster synthetic TCP/HTTP latency probes, database connection pool exhaustion audits (HikariCP / pgBouncer), and full microservice dependency topology mapping (`service_endpoint_probe`, `db_pool_audit`, `downstream_dependency_map`).
 
-8. **Safety Envelope, Visual Diffs & Autonomous Rollback:**
+8. **Mission Control Web Console, SRE Command Palette & UX (`/dashboard`):**
+   - Modern, dark-mode single-page Web Console on port 3456 (`http://localhost:3456/dashboard`).
+   - **Chat & Incident History Drawer:** Multi-session history with instant search, date groupings, session deletions, and domain tags (`#k8s`, `#kafka`, `#redis`, `#cloud`, `#incident`).
+   - **Multi-Criteria Audit Forensics Filter:** Real-time filter stream by Safety Tiers (`READ`, `MUTATE`, `DANGEROUS`), Execution Status (`ALLOWED`, `APPROVAL REQUIRED`, `BLOCKED`), Time Range, and Domain Tags.
+   - **Global SRE Command Palette (<kbd>Cmd+K</kbd> / <kbd>Ctrl+K</kbd>):** Rapid fuzzy search across incident runbooks, role switching, cloud provider toggles, and diagnostic actions.
+   - **Global Keyboard Shortcuts (<kbd>?</kbd>):** Instant cheatsheet modal, role switching (<kbd>Alt+1/2/3</kbd>), terminal clear (<kbd>Cmd+L</kbd>), and 1-key approval hotkeys (<kbd>Y</kbd>/<kbd>N</kbd>).
+   - **Mobile Responsive Layout & Floating Approval Bar:** Card-based mobile table transforms and thumb-friendly floating authorization bar.
+
+9. **Safety Envelope, Visual Diffs & Autonomous Rollback:**
    - 3-Tier deterministic policy with Environment-Aware Production Lock.
    - Visual ANSI unified diff previews for all configuration changes.
    - Autonomous Rollout Watcher detecting pod failures post-mutation and triggering instant `kubectl rollout undo`.
 
-9. **Model Context Protocol (MCP) Server:**
-   - Exposes platform tools over stdio JSON-RPC 2.0 for Claude Desktop, Cursor, or Antigravity via `--mcp`.
+10. **Model Context Protocol (MCP) Server:**
+    - Exposes all 126 platform tools over stdio JSON-RPC 2.0 for Claude Desktop, Cursor, or Antigravity via `--mcp`.
 
 ---
 
@@ -130,9 +139,9 @@ The engine allows operators to enforce strict operational boundaries:
 
 ---
 
-## 🛠️ Registered DevOps Tools (109 Tools)
+## 🛠️ Registered DevOps Tools (126 Tools)
 
-When all cloud providers are enabled, the agent exposes **109 native tools**. In Kubernetes-Only mode (`--k8s-only`), the catalog dynamically scales to **103 tools**.
+When all cloud providers are enabled, the agent exposes **126 native tools**. In Kubernetes-Only mode (`--k8s-only`), the catalog dynamically scales to **120 tools**.
 
 ### 1. Interactive Workload Debugging & Sockets (4 Tools)
 | Tool | Action Tier | Description |
@@ -312,6 +321,27 @@ When all cloud providers are enabled, the agent exposes **109 native tools**. In
 | `generate_postmortem_report`| Tier 1 (Safe Action) | Generate structured postmortem report and index into knowledge base memory. |
 | `canary_deploy` | Tier 2 Approval | Progressive canary deployment (10% traffic) with automated error abort. |
 
+### 19. Enterprise Middleware, Message Queues & Downstream Probing (17 Tools)
+| Tool | Action Tier | Description |
+| :--- | :--- | :--- |
+| `redis_info_diagnose` | Tier 1 (Read-Only) | Audit Redis in-memory cache health, memory fragmentation, client counts, and cache hit/miss ratio. |
+| `redis_slowlog_inspect` | Tier 1 (Read-Only) | Inspect Redis slowlog to detect blocking O(N) operations (`KEYS *`, large `HGETALL`, Lua scripts). |
+| `redis_key_analysis` | Tier 1 (Read-Only) | Analyze Redis key namespaces, memory footprint, key counts, and TTL distribution via non-blocking SCAN. |
+| `redis_cache_purge` | Tier 1 (DryRun) / Tier 2 (Live) | Purge keys matching pattern. Wildcard flush in production is permanently blocked by Guardrails. |
+| `redis_eviction_audit` | Tier 1 (Read-Only) | Audit Redis memory pressure, maxmemory limits, eviction policies, and cache stampede risks. |
+| `kafka_consumer_lag` | Tier 1 (Read-Only) | Triage Kafka consumer group lag: computes offset gaps, consumer stalling, and partition skew. |
+| `kafka_cluster_health` | Tier 1 (Read-Only) | Audit Kafka cluster health: checks broker counts, active controller, URP, and ISR stability. |
+| `kafka_topic_inspect` | Tier 1 (Read-Only) | Inspect topic partition distribution, replication factor, retention configuration, and leader skew. |
+| `kafka_offset_reset` | Tier 1 (DryRun) / Tier 2 (Live) | Reset consumer group offsets to earliest, latest, or timestamp with mandatory dry-run verification. |
+| `rabbitmq_queue_status` | Tier 1 (Read-Only) | Audit RabbitMQ queue message depths, ready messages, unacknowledged backlogs, and consumer throughput. |
+| `rabbitmq_dlq_inspect` | Tier 1 (Read-Only) | Inspect RabbitMQ Dead-Letter Exchanges (DLX) and Dead-Letter Queues for poison pill message payloads. |
+| `rabbitmq_alarms_check` | Tier 1 (Read-Only) | Audit RabbitMQ node-level memory watermark alarms, disk free limits, and flow-control publisher blocking. |
+| `activemq_queue_audit` | Tier 1 (Read-Only) | Audit Apache ActiveMQ broker queues, pending JMS message counts, consumer starvation, and store utilization. |
+| `activemq_dlq_triage` | Tier 1 (Read-Only) | Triage Apache ActiveMQ Dead-Letter Queue (`ActiveMQ.DLQ`) for poison pill messages and socket timeouts. |
+| `service_endpoint_probe` | Tier 1 (Read-Only) | Execute synthetic HTTP/HTTPS, TCP, or gRPC endpoint probes measuring latency, DNS, and TLS validity. |
+| `db_pool_audit` | Tier 1 (Read-Only) | Audit downstream database connection pool utilization (HikariCP, pgBouncer) for wait times and starvation. |
+| `downstream_dependency_map` | Tier 1 (Read-Only) | Map downstream service dependencies (databases, Redis, Kafka, RabbitMQ, ActiveMQ, APIs) and health. |
+
 ---
 
 ## ⌨️ Interactive CLI Slash Commands
@@ -347,14 +377,23 @@ Run `npm run dev` to enter the interactive REPL. The engine provides intuitive s
 
 ## 🌐 Mission Control & REST API
 
-Start the engine in server mode (`npm run dev -- --server`) to enable the Web Console on port 3456:
+Start the engine in server mode (`npm run dev -- --server` or `npm run server`) to enable the Web Console on port 3456:
 
 - **Mission Control Web Console:** `http://localhost:3456/dashboard`
 - **Health Check:** `GET http://localhost:3456/health`
+- **System Status & Tools:** `GET /api/status` — Returns active context, 126 loaded tools, and audit counts.
+- **Role Hierarchy Management:**
+  - `GET /api/role` — Get active operator role (`junior`, `intermediate`, `senior`).
+  - `POST /api/role` — Switch active role (`{ "role": "senior" }`).
 - **Cloud Provider & Kubeconfig Config:**
   - `GET /api/config/providers` — Returns active providers, kubeconfig path, grounding status, and tool counts.
   - `POST /api/config/providers` — Update provider settings or switch kubeconfig (`{ "kubeconfig": "sb-config", "stickToKubeConfig": true }`).
+- **Chat & Incident History:**
+  - `GET /api/chat/history` — Retrieve indexed chat sessions with tags, summaries, and timestamps.
+  - `POST /api/chat/history/tag` — Attach or remove domain tags (`{ "id": "...", "tag": "#kafka" }`).
+  - `DELETE /api/chat/history?id=<sessionId>` — Delete a specific session or clear history.
 - **Prometheus Alertmanager Webhook:** `POST /api/alerts/webhook`
+- **Simulate Alert Drills:** `POST /api/alerts/simulate` (`{ "type": "CrashLoopBackOff" }`)
 - **Immutable Audit Trail & Export:** `GET /api/audit` | `GET /api/audit/export?format=csv|json`
 - **Postmortem Reports Catalog & Download:**
   - `GET /api/reports` — List generated incident postmortem markdown reports.
@@ -365,7 +404,7 @@ Start the engine in server mode (`npm run dev -- --server`) to enable the Web Co
 
 ## 🧪 Testing & Verification
 
-The engine is backed by a comprehensive automated test suite with **100+ passing tests**:
+The engine is backed by a comprehensive automated test suite with **117 passing enterprise feature tests**:
 ```bash
 # Build TypeScript
 npm run build
@@ -376,7 +415,7 @@ npx tsx test/kubeconfig.test.ts
 # Run unit tests for Cloud Provider Toggles & Grounding
 npx tsx test/cloud_provider.test.ts
 
-# Run complete platform smoke test suite
+# Run complete platform smoke test suite (117 tests)
 npm test
 ```
 
@@ -393,3 +432,5 @@ Explore the complete specifications in the [`docs/specs/`](file:///Users/joshuaw
 - [Spec 26: Cloud Provider Toggles & Strict Kubeconfig Grounding](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/26-cloud-provider-toggles-and-kubeconfig-grounding.md)
 - [Spec 27: GitOps (Argo CD & Flux v2), Helm, Kustomize, and Terraform IaC](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/27-gitops-helm-flux-argocd-and-terraform-iac.md)
 - [Spec 28: SRE Runbooks, Vault & Secrets, Service Mesh, and Observability](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/28-sre-runbooks-vault-secrets-and-observability.md)
+- [Spec 29: Container Security & Workload Image Vulnerability Scanning](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/29-container-security-and-workload-image-scanning.md)
+- [Spec 30: Enterprise Middleware, Message Queues & Downstream Services](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/30-enterprise-middleware-message-queues-and-downstream-services.md)
