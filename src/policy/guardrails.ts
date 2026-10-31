@@ -265,6 +265,10 @@ export class Guardrails {
       toolName === 'kafka_consumer_lag' ||
       toolName === 'kafka_cluster_health' ||
       toolName === 'kafka_topic_inspect' ||
+      toolName === 'kafka_broker_config' ||
+      toolName === 'kafka_message_sample' ||
+      toolName === 'kafka_security_audit' ||
+      (toolName === 'kafka_topic_manage' && args.dryRun !== false) ||
       (toolName === 'kafka_offset_reset' && args.dryRun === true) ||
       toolName === 'rabbitmq_queue_status' ||
       toolName === 'rabbitmq_dlq_inspect' ||
@@ -801,6 +805,30 @@ export class Guardrails {
         reason: isProd
           ? 'CRITICAL WARNING: Operating on PRODUCTION Kafka cluster. Resetting consumer offsets alters stream processing position and can cause message skips or reprocessing duplicates.'
           : 'Resetting Kafka consumer offsets alters event consumption position. Operator confirmation required.',
+        requiresApproval: true,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'kafka_topic_manage') {
+      const topic = args.topic || '';
+      if (!topic || topic.includes('*')) {
+        return {
+          tier: 'DANGEROUS',
+          actionSummary: `BLOCKED wildcard topic mutation: "${topic}"`,
+          reason: 'Kafka topic management requires an explicit, non-wildcard topic name.',
+          requiresApproval: false,
+          isBlocked: true,
+          isProductionWarning: isProd,
+        };
+      }
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Kafka Topic Manage: Execute "${args.action}" on topic "${topic}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Operating on PRODUCTION Kafka cluster. Altering topic partitions or configurations modifies cluster state.'
+          : 'Altering topic partitions or configuration modifies broker state. Operator confirmation required.',
         requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,

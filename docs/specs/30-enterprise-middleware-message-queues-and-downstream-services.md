@@ -8,7 +8,7 @@ Modern enterprise microservice architectures depend heavily on asynchronous mess
 - **JMS Poison Pills & Store Exhaustion:** ActiveMQ broker persistence store saturation and unhandled poison-pill exceptions in `ActiveMQ.DLQ`.
 - **Downstream Cascading Failures:** Database connection pool starvation (HikariCP / pgBouncer) and degraded synthetic endpoint latencies.
 
-**Feature Spec 30** establishes a comprehensive suite of **17 specialized diagnostic and remediation tools**, progressive safety guardrails, and automated SRE runbooks to triage, inspect, and safely remediate middleware incidents.
+**Feature Spec 30** establishes a comprehensive suite of **21 specialized diagnostic and remediation tools**, progressive safety guardrails, and automated SRE runbooks to triage, inspect, and safely remediate middleware incidents.
 
 ---
 
@@ -29,7 +29,7 @@ flowchart TD
     subgraph Event_and_Queue_Tier ["Message Queues & Event Streaming Tier"]
         WebAPI -->|Publish Events| KafkaBrokers["Apache Kafka Event Stream"]
         WorkerServices -->|Consume Topics| KafkaBrokers
-        KafkaTool["Kafka Diagnostic Suite (4 Tools)"] -.->|Lag / Health / Offset Reset| KafkaBrokers
+        KafkaTool["Kafka Pro Suite (8 Tools)"] -.->|Lag / Health / Broker Config / Sampling / ACLs| KafkaBrokers
 
         WebAPI -->|AMQP Messages| RabbitBrokers["RabbitMQ Cluster"]
         WorkerServices -->|Ack / Nack| RabbitBrokers
@@ -52,7 +52,7 @@ flowchart TD
 
 ---
 
-## 3. Tool Catalog & Capabilities (17 Native Tools)
+## 3. Tool Catalog & Capabilities (21 Native Tools)
 
 ### 3.1 Redis In-Memory Cache Suite (5 Tools)
 Located in [`src/tools/middleware_cache.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_cache.ts):
@@ -65,7 +65,7 @@ Located in [`src/tools/middleware_cache.ts`](file:///Users/joshuawilliams/Docume
 | **`redis_cache_purge`** | `Tier 2 Approval` | `pattern` (required), `host`, `port`, `namespace`, `context` | Invalidates cached keys matching specific prefixes. **Safety guardrail:** permanently blocks root wildcard `"*"` purges in production. |
 | **`redis_eviction_audit`** | `READ / Tier 1` | `host`, `port`, `namespace`, `context` | Audits `evicted_keys`, maxmemory policies (`volatile-lru`, `allkeys-lru`, `noeviction`), and flags cache stampede risks. |
 
-### 3.2 Apache Kafka Event Streaming Suite (4 Tools)
+### 3.2 Apache Kafka Event Streaming Suite (8 Tools)
 Located in [`src/tools/middleware_kafka.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_kafka.ts):
 
 | Tool Name | Guardrail Tier | Parameters | Purpose |
@@ -74,6 +74,10 @@ Located in [`src/tools/middleware_kafka.ts`](file:///Users/joshuawilliams/Docume
 | **`kafka_cluster_health`** | `READ / Tier 1` | `bootstrapServers`, `namespace`, `context` | Audits broker status, active controller identity, Under-Replicated Partitions (URP), and In-Sync Replicas (ISR). |
 | **`kafka_topic_inspect`** | `READ / Tier 1` | `topic` (required), `bootstrapServers`, `namespace`, `context` | Evaluates partition count, replication factor, retention configuration, and leader partition balance. |
 | **`kafka_offset_reset`** | `Tier 2 Approval` | `consumerGroup`, `topic`, `resetTo`, `value`, `dryRun`, `bootstrapServers`, `namespace`, `context` | Repositions consumer group offsets (`earliest`, `latest`, `shift-by`, `to-datetime`). Mandatory dry-run verification before commit. |
+| **`kafka_broker_config`** | `READ / Tier 1` | `bootstrapServers`, `brokerId`, `namespace`, `podName`, `context` | Audits static & dynamic broker properties, `advertised.listeners` routability, thresholds (`min.insync.replicas`), JVM heap, and disk capacity with credentials masking. |
+| **`kafka_message_sample`** | `READ / Tier 1 (Financial Safe)` | `topic` (required), `partition`, `offset`, `maxMessages`, `metadataOnly`, `bootstrapServers`, `namespace`, `context` | Financial-grade non-destructive message inspection. Zero offset commits (`enable.auto.commit=false`). Headers-only by default (`metadataOnly: true`), with PCI-DSS/PII data masking when payloads are previewed. |
+| **`kafka_topic_manage`** | `Tier 2 Approval` | `topic` (required), `action` (required), `partitions`, `configKey`, `configValue`, `dryRun`, `bootstrapServers`, `namespace`, `context` | Topic scaling and management: expand partition count, alter dynamic configurations (`retention.ms`), or trigger preferred replica leader election. Wildcard mutations blocked. |
+| **`kafka_security_audit`** | `READ / Tier 1` | `bootstrapServers`, `namespace`, `podName`, `context` | Audits cluster security: broker TLS certificate expiration windows, SASL authentication mechanisms (`SCRAM-SHA-512`, `OAUTHBEARER`), and Access Control Lists (ACLs). |
 
 ### 3.3 RabbitMQ & Apache ActiveMQ Queue Suites (5 Tools)
 Located in [`src/tools/middleware_queues.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_queues.ts):
@@ -145,10 +149,15 @@ Integrated within [`src/tools/runbook.ts`](file:///Users/joshuawilliams/Document
 
 All middleware tools integrate with the 3-Tier deterministic guardrails:
 - **Autonomous Tier 1 (`READ`):** All diagnostic, inspect, probe, and audit tools execute autonomously without operator interruption, returning rapid telemetry during active outages.
+- **Financial Compliance Mode & Data Loss Prevention (DLP):**
+  - **Zero Offset Mutation:** [`kafka_message_sample`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_kafka.ts) uses direct partition `assign()` with `enable.auto.commit = false`. Production consumer group offsets remain untouched.
+  - **Headers-First Safe Triage:** Message sampling defaults to `metadataOnly: true`, inspecting headers, schema IDs, and timestamps while suppressing raw payload bodies to prevent sensitive data from entering logs or audit ledgers.
+  - **Automated PII/PCI Redaction:** When payload previews are enabled, automated regex scrubbing masks Primary Account Numbers (`[CARD_MASKED: ************1148]`), SSNs, tokens, and passwords.
+  - **Credentials Masking:** [`kafka_broker_config`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_kafka.ts) redacts SASL JAAS configs, keystore passwords, and SSL tokens.
 - **Operator Approval Tier 2 (`MUTATE`):**
-  - Mutating operations (`redis_cache_purge`, `kafka_offset_reset`, `runbook_execute`) generate an ANSI diff or execution plan.
+  - Mutating operations (`redis_cache_purge`, `kafka_offset_reset`, `kafka_topic_manage`, `runbook_execute`) generate an ANSI diff or execution plan.
   - Require explicit human operator confirmation via CLI or the Mission Control floating approval bar.
-  - In production environments, wildcard cache purges (`*`) and untargeted offset resets are strictly blocked.
+  - In production environments, wildcard cache purges (`*`), wildcard topic mutations (`*`), and untargeted offset resets are strictly blocked.
 - **Forensic Audit Ledger:** Every invocation, diagnostic output summary, duration, and operator approval decision is recorded in `.audit/audit.jsonl` with UUID session tracing.
 
 ---
@@ -158,8 +167,14 @@ All middleware tools integrate with the 3-Tier deterministic guardrails:
 Verified in [`test/smoke.test.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts):
 - **Test 109:** Validates Redis cache diagnostics (`redis_info_diagnose`, `redis_slowlog_inspect`, `redis_key_analysis`) and guardrail evaluation.
 - **Test 110:** Validates Redis cache purge safety (`redis_cache_purge`), eviction auditing, and Apache Kafka cluster health & consumer lag evaluation.
-- **Test 111:** Validates RabbitMQ queue status auditing (`rabbitmq_queue_status`) and Dead-Letter Queue inspection (`rabbitmq_dlq_inspect`).
-- **Test 112:** Validates RabbitMQ node alarm checks (`rabbitmq_alarms_check`) and ActiveMQ queue/DLQ triage (`activemq_queue_audit`, `activemq_dlq_triage`).
-- **Test 113:** Validates in-cluster synthetic endpoint probing (`service_endpoint_probe`).
-- **Test 114:** Validates downstream database connection pool auditing (`db_pool_audit`) and dependency mapping (`downstream_dependency_map`).
-- **Test 115:** Validates Enterprise Runbook catalog contains all middleware remediation runbooks (`kafka-consumer-lag-remediation`, `redis-oom-cache-stampede`, `rabbitmq-unacked-queue-backpressure`, `activemq-dlq-surge`, `downstream-service-circuit-breaker-open`).
+- **Test 111:** Validates Apache Kafka broker configuration audit (`kafka_broker_config`) and credentials masking.
+- **Test 112:** Validates Apache Kafka financial-grade non-destructive message sampling (`kafka_message_sample`) with header inspection and PII/PCI masking.
+- **Test 113:** Validates Apache Kafka topic management (`kafka_topic_manage`), dry-run preview, production approval gates, and wildcard mutation blocking.
+- **Test 114:** Validates Apache Kafka security, TLS certificate expiry, SASL auth, and ACL audit (`kafka_security_audit`).
+- **Test 115:** Validates RabbitMQ queue status auditing (`rabbitmq_queue_status`) and Dead-Letter Queue inspection (`rabbitmq_dlq_inspect`).
+- **Test 116:** Validates RabbitMQ node alarm checks (`rabbitmq_alarms_check`) and ActiveMQ queue/DLQ triage (`activemq_queue_audit`, `activemq_dlq_triage`).
+- **Test 117:** Validates in-cluster synthetic endpoint probing (`service_endpoint_probe`).
+- **Test 118:** Validates downstream database connection pool auditing (`db_pool_audit`) and dependency mapping (`downstream_dependency_map`).
+- **Test 119:** Validates Enterprise Runbook catalog contains all middleware remediation runbooks (`kafka-consumer-lag-remediation`, `redis-oom-cache-stampede`, `rabbitmq-unacked-queue-backpressure`, `activemq-dlq-surge`, `downstream-service-circuit-breaker-open`).
+- **Test 120:** Validates Mission Control Dashboard UX (Command Palette, shortcuts, floating mobile approval bar, chat history tagging).
+- **Test 121:** Validates Mission Control Client Script Integrity via Node `vm.Script`.

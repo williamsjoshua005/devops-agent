@@ -872,27 +872,27 @@ spec:
   const carbonOut = await K8sTool.carbonFootprint(undefined, 'us-east-1');
   assert(carbonOut.includes('Carbon Footprint') || carbonOut.includes('Sustainability') || carbonOut.includes('kWh') || carbonOut.includes('CO2') || carbonOut.includes('Failed to estimate'), 'K8sTool.carbonFootprint computes GreenOps footprint');
 
-  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (126 Native Tools & MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 126, `All 126 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (130 Native Tools & MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 130, `All 130 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
 
   const mcp108Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10004, method: 'tools/list' });
-  assert(mcp108Res.result.tools.length >= 126, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
+  assert(mcp108Res.result.tools.length >= 130, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
 
   // Test 95: Cloud Provider Dynamic Catalog Filtering (getAvailableToolDefinitions)
   const allTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: true } });
-  assert(allTools.length === 126, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
+  assert(allTools.length === 130, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
 
   const noAwsTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } });
-  assert(noAwsTools.length === 124 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (124 tools remaining)');
+  assert(noAwsTools.length === 128 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (128 tools remaining)');
 
   const noAzTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: false, gcp: true } });
-  assert(noAzTools.length === 124 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (124 tools remaining)');
+  assert(noAzTools.length === 128 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (128 tools remaining)');
 
   const noGcpTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: false } });
-  assert(noGcpTools.length === 124 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (124 tools remaining)');
+  assert(noGcpTools.length === 128 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (128 tools remaining)');
 
   const k8sOnlyTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: false, gcp: false } });
-  assert(k8sOnlyTools.length === 120, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 120 tools (${k8sOnlyTools.length} tools)`);
+  assert(k8sOnlyTools.length === 124, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 124 tools (${k8sOnlyTools.length} tools)`);
 
   // Test 96: Guardrails Enforcement for Disabled Cloud Provider Tools
   const awsDisabledCtx: AgentContext = { ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } };
@@ -966,7 +966,7 @@ spec:
     stickToKubeConfig: true,
   });
   const mcpFilteredRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10005, method: 'tools/list' });
-  assert(mcpFilteredRes.result.tools.length === 120, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 120 tools)`);
+  assert(mcpFilteredRes.result.tools.length === 124, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 124 tools)`);
   assert(!mcpFilteredRes.result.tools.some((t: any) => t.name.startsWith('aws_') || t.name.startsWith('az_') || t.name.startsWith('gcp_')), 'MCP Server tool list contains zero disabled cloud tools');
 
   // Test 101: Custom Kubeconfig Targeting (k8s_set_kubeconfig & K8sTool.setKubeconfig)
@@ -1048,7 +1048,44 @@ spec:
   const offsetLiveEval = Guardrails.evaluate('kafka_offset_reset', { consumerGroup: 'orders', topic: 'events', resetTo: 'latest', dryRun: false }, mockProdContext);
   assert(offsetLiveEval.tier === 'MUTATE' && offsetLiveEval.requiresApproval && offsetLiveEval.isProductionWarning, 'kafka_offset_reset in prod requires operator approval with warning');
 
-  // Test 111: RabbitMQ Queue Status & Dead-Letter Queue (DLQ) Triage
+  // Test 111: Apache Kafka Broker Configuration Audit
+  const brokerCfgEval = Guardrails.evaluate('kafka_broker_config', { brokerId: 1 }, mockDevContext);
+  assert(brokerCfgEval.tier === 'READ' && !brokerCfgEval.requiresApproval, 'kafka_broker_config evaluates autonomously as READ');
+
+  const brokerCfgOut = await KafkaTool.brokerConfig({ brokerId: 1 });
+  assert(brokerCfgOut.includes('Broker Configuration') && brokerCfgOut.includes('Advertised Host/IP') && brokerCfgOut.includes('min.insync.replicas'), 'KafkaTool.brokerConfig audits advertised listeners, thresholds, and masks credentials');
+
+  // Test 112: Apache Kafka Financial-Grade Message Sampling (Non-Destructive)
+  const sampleEval = Guardrails.evaluate('kafka_message_sample', { topic: 'payment-events', metadataOnly: true }, mockDevContext);
+  assert(sampleEval.tier === 'READ' && !sampleEval.requiresApproval, 'kafka_message_sample evaluates autonomously as READ');
+
+  const sampleMetaOut = await KafkaTool.sampleMessages({ topic: 'payment-events', metadataOnly: true });
+  assert(sampleMetaOut.includes('Financial Compliance Mode') && sampleMetaOut.includes('Zero offset mutation') && sampleMetaOut.includes('POISON PILL'), 'KafkaTool.sampleMessages suppresses payloads by default in Financial Compliance Mode');
+
+  const samplePayloadOut = await KafkaTool.sampleMessages({ topic: 'payment-events', metadataOnly: false });
+  assert(samplePayloadOut.includes('CARD_MASKED') && samplePayloadOut.includes('TOKEN_REDACTED'), 'KafkaTool.sampleMessages redacts sensitive PCI/PII card data and tokens');
+
+  // Test 113: Apache Kafka Topic Management & Leader Rebalancing Guardrails
+  const topicManageDry = Guardrails.evaluate('kafka_topic_manage', { topic: 'orders', action: 'expand-partitions', partitions: 8, dryRun: true }, mockDevContext);
+  assert(topicManageDry.tier === 'READ' && !topicManageDry.requiresApproval, 'kafka_topic_manage dry-run evaluates safely as READ');
+
+  const topicManageLive = Guardrails.evaluate('kafka_topic_manage', { topic: 'orders', action: 'expand-partitions', partitions: 8, dryRun: false }, mockProdContext);
+  assert(topicManageLive.tier === 'MUTATE' && topicManageLive.requiresApproval && topicManageLive.isProductionWarning, 'kafka_topic_manage in prod requires operator approval with warning');
+
+  const topicManageWildcard = Guardrails.evaluate('kafka_topic_manage', { topic: '*', action: 'expand-partitions', dryRun: false }, mockProdContext);
+  assert(topicManageWildcard.tier === 'DANGEROUS' && topicManageWildcard.isBlocked, 'kafka_topic_manage strictly blocks wildcard topic mutation');
+
+  const topicManageOut = await KafkaTool.manageTopic({ topic: 'orders', action: 'expand-partitions', partitions: 8, dryRun: true });
+  assert(topicManageOut.includes('Partition Expansion') && topicManageOut.includes('DRY-RUN PREVIEW'), 'KafkaTool.manageTopic generates partition expansion preview');
+
+  // Test 114: Apache Kafka Security, TLS & ACL Compliance Audit
+  const secAuditEval = Guardrails.evaluate('kafka_security_audit', {}, mockDevContext);
+  assert(secAuditEval.tier === 'READ' && !secAuditEval.requiresApproval, 'kafka_security_audit evaluates autonomously as READ');
+
+  const secAuditOut = await KafkaTool.securityAudit();
+  assert(secAuditOut.includes('Broker TLS/SSL Certificate') && secAuditOut.includes('SCRAM-SHA-512') && secAuditOut.includes('Access Control Lists'), 'KafkaTool.securityAudit verifies broker certificates, SASL, and ACLs');
+
+  // Test 115: RabbitMQ Queue Status & Dead-Letter Queue (DLQ) Triage
   const rmqQueueEval = Guardrails.evaluate('rabbitmq_queue_status', {}, mockDevContext);
   assert(rmqQueueEval.tier === 'READ' && !rmqQueueEval.requiresApproval, 'rabbitmq_queue_status evaluates autonomously as READ');
 
@@ -1058,7 +1095,7 @@ spec:
   const rmqDlqOut = await RabbitMqTool.dlqInspect({ dlqName: 'orders.dead_letter' });
   assert(rmqDlqOut.includes('Dead-Letter Queue') && rmqDlqOut.includes('Sampled Failed Message'), 'RabbitMqTool.dlqInspect extracts dead-lettered payloads');
 
-  // Test 112: RabbitMQ Node Alarms & ActiveMQ Broker Queue Audit
+  // Test 116: RabbitMQ Node Alarms & ActiveMQ Broker Queue Audit
   const rmqAlarmsOut = await RabbitMqTool.alarmsCheck();
   assert(rmqAlarmsOut.includes('RabbitMQ') && rmqAlarmsOut.includes('Memory Alarm') && rmqAlarmsOut.includes('Disk Alarm'), 'RabbitMqTool.alarmsCheck checks cluster resource watermarks');
 
@@ -1071,14 +1108,14 @@ spec:
   const amqDlqOut = await ActiveMqTool.dlqTriage();
   assert(amqDlqOut.includes('ActiveMQ') && amqDlqOut.includes('DLQ Triage') && amqDlqOut.includes('Destination'), 'ActiveMqTool.dlqTriage samples poison pill exceptions');
 
-  // Test 113: Downstream Synthetic Service Endpoint Probing
+  // Test 117: Downstream Synthetic Service Endpoint Probing
   const probeEval = Guardrails.evaluate('service_endpoint_probe', { targetUrl: 'http://order-service:8080/health' }, mockDevContext);
   assert(probeEval.tier === 'READ' && !probeEval.requiresApproval, 'service_endpoint_probe evaluates autonomously as READ');
 
   const probeOut = await DownstreamProbeTool.probeEndpoint({ targetUrl: 'http://order-service.default.svc:8080/health' });
   assert(probeOut.includes('Downstream Synthetic Service Probe') && (probeOut.includes('HTTP Status Code') || probeOut.includes('HTTP Response Code')), 'DownstreamProbeTool.probeEndpoint performs synthetic health audit');
 
-  // Test 114: Database Connection Pool Audit & Dependency Mapping
+  // Test 118: Database Connection Pool Audit & Dependency Mapping
   const dbPoolEval = Guardrails.evaluate('db_pool_audit', {}, mockDevContext);
   assert(dbPoolEval.tier === 'READ' && !dbPoolEval.requiresApproval, 'db_pool_audit evaluates autonomously as READ');
 
@@ -1088,7 +1125,7 @@ spec:
   const depMapOut = await DownstreamProbeTool.dependencyMap();
   assert(depMapOut.includes('Dependency Map') && depMapOut.includes('Kafka') && depMapOut.includes('Redis'), 'DownstreamProbeTool.dependencyMap outlines full middleware graph');
 
-  // Test 115: Enterprise Runbook Catalog includes Middleware & Downstream Runbooks
+  // Test 119: Enterprise Runbook Catalog includes Middleware & Downstream Runbooks
   const kafkaRunbook = RunbookTool.listRunbooks({ symptom: 'Kafka lag' });
   assert(kafkaRunbook.includes('kafka-consumer-lag-remediation'), 'Runbook catalog includes Kafka consumer lag runbook');
 
@@ -1101,8 +1138,7 @@ spec:
   const amqRunbook = RunbookTool.listRunbooks({ symptom: 'ActiveMQ.DLQ spike' });
   assert(amqRunbook.includes('activemq-dlq-surge'), 'Runbook catalog includes ActiveMQ DLQ surge runbook');
 
-  const cbRunbook = RunbookTool.listRunbooks({ symptom: 'Circuit breaker OPEN' });
-  // Test 116: Mission Control Dashboard UX (Search, Filter, Tag, Mobile Layout, Command Palette, Shortcuts)
+  // Test 120: Mission Control Dashboard UX (Search, Filter, Tag, Mobile Layout, Command Palette, Shortcuts)
   const enhancedDashboardHtml = getDashboardHtml(mockDevContext);
   assert(enhancedDashboardHtml.includes('commandPaletteModal'), 'Mission Control includes Command Palette modal (Cmd+K)');
   assert(enhancedDashboardHtml.includes('shortcutsModal'), 'Mission Control includes Keyboard Shortcuts cheatsheet modal (?)');
@@ -1110,7 +1146,7 @@ spec:
   assert(enhancedDashboardHtml.includes('chatSearchInput') && enhancedDashboardHtml.includes('subtabChatBtn'), 'Mission Control includes Chat History search and tagging');
   assert(enhancedDashboardHtml.includes('auditTag-k8s') && enhancedDashboardHtml.includes('auditStatusFilter'), 'Mission Control includes multi-criteria audit filtering by status and domain tags');
 
-  // Test 117: Mission Control Client Script Integrity (Parses cleanly with 0 syntax errors)
+  // Test 121: Mission Control Client Script Integrity (Parses cleanly with 0 syntax errors)
   const scriptMatch = enhancedDashboardHtml.match(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/i);
   assert(scriptMatch !== null && scriptMatch[1].length > 0, 'Mission Control embeds inline client-side JavaScript');
   let scriptParseError: any = null;
@@ -1121,7 +1157,7 @@ spec:
   }
   assert(scriptParseError === null, `Mission Control client-side JavaScript parses with 0 syntax errors (got: ${scriptParseError?.message})`);
 
-  console.log('\n\x1b[32mAll 117 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka, RabbitMQ, ActiveMQ, Downstream Probing, Dashboard UX, Script Integrity & Grounding feature tests passed successfully!\x1b[0m\n');
+  console.log('\n\x1b[32mAll 121 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka Pro Suite, RabbitMQ, ActiveMQ, Downstream Probing, Dashboard UX, Script Integrity & Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

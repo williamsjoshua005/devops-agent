@@ -2864,6 +2864,157 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'kafka_broker_config',
+    description:
+      'Audit Kafka broker configurations, advertised listeners, reliability thresholds (min.insync.replicas, max.message.bytes), JVM heap sizing, and log disk utilization.',
+    parameters: {
+      type: 'object',
+      properties: {
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap broker addresses (e.g. "kafka:9092" or "10.20.1.15:9092").',
+        },
+        brokerId: {
+          type: 'number',
+          description: 'Target broker ID (defaults to 1).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional pod name for in-cluster execution.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'kafka_message_sample',
+    description:
+      'Financial-grade non-destructive Kafka message sampling and poison-pill triage (headers-only by default, automated PCI-DSS/PII masking, zero offset commits).',
+    parameters: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Kafka topic name to sample.',
+        },
+        partition: {
+          type: 'number',
+          description: 'Partition ID to sample (defaults to 0).',
+        },
+        offset: {
+          type: 'string',
+          description: 'Starting offset or "latest" / "earliest".',
+        },
+        maxMessages: {
+          type: 'number',
+          description: 'Maximum number of messages to sample (1-5, defaults to 3).',
+        },
+        metadataOnly: {
+          type: 'boolean',
+          description: 'Financial compliance mode: inspect headers, schema IDs, and timestamps only, suppressing payload body (defaults to true).',
+        },
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap brokers.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional pod name.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['topic'],
+    },
+  },
+  {
+    name: 'kafka_topic_manage',
+    description:
+      'Manage Kafka topics: expand partition count, alter dynamic configurations, or trigger preferred replica leader election.',
+    parameters: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Kafka topic name.',
+        },
+        action: {
+          type: 'string',
+          enum: ['expand-partitions', 'alter-config', 'elect-leaders'],
+          description: 'Management action to perform.',
+        },
+        partitions: {
+          type: 'number',
+          description: 'Target partition count when action is expand-partitions.',
+        },
+        configKey: {
+          type: 'string',
+          description: 'Topic configuration property name when action is alter-config.',
+        },
+        configValue: {
+          type: 'string',
+          description: 'Topic configuration property value when action is alter-config.',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Simulate changes without applying (defaults to true).',
+        },
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap brokers.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+      required: ['topic', 'action'],
+    },
+  },
+  {
+    name: 'kafka_security_audit',
+    description:
+      'Audit Kafka cluster security: broker TLS certificate expiration windows, SASL authentication mechanisms, and Access Control Lists (ACLs).',
+    parameters: {
+      type: 'object',
+      properties: {
+        bootstrapServers: {
+          type: 'string',
+          description: 'Kafka bootstrap brokers.',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional pod name.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
     name: 'rabbitmq_queue_status',
     description:
       'Audit RabbitMQ queue message depths, ready messages, unacknowledged backlogs, and consumer throughput.',
@@ -3582,6 +3733,22 @@ export async function executeTool(name: string, args: Record<string, any>, conte
     case 'kafka_offset_reset': {
       const targetCtx = args.context || context?.kubeContext;
       return await KafkaTool.offsetReset({ ...args, context: targetCtx } as any);
+    }
+    case 'kafka_broker_config': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.brokerConfig({ ...args, context: targetCtx });
+    }
+    case 'kafka_message_sample': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.sampleMessages({ ...args, context: targetCtx } as any);
+    }
+    case 'kafka_topic_manage': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.manageTopic({ ...args, context: targetCtx } as any);
+    }
+    case 'kafka_security_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await KafkaTool.securityAudit({ ...args, context: targetCtx });
     }
     case 'rabbitmq_queue_status': {
       const targetCtx = args.context || context?.kubeContext;
