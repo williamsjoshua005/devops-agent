@@ -261,6 +261,10 @@ export class Guardrails {
       toolName === 'redis_slowlog_inspect' ||
       toolName === 'redis_key_analysis' ||
       toolName === 'redis_eviction_audit' ||
+      toolName === 'redis_config_inspect' ||
+      toolName === 'redis_replication_status' ||
+      toolName === 'redis_client_audit' ||
+      (toolName === 'redis_sentinel_audit' && (args.action !== 'failover' || args.dryRun !== false)) ||
       (toolName === 'redis_cache_purge' && args.dryRun === true) ||
       toolName === 'kafka_consumer_lag' ||
       toolName === 'kafka_cluster_health' ||
@@ -793,6 +797,19 @@ export class Guardrails {
           ? 'Intermediate DevOps autonomy: Non-production cache purge executed autonomously.'
           : 'Invalidating cache keys modifies application cache state. Operator confirmation required.',
         requiresApproval,
+        isBlocked: false,
+        isProductionWarning: isProd,
+      };
+    }
+
+    if (toolName === 'redis_sentinel_audit' && args.action === 'failover' && args.dryRun === false) {
+      return {
+        tier: 'MUTATE',
+        actionSummary: `Redis Sentinel Manual Failover: Trigger primary election for group "${args.masterName || 'mymaster'}"`,
+        reason: isProd
+          ? 'CRITICAL WARNING: Target cluster is PRODUCTION. Forcing Sentinel failover forces master demotion and replica promotion, briefly interrupting in-flight client socket connections.'
+          : 'Triggering Redis Sentinel manual failover demotes active primary and promotes a replica. Operator confirmation required.',
+        requiresApproval: true,
         isBlocked: false,
         isProductionWarning: isProd,
       };

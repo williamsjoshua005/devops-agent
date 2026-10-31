@@ -1,6 +1,6 @@
 # DevOps Autonomous Agent Engine — Feature Specifications Index
 
-Welcome to the comprehensive technical specification catalog for the **DevOps Autonomous Agent Engine (v4.5)**. This directory contains detailed, production-grade architecture and design specifications (`.md`) for every capability across our **130 platform tools** (124 in K8s-Only mode), multi-tier safety envelope, and multi-cloud isolation architecture.
+Welcome to the comprehensive technical specification catalog for the **DevOps Autonomous Agent Engine (v4.5)**. This directory contains detailed, production-grade architecture and design specifications (`.md`) for every capability across our **134 platform tools** (128 in K8s-Only mode), multi-tier safety envelope, and multi-cloud isolation architecture.
 
 ---
 
@@ -30,7 +30,7 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
 - **[Spec 24: GCP Cloud & Google Kubernetes Engine (GKE) Operations](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/24-gcp-cloud-and-gke-operations.md)**
   *GCP resource queries (GCE, Cloud Storage, Cloud SQL, VPC), GKE cluster health, and unattached persistent disk audit.*
 - **[Spec 26: Cloud Provider Toggles & Strict Kubeconfig Grounding](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/26-cloud-provider-toggles-and-kubeconfig-grounding.md)**
-  *Dynamic runtime cloud toggles (`AWS`, `Azure`, `GCP`), tool filtering (130 to 124 tools in `--k8s-only` mode), and strict guardrails preventing credentials wrapper overrides.*
+  *Dynamic runtime cloud toggles (`AWS`, `Azure`, `GCP`), tool filtering (134 to 128 tools in `--k8s-only` mode), and strict guardrails preventing credentials wrapper overrides.*
 
 ---
 
@@ -72,7 +72,7 @@ Welcome to the comprehensive technical specification catalog for the **DevOps Au
 - **[Spec 28: SRE Runbooks, Vault & Secrets, Service Mesh, and Observability](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/28-sre-runbooks-vault-secrets-and-observability.md)**
   *Vetted operational runbooks, secrets compliance, Istio/Linkerd mTLS diagnostics, Velero backups, and Loki/Jaeger telemetry.*
 - **[Spec 30: Enterprise Middleware, Message Queues & Downstream Services](file:///Users/joshuawilliams/Documents/Research/devops-agent/docs/specs/30-enterprise-middleware-message-queues-and-downstream-services.md)**
-  *21 specialized diagnostic and remediation tools covering Redis in-memory cache, Apache Kafka event streams & Pro Suite (broker config, non-destructive message sampling, partition scaling, security/ACL audits), RabbitMQ, Apache ActiveMQ broker triage, downstream synthetic HTTP/gRPC endpoint probing, and database connection pool auditing.*
+  *25 specialized diagnostic and remediation tools covering Redis Pro Suite (in-memory diagnostics, slowlog, keyspace sampling, cache purge, eviction audit, redis.conf live synthesis, Sentinel quorum & controlled failover, replication tracking, and client output buffer bloat triage), Apache Kafka event streams & Pro Suite (broker config, non-destructive message sampling, partition scaling, security/ACL audits), RabbitMQ, Apache ActiveMQ broker triage, downstream synthetic HTTP/gRPC endpoint probing, and database connection pool auditing.*
 
 ---
 
@@ -119,9 +119,9 @@ graph TD
         Audit[("Immutable Audit Trail (.audit/audit.jsonl)")]
     end
 
-    subgraph Platform_Tools ["130 Platform Tools (124 in K8s-Only Mode)"]
+    subgraph Platform_Tools ["134 Platform Tools (128 in K8s-Only Mode)"]
         K8s["Kubernetes Operations (35 Specialized Tools)"]
-        Middleware["Enterprise Middleware & Message Queues (21 Tools: Redis, Kafka Pro Suite, RabbitMQ, ActiveMQ, Probing)"]
+        Middleware["Enterprise Middleware & Message Queues (25 Tools: Redis Pro Suite, Kafka Pro Suite, RabbitMQ, ActiveMQ, Probing)"]
         IaC["Terraform & OpenTofu Operations"]
         GitOps["Argo CD & Flux v2 Engines"]
         Helm["Helm & Kustomize Packaging"]

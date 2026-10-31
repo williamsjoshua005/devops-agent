@@ -46,24 +46,24 @@ Enterprises frequently require strict operational boundaries:
 
 ## 3. Dynamic Tool Catalog Filtering
 
-The agent maintains **130 platform tools** in its master catalog. When cloud providers are toggled, [`getAvailableToolDefinitions(context)`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts) dynamically filters the tool catalog before sending definitions to LLMs or publishing via the MCP server:
+The agent maintains **134 platform tools** in its master catalog. When cloud providers are toggled, [`getAvailableToolDefinitions(context)`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts) dynamically filters the tool catalog before sending definitions to LLMs or publishing via the MCP server:
 
 | Configuration State | Disabled Tools | Active Tool Catalog Size |
 | :--- | :--- | :--- |
-| **All Cloud Providers Enabled** | None | **130 tools** |
-| **AWS Disabled** (`--no-aws`) | `aws_resource_list`, `aws_eks_status` | **128 tools** |
-| **Azure Disabled** (`--no-azure`) | `az_resource_list`, `az_aks_status` | **128 tools** |
-| **GCP Disabled** (`--no-gcp`) | `gcp_resource_list`, `gcp_gke_status` | **128 tools** |
-| **Kubernetes-Only Mode** (`--k8s-only`) | All 6 cloud provider tools | **124 tools** |
+| **All Cloud Providers Enabled** | None | **134 tools** |
+| **AWS Disabled** (`--no-aws`) | `aws_resource_list`, `aws_eks_status` | **132 tools** |
+| **Azure Disabled** (`--no-azure`) | `az_resource_list`, `az_aks_status` | **132 tools** |
+| **GCP Disabled** (`--no-gcp`) | `gcp_resource_list`, `gcp_gke_status` | **132 tools** |
+| **Kubernetes-Only Mode** (`--k8s-only`) | All 6 cloud provider tools | **128 tools** |
 
 Multi-provider tools like `cloud_db_snapshot` remain accessible if at least one cloud provider is active, but selectively block arguments corresponding to disabled providers.
 
 ```mermaid
 flowchart TD
     Config[Provider Config: AWS=false, Azure=true, GCP=false] --> Filter[getAvailableToolDefinitions]
-    Master[Master Catalog: 130 Tools] --> Filter
-    Filter --> LLM[LLM Prompt Tool Schema: 126 Tools]
-    Filter --> MCP[MCP JSON-RPC tools/list: 126 Tools]
+    Master[Master Catalog: 134 Tools] --> Filter
+    Filter --> LLM[LLM Prompt Tool Schema: 130 Tools]
+    Filter --> MCP[MCP JSON-RPC tools/list: 130 Tools]
 
     ToolCall[Agent Tool Invocation] --> Gate{Is Provider Enabled?}
     Gate -- Yes --> Execute[Execute Tool]

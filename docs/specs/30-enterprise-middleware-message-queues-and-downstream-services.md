@@ -8,7 +8,7 @@ Modern enterprise microservice architectures depend heavily on asynchronous mess
 - **JMS Poison Pills & Store Exhaustion:** ActiveMQ broker persistence store saturation and unhandled poison-pill exceptions in `ActiveMQ.DLQ`.
 - **Downstream Cascading Failures:** Database connection pool starvation (HikariCP / pgBouncer) and degraded synthetic endpoint latencies.
 
-**Feature Spec 30** establishes a comprehensive suite of **21 specialized diagnostic and remediation tools**, progressive safety guardrails, and automated SRE runbooks to triage, inspect, and safely remediate middleware incidents.
+**Feature Spec 30** establishes a comprehensive suite of **25 specialized diagnostic and remediation tools**, progressive safety guardrails, and automated SRE runbooks to triage, inspect, and safely remediate middleware incidents.
 
 ---
 
@@ -23,7 +23,7 @@ flowchart TD
 
     subgraph Caching_Tier ["Caching Tier"]
         WebAPI -->|Read / Write| RedisCluster["Redis In-Memory Cache / Cluster"]
-        RedisTool["Redis Diagnostic Suite (5 Tools)"] -.->|Audit / Inspect / Purge| RedisCluster
+        RedisTool["Redis Pro Suite (9 Tools)"] -.->|Audit / Inspect / Purge / Config / Sentinel / Repl / Clients| RedisCluster
     end
 
     subgraph Event_and_Queue_Tier ["Message Queues & Event Streaming Tier"]
@@ -52,9 +52,9 @@ flowchart TD
 
 ---
 
-## 3. Tool Catalog & Capabilities (21 Native Tools)
+## 3. Tool Catalog & Capabilities (25 Native Tools)
 
-### 3.1 Redis In-Memory Cache Suite (5 Tools)
+### 3.1 Redis In-Memory Cache Suite (9 Tools)
 Located in [`src/tools/middleware_cache.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_cache.ts):
 
 | Tool Name | Guardrail Tier | Parameters | Purpose |
@@ -64,6 +64,10 @@ Located in [`src/tools/middleware_cache.ts`](file:///Users/joshuawilliams/Docume
 | **`redis_key_analysis`** | `READ / Tier 1` | `host`, `port`, `pattern`, `namespace`, `context` | Samples keyspace via non-blocking `SCAN` to report namespace distribution, memory allocations, and TTL expiration status. |
 | **`redis_cache_purge`** | `Tier 2 Approval` | `pattern` (required), `host`, `port`, `namespace`, `context` | Invalidates cached keys matching specific prefixes. **Safety guardrail:** permanently blocks root wildcard `"*"` purges in production. |
 | **`redis_eviction_audit`** | `READ / Tier 1` | `host`, `port`, `namespace`, `context` | Audits `evicted_keys`, maxmemory policies (`volatile-lru`, `allkeys-lru`, `noeviction`), and flags cache stampede risks. |
+| **`redis_config_inspect`** | `READ / Tier 1` | `host`, `port`, `namespace`, `podName`, `password`, `context` | Reconstructs declarative `redis.conf` from live runtime instances, redacting sensitive credentials (`requirepass`, `masterauth`) and running SRE baseline linter. |
+| **`redis_sentinel_audit`** | `READ (Status) / Tier 2 (Failover)` | `sentinelHost`, `sentinelPort`, `masterName`, `action`, `dryRun`, `namespace`, `podName`, `context` | Audits Sentinel cluster quorum (`SENTINEL ckquorum`), maps primary/replicas, evaluates failover thresholds, and performs controlled manual failovers. |
+| **`redis_replication_status`** | `READ / Tier 1` | `host`, `port`, `namespace`, `podName`, `context` | Audits master/replica replication byte offsets, link health (`master_link_status: up`), sync lag, and detects background resync storm risks (`master_sync_in_progress`). |
+| **`redis_client_audit`** | `READ / Tier 1` | `host`, `port`, `namespace`, `podName`, `context` | Audits connected client sockets, identifies output buffer memory bloat (`omem`), detects connection pool leaks, and triages blocked client operations (`BLPOP`). |
 
 ### 3.2 Apache Kafka Event Streaming Suite (8 Tools)
 Located in [`src/tools/middleware_kafka.ts`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_kafka.ts):
@@ -153,9 +157,9 @@ All middleware tools integrate with the 3-Tier deterministic guardrails:
   - **Zero Offset Mutation:** [`kafka_message_sample`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_kafka.ts) uses direct partition `assign()` with `enable.auto.commit = false`. Production consumer group offsets remain untouched.
   - **Headers-First Safe Triage:** Message sampling defaults to `metadataOnly: true`, inspecting headers, schema IDs, and timestamps while suppressing raw payload bodies to prevent sensitive data from entering logs or audit ledgers.
   - **Automated PII/PCI Redaction:** When payload previews are enabled, automated regex scrubbing masks Primary Account Numbers (`[CARD_MASKED: ************1148]`), SSNs, tokens, and passwords.
-  - **Credentials Masking:** [`kafka_broker_config`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_kafka.ts) redacts SASL JAAS configs, keystore passwords, and SSL tokens.
+  - **Kafka & Redis Credentials Masking:** [`kafka_broker_config`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_kafka.ts) redacts SASL JAAS configs and SSL tokens; [`redis_config_inspect`](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/middleware_cache.ts) redacts `requirepass` and `masterauth` credentials when synthesizing `redis.conf`.
 - **Operator Approval Tier 2 (`MUTATE`):**
-  - Mutating operations (`redis_cache_purge`, `kafka_offset_reset`, `kafka_topic_manage`, `runbook_execute`) generate an ANSI diff or execution plan.
+  - Mutating operations (`redis_cache_purge`, `redis_sentinel_audit` with `action: 'failover'`, `kafka_offset_reset`, `kafka_topic_manage`, `runbook_execute`) generate an execution plan preview.
   - Require explicit human operator confirmation via CLI or the Mission Control floating approval bar.
   - In production environments, wildcard cache purges (`*`), wildcard topic mutations (`*`), and untargeted offset resets are strictly blocked.
 - **Forensic Audit Ledger:** Every invocation, diagnostic output summary, duration, and operator approval decision is recorded in `.audit/audit.jsonl` with UUID session tracing.
@@ -178,3 +182,7 @@ Verified in [`test/smoke.test.ts`](file:///Users/joshuawilliams/Documents/Resear
 - **Test 119:** Validates Enterprise Runbook catalog contains all middleware remediation runbooks (`kafka-consumer-lag-remediation`, `redis-oom-cache-stampede`, `rabbitmq-unacked-queue-backpressure`, `activemq-dlq-surge`, `downstream-service-circuit-breaker-open`).
 - **Test 120:** Validates Mission Control Dashboard UX (Command Palette, shortcuts, floating mobile approval bar, chat history tagging).
 - **Test 121:** Validates Mission Control Client Script Integrity via Node `vm.Script`.
+- **Test 122:** Validates Redis configuration inspection & declarative `redis.conf` synthesis (`redis_config_inspect`) with credential redaction.
+- **Test 123:** Validates Redis Sentinel quorum audit, topology mapping, and controlled failover guardrails (`redis_sentinel_audit`).
+- **Test 124:** Validates Redis master/replica replication health, offset tracking, and resync storm detection (`redis_replication_status`).
+- **Test 125:** Validates Redis client connections, output buffer bloat (`omem`), and blocked command triage (`redis_client_audit`).

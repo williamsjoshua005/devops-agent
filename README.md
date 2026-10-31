@@ -3,8 +3,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
-[![Tests](https://img.shields.io/badge/Tests-121%20Passing-brightgreen.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts)
-[![Tools](https://img.shields.io/badge/Tools-130%20Native-orange.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts)
+[![Tests](https://img.shields.io/badge/Tests-125%20Passing-brightgreen.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/test/smoke.test.ts)
+[![Tools](https://img.shields.io/badge/Tools-134%20Native-orange.svg)](file:///Users/joshuawilliams/Documents/Research/devops-agent/src/tools/index.ts)
 
 An autonomous, task-driven, user-guided enterprise DevOps agent engine built on the **Pi & Claw harness architecture**. It provides an AI agent with access to day-to-day DevOps tooling (`kubectl`, `helm`, `kustomize`, `terraform`, `flux`, `argocd`, `docker`, `git`, cloud CLIs, filesystem, Prometheus, Loki, Kafka, Redis, RabbitMQ, ActiveMQ) while enforcing strict 3-tier safety guardrails, visual diff previews, GitOps PR workflows, automated rollback watchers, multi-agent SRE peer reviews, multi-cloud isolation toggles, strict kubeconfig grounding, Model Context Protocol (MCP), and human-in-the-loop approvals.
 
@@ -23,7 +23,7 @@ An autonomous, task-driven, user-guided enterprise DevOps agent engine built on 
 
 3. **Cloud Provider Toggles & Strict Kubeconfig Grounding:**
    - Selectively enable or disable cloud providers (`AWS`, `Azure`, `GCP`) via configuration, CLI flags, REPL commands, or REST API.
-   - **Kubernetes-Only Mode (`--k8s-only`):** Disables all cloud providers, reducing the catalog from 130 down to 124 tools.
+   - **Kubernetes-Only Mode (`--k8s-only`):** Disables all cloud providers, reducing the catalog from 134 down to 128 tools.
    - **Custom Kubeconfig Targeting (`--kubeconfig=sb-config`):** Specify custom kubeconfig files via CLI, environment (`KUBECONFIG`), slash command (`/kubeconfig <path>`), tool (`k8s_set_kubeconfig`), or Web Console, just like `kubectl --kubeconfig=sb-config`.
    - **Strict In-Cluster Grounding (`stickToKubeConfig`):** Guardrails strictly block cloud credentials wrappers (`aws eks update-kubeconfig`, `az aks get-credentials`, `gcloud container clusters get-credentials`), eliminating cluster drift.
 
@@ -44,8 +44,8 @@ An autonomous, task-driven, user-guided enterprise DevOps agent engine built on 
    - Centralized logging via Grafana Loki LogQL (`loki_log_query`) and distributed tracing latency via Jaeger/Tempo (`trace_latency_query`).
    - On-call alert triage for PagerDuty and Opsgenie (`pagerduty_manage`, `opsgenie_manage`).
 
-7. **Enterprise Middleware, Message Queues & Downstream Probing (21 Specialized Tools):**
-   - **Distributed In-Memory Cache:** Redis diagnostic inspection, slowlog analysis, key sampling, and eviction audits (`redis_*`).
+7. **Enterprise Middleware, Message Queues & Downstream Probing (25 Specialized Tools):**
+   - **Distributed In-Memory Cache (Redis Pro Suite):** Redis diagnostic inspection, slowlog analysis, key sampling, eviction audits, live declarative `redis.conf` synthesis & SRE linting, Sentinel quorum & controlled failover, replication tracking & sync storm detection, and client buffer bloat triage (`redis_*`).
    - **Event Streaming & Message Queues:** Apache Kafka consumer lag calculation and offset resets, broker configuration audits, financial-grade non-destructive message sampling, partition expansion & topic management, security/TLS/ACL audits, cluster health, and topic inspections (`kafka_*`); RabbitMQ queue depths and dead-letter triage (`rabbitmq_*`); Apache ActiveMQ DLQ triage and queue audits (`activemq_*`).
    - **Downstream Dependency & Synthetic Probing:** In-cluster synthetic TCP/HTTP latency probes, database connection pool exhaustion audits (HikariCP / pgBouncer), and full microservice dependency topology mapping (`service_endpoint_probe`, `db_pool_audit`, `downstream_dependency_map`).
 
@@ -321,7 +321,7 @@ When all cloud providers are enabled, the agent exposes **126 native tools**. In
 | `generate_postmortem_report`| Tier 1 (Safe Action) | Generate structured postmortem report and index into knowledge base memory. |
 | `canary_deploy` | Tier 2 Approval | Progressive canary deployment (10% traffic) with automated error abort. |
 
-### 19. Enterprise Middleware, Message Queues & Downstream Probing (21 Tools)
+### 19. Enterprise Middleware, Message Queues & Downstream Probing (25 Tools)
 | Tool | Action Tier | Description |
 | :--- | :--- | :--- |
 | `redis_info_diagnose` | Tier 1 (Read-Only) | Audit Redis in-memory cache health, memory fragmentation, client counts, and cache hit/miss ratio. |
@@ -329,6 +329,10 @@ When all cloud providers are enabled, the agent exposes **126 native tools**. In
 | `redis_key_analysis` | Tier 1 (Read-Only) | Analyze Redis key namespaces, memory footprint, key counts, and TTL distribution via non-blocking SCAN. |
 | `redis_cache_purge` | Tier 1 (DryRun) / Tier 2 (Live) | Purge keys matching pattern. Wildcard flush in production is permanently blocked by Guardrails. |
 | `redis_eviction_audit` | Tier 1 (Read-Only) | Audit Redis memory pressure, maxmemory limits, eviction policies, and cache stampede risks. |
+| `redis_config_inspect` | Tier 1 (Read-Only) | Reconstruct and inspect `redis.conf` from live instances with credentials masking and SRE linter. |
+| `redis_sentinel_audit` | Tier 1 (Status) / Tier 2 (Failover) | Audit Redis Sentinel quorum, master/replica discovery, or perform controlled manual failover. |
+| `redis_replication_status` | Tier 1 (Read-Only) | Audit Redis replication offsets, link status, sync lag, and background resync storm risks. |
+| `redis_client_audit` | Tier 1 (Read-Only) | Audit connected Redis client sockets, output buffer memory bloat (`omem`), and blocked commands. |
 | `kafka_consumer_lag` | Tier 1 (Read-Only) | Triage Kafka consumer group lag: computes offset gaps, consumer stalling, and partition skew. |
 | `kafka_cluster_health` | Tier 1 (Read-Only) | Audit Kafka cluster health: checks broker counts, active controller, URP, and ISR stability. |
 | `kafka_topic_inspect` | Tier 1 (Read-Only) | Inspect topic partition distribution, replication factor, retention configuration, and leader skew. |
@@ -385,7 +389,7 @@ Start the engine in server mode (`npm run dev -- --server` or `npm run server`) 
 
 - **Mission Control Web Console:** `http://localhost:3456/dashboard`
 - **Health Check:** `GET http://localhost:3456/health`
-- **System Status & Tools:** `GET /api/status` — Returns active context, 130 loaded tools, and audit counts.
+- **System Status & Tools:** `GET /api/status` — Returns active context, 134 loaded tools, and audit counts.
 - **Role Hierarchy Management:**
   - `GET /api/role` — Get active operator role (`junior`, `intermediate`, `senior`).
   - `POST /api/role` — Switch active role (`{ "role": "senior" }`).

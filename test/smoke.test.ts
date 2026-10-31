@@ -872,27 +872,27 @@ spec:
   const carbonOut = await K8sTool.carbonFootprint(undefined, 'us-east-1');
   assert(carbonOut.includes('Carbon Footprint') || carbonOut.includes('Sustainability') || carbonOut.includes('kWh') || carbonOut.includes('CO2') || carbonOut.includes('Failed to estimate'), 'K8sTool.carbonFootprint computes GreenOps footprint');
 
-  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (130 Native Tools & MCP Exposure)
-  assert(TOOL_DEFINITIONS.length >= 130, `All 130 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
+  // Test 94: Complete Enterprise Kubernetes & Multi-Cloud Suite (134 Native Tools & MCP Exposure)
+  assert(TOOL_DEFINITIONS.length >= 134, `All 134 platform tools registered in TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length} tools)`);
 
   const mcp108Res = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10004, method: 'tools/list' });
-  assert(mcp108Res.result.tools.length >= 130, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
+  assert(mcp108Res.result.tools.length >= 134, `MCP Server exposes all tools over JSON-RPC (${mcp108Res.result.tools.length} tools)`);
 
   // Test 95: Cloud Provider Dynamic Catalog Filtering (getAvailableToolDefinitions)
   const allTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: true } });
-  assert(allTools.length === 130, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
+  assert(allTools.length === 134, `When all cloud providers enabled, full catalog is returned (${allTools.length} tools)`);
 
   const noAwsTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } });
-  assert(noAwsTools.length === 128 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (128 tools remaining)');
+  assert(noAwsTools.length === 132 && !noAwsTools.some((t) => t.name.startsWith('aws_')), 'Disabling AWS excludes aws_* tools (132 tools remaining)');
 
   const noAzTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: false, gcp: true } });
-  assert(noAzTools.length === 128 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (128 tools remaining)');
+  assert(noAzTools.length === 132 && !noAzTools.some((t) => t.name.startsWith('az_')), 'Disabling Azure excludes az_* tools (132 tools remaining)');
 
   const noGcpTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: true, azure: true, gcp: false } });
-  assert(noGcpTools.length === 128 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (128 tools remaining)');
+  assert(noGcpTools.length === 132 && !noGcpTools.some((t) => t.name.startsWith('gcp_')), 'Disabling GCP excludes gcp_* tools (132 tools remaining)');
 
   const k8sOnlyTools = getAvailableToolDefinitions({ ...mockDevContext, cloudProviders: { aws: false, azure: false, gcp: false } });
-  assert(k8sOnlyTools.length === 124, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 124 tools (${k8sOnlyTools.length} tools)`);
+  assert(k8sOnlyTools.length === 128, `Disabling all cloud providers (k8s-only mode) excludes all 6 cloud tools, leaving exactly 128 tools (${k8sOnlyTools.length} tools)`);
 
   // Test 96: Guardrails Enforcement for Disabled Cloud Provider Tools
   const awsDisabledCtx: AgentContext = { ...mockDevContext, cloudProviders: { aws: false, azure: true, gcp: true } };
@@ -966,7 +966,7 @@ spec:
     stickToKubeConfig: true,
   });
   const mcpFilteredRes = await DevOpsMcpServer.handleMessage({ jsonrpc: '2.0', id: 10005, method: 'tools/list' });
-  assert(mcpFilteredRes.result.tools.length === 124, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 124 tools)`);
+  assert(mcpFilteredRes.result.tools.length === 128, `MCP Server tools/list dynamically filters disabled cloud tools (returned ${mcpFilteredRes.result.tools.length} of 128 tools)`);
   assert(!mcpFilteredRes.result.tools.some((t: any) => t.name.startsWith('aws_') || t.name.startsWith('az_') || t.name.startsWith('gcp_')), 'MCP Server tool list contains zero disabled cloud tools');
 
   // Test 101: Custom Kubeconfig Targeting (k8s_set_kubeconfig & K8sTool.setKubeconfig)
@@ -1157,7 +1157,41 @@ spec:
   }
   assert(scriptParseError === null, `Mission Control client-side JavaScript parses with 0 syntax errors (got: ${scriptParseError?.message})`);
 
-  console.log('\n\x1b[32mAll 121 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis, Kafka Pro Suite, RabbitMQ, ActiveMQ, Downstream Probing, Dashboard UX, Script Integrity & Grounding feature tests passed successfully!\x1b[0m\n');
+  // Test 122: Redis Configuration Inspection & Declarative redis.conf Synthesis (redis_config_inspect)
+  const redisConfigEval = Guardrails.evaluate('redis_config_inspect', { host: 'redis-master' }, mockDevContext);
+  assert(redisConfigEval.tier === 'READ' && !redisConfigEval.requiresApproval, 'redis_config_inspect evaluates autonomously as READ');
+
+  const redisConfigOut = await RedisTool.configInspect({ host: 'redis-vm.internal', port: 6379 });
+  assert(redisConfigOut.includes('redis.conf') && redisConfigOut.includes('[REDACTED_CREDENTIAL]') && redisConfigOut.includes('maxmemory'), 'RedisTool.configInspect synthesizes declarative redis.conf with credential redaction');
+
+  // Test 123: Redis Sentinel Topology, Quorum Audit & Controlled Failover Guardrails (redis_sentinel_audit)
+  const sentinelStatusEval = Guardrails.evaluate('redis_sentinel_audit', { action: 'status' }, mockDevContext);
+  assert(sentinelStatusEval.tier === 'READ' && !sentinelStatusEval.requiresApproval, 'redis_sentinel_audit status check evaluates as READ');
+
+  const sentinelDryEval = Guardrails.evaluate('redis_sentinel_audit', { action: 'failover', dryRun: true }, mockProdContext);
+  assert(sentinelDryEval.tier === 'READ' && !sentinelDryEval.requiresApproval, 'redis_sentinel_audit failover dry-run evaluates as READ');
+
+  const sentinelLiveEval = Guardrails.evaluate('redis_sentinel_audit', { action: 'failover', dryRun: false }, mockProdContext);
+  assert(sentinelLiveEval.tier === 'MUTATE' && sentinelLiveEval.requiresApproval && sentinelLiveEval.isProductionWarning, 'redis_sentinel_audit live failover enforces Tier 2 approval and production warning');
+
+  const sentinelStatusOut = await RedisTool.sentinelAudit({ sentinelHost: 'sentinel.internal', masterName: 'prod-redis' });
+  assert(sentinelStatusOut.includes('Quorum') && sentinelStatusOut.includes('Primary (Master)') && sentinelStatusOut.includes('Replica'), 'RedisTool.sentinelAudit maps cluster quorum and replicas');
+
+  // Test 124: Redis Master/Replica Replication Health & Resync Storm Detection (redis_replication_status)
+  const replEval = Guardrails.evaluate('redis_replication_status', {}, mockDevContext);
+  assert(replEval.tier === 'READ' && !replEval.requiresApproval, 'redis_replication_status evaluates autonomously as READ');
+
+  const replOut = await RedisTool.replicationStatus({ host: 'redis-primary' });
+  assert(replOut.includes('Replication & Synchronization') && replOut.includes('master_sync_in_progress') && replOut.includes('Offset'), 'RedisTool.replicationStatus monitors offsets and sync storm status');
+
+  // Test 125: Redis Client Sockets, Output Buffer Bloat (omem) & Blocked Command Audit (redis_client_audit)
+  const clientAuditEval = Guardrails.evaluate('redis_client_audit', {}, mockDevContext);
+  assert(clientAuditEval.tier === 'READ' && !clientAuditEval.requiresApproval, 'redis_client_audit evaluates autonomously as READ');
+
+  const clientAuditOut = await RedisTool.clientAudit({ host: 'redis-prod' });
+  assert(clientAuditOut.includes('Client Connections') && clientAuditOut.includes('Output Buffer Bloat') && clientAuditOut.includes('BLPOP'), 'RedisTool.clientAudit isolates client buffer bloat and blocked commands');
+
+  console.log('\n\x1b[32mAll 125 enterprise SRE, DR, CI/CD, GitOps, IaC, Kubernetes, Cloud Provider Toggle, Redis Pro Suite, Kafka Pro Suite, RabbitMQ, ActiveMQ, Downstream Probing, Dashboard UX, Script Integrity & Grounding feature tests passed successfully!\x1b[0m\n');
 }
 
 runTests().catch((err) => {

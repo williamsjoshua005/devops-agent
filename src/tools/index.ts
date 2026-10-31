@@ -2742,6 +2742,143 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'redis_config_inspect',
+    description:
+      'Reconstruct and inspect redis.conf configuration from live Redis instances, running SRE best-practice linting and redacting credentials.',
+    parameters: {
+      type: 'object',
+      properties: {
+        host: {
+          type: 'string',
+          description: 'Redis hostname or service name (defaults to "redis").',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port (defaults to 6379).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace where Redis is deployed.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional Redis pod name for in-cluster exec.',
+        },
+        password: {
+          type: 'string',
+          description: 'Optional Redis authentication password.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'redis_sentinel_audit',
+    description:
+      'Audit Redis Sentinel quorum, master/replica discovery, failover parameters, or perform controlled manual failover.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sentinelHost: {
+          type: 'string',
+          description: 'Redis Sentinel hostname or service name (defaults to "redis-sentinel").',
+        },
+        sentinelPort: {
+          type: 'number',
+          description: 'Redis Sentinel port (defaults to 26379).',
+        },
+        masterName: {
+          type: 'string',
+          description: 'Redis master group name monitored by Sentinel (defaults to "mymaster").',
+        },
+        action: {
+          type: 'string',
+          enum: ['status', 'failover'],
+          description: 'Sentinel action: "status" for quorum & replica audit, or "failover" to trigger manual failover.',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Whether to preview the failover action without executing (defaults to true).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional pod name for in-cluster Sentinel access.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'redis_replication_status',
+    description:
+      'Audit Redis master/replica replication health, byte offsets, sync lag, link status, and full resync storm risks.',
+    parameters: {
+      type: 'object',
+      properties: {
+        host: {
+          type: 'string',
+          description: 'Redis hostname or primary service name (defaults to "redis").',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port (defaults to 6379).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional Redis pod name for in-cluster inspection.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
+    name: 'redis_client_audit',
+    description:
+      'Audit connected Redis client connections, buffer memory bloat (omem), idle connections, and blocked client operations.',
+    parameters: {
+      type: 'object',
+      properties: {
+        host: {
+          type: 'string',
+          description: 'Redis hostname or service name (defaults to "redis").',
+        },
+        port: {
+          type: 'number',
+          description: 'Redis port (defaults to 6379).',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace.',
+        },
+        podName: {
+          type: 'string',
+          description: 'Optional Redis pod name.',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional Kubernetes cluster context.',
+        },
+      },
+    },
+  },
+  {
     name: 'kafka_consumer_lag',
     description:
       'Triage Apache Kafka consumer group lag: computes offset gaps, consumer stalling, and partition skew.',
@@ -3717,6 +3854,22 @@ export async function executeTool(name: string, args: Record<string, any>, conte
     case 'redis_eviction_audit': {
       const targetCtx = args.context || context?.kubeContext;
       return await RedisTool.auditEvictions({ ...args, context: targetCtx });
+    }
+    case 'redis_config_inspect': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.configInspect({ ...args, context: targetCtx });
+    }
+    case 'redis_sentinel_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.sentinelAudit({ ...args, context: targetCtx });
+    }
+    case 'redis_replication_status': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.replicationStatus({ ...args, context: targetCtx });
+    }
+    case 'redis_client_audit': {
+      const targetCtx = args.context || context?.kubeContext;
+      return await RedisTool.clientAudit({ ...args, context: targetCtx });
     }
     case 'kafka_consumer_lag': {
       const targetCtx = args.context || context?.kubeContext;
