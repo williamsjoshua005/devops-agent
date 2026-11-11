@@ -774,7 +774,11 @@ However, no valid AI model API key was detected in \`.env\` (current key is miss
     const sessionId = options.sessionId || randomUUID();
 
     // Keep context window within budget using token-aware pruning (preserving system prompt and recent turns)
-    this.messages = fitMessagesToBudget(this.messages, 16000, 3500);
+    const contextBudget =
+      typeof (this.llm as any).getContextBudget === 'function'
+        ? (this.llm as any).getContextBudget()
+        : 500000;
+    this.messages = fitMessagesToBudget(this.messages, contextBudget, 3500);
 
     this.messages.push({ role: 'user', content: options.task });
 

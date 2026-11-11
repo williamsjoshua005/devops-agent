@@ -133,6 +133,21 @@ export class LLMClient {
     return true;
   }
 
+  getContextBudget(): number {
+    const rawEnv = Number(process.env.LLM_CONTEXT_BUDGET);
+    if (Number.isFinite(rawEnv) && rawEnv > 0) {
+      return rawEnv;
+    }
+    if (this.config.contextBudget && this.config.contextBudget > 0) {
+      return this.config.contextBudget;
+    }
+    if (this.config.provider === 'anthropic') {
+      return 160000;
+    }
+    // Default context budget: 500,000 tokens for OpenAI, Ollama, Kimi, Gemini, and other providers
+    return 500000;
+  }
+
   private getTimeoutMs(): number {
     const raw = Number(process.env.LLM_TIMEOUT_MS);
     return Number.isFinite(raw) && raw > 0 ? raw : 60000;
@@ -207,8 +222,8 @@ export class LLMClient {
     isRetry = false
   ): Promise<LLMResponse> {
     // Keep prompt token usage focused and lean within context window.
-    // We budget 24k tokens for prompt + tools to prevent context bloat and safety filter trips.
-    const budgetedMessages = fitMessagesToBudget(messages, 24000, 3000);
+    // Context budget defaults to 500k tokens (configurable via LLM_CONTEXT_BUDGET in .env).
+    const budgetedMessages = fitMessagesToBudget(messages, this.getContextBudget(), 3000);
 
     let baseUrl = this.config.baseUrl;
     if (!baseUrl) {
@@ -363,8 +378,8 @@ export class LLMClient {
   }
 
   private async chatGemini(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {
-    // Gemini 1.5 Flash/Pro context windows are large (1M+), but cap conservatively.
-    const budgetedMessages = fitMessagesToBudget(messages, 500000);
+    // Gemini context window is large (1M+), capped to configured budget (default 500k).
+    const budgetedMessages = fitMessagesToBudget(messages, this.getContextBudget());
 
     const apiKey = this.config.apiKey || process.env.GEMINI_API_KEY;
     const model = this.config.model || 'gemini-2.5-flash';
@@ -468,8 +483,8 @@ export class LLMClient {
   }
 
   private async chatAnthropic(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {
-    // Claude 3.5/3.7 Sonnet context window is 200k tokens; budget ~160k for prompt.
-    const budgetedMessages = fitMessagesToBudget(messages, 160000);
+    // Claude context window capped to configured budget (default 160k, or LLM_CONTEXT_BUDGET).
+    const budgetedMessages = fitMessagesToBudget(messages, this.getContextBudget());
 
     const apiKey = this.config.apiKey || process.env.ANTHROPIC_API_KEY;
     const model = this.config.model || 'claude-3-7-sonnet-20250219';

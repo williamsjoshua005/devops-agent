@@ -58,6 +58,7 @@ export interface LLMConfig {
   baseUrl?: string;
   temperature?: number;
   maxTokens?: number;
+  contextBudget?: number;
 }
 
 export type EnvironmentLevel = 'development' | 'staging' | 'production' | 'unknown';

@@ -108,12 +108,15 @@ function getLLMConfig(): LLMConfig {
   const model = process.env.LLM_MODEL || (provider === 'gemini' ? 'gemini-2.5-flash' : provider === 'kimi' ? 'moonshot-v1-auto' : 'gpt-4o');
   const apiKey = process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.MOONSHOT_API_KEY || process.env.OPENAI_API_KEY;
   const baseUrl = process.env.LLM_BASE_URL;
+  const rawBudget = Number(process.env.LLM_CONTEXT_BUDGET);
+  const contextBudget = Number.isFinite(rawBudget) && rawBudget > 0 ? rawBudget : undefined;
 
   return {
     provider,
     model,
     apiKey,
     baseUrl,
+    contextBudget,
   };
 }
 
